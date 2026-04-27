@@ -1,0 +1,205 @@
+import React, { useState, useEffect } from 'react';
+import { BellRing, X } from 'lucide-react';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, setDoc, query, where, orderBy, limit } from 'firebase/firestore';
+import { onMessage } from 'firebase/messaging';
+
+import { auth, db, appId, messaging } from './config/firebase';
+import { DEFAULT_BRAND, DEFAULT_SETTINGS, DEFAULT_MENU_ITEMS } from './config/constants';
+import { setupNotifications } from './utils/helpers';
+
+import AuthView from './views/AuthView';
+import ClientView from './views/ClientView';
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [orders, setOrders] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [cart, setCart] = useState([]);
+  const [notify, setNotify] = useState(null);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [brand, setBrand] = useState(DEFAULT_BRAND);
+  const [audioObj] = useState(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
+  const prevOrdersRef = React.useRef([]);
+
+  const playNotification = () => {
+    try {
+      audioObj.play().catch(e=>console.log('Audio bloqué', e));
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    } catch(err){}
+  };
+
+  useEffect(() => {
+    const handleSWMessage = (e) => {
+      if (e.data && e.data.type === 'FCM_MESSAGE') {
+        playNotification();
+      }
+    };
+    if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', handleSWMessage);
+    return () => {
+      if (navigator.serviceWorker) navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+    };
+  }, []);
+
+  const showNotify = (msg, type = 'info') => {
+    setNotify({ msg, type });
+    setTimeout(() => setNotify(null), 3000);
+  };
+
+  useEffect(() => {
+    const unsubConfig = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), (s) => {
+      if(s.exists()) setSettings(s.data());
+    });
+    const unsubBrand = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'brand'), (s) => {
+      if(s.exists()) setBrand(s.data());
+    });
+    return () => {
+      unsubConfig();
+      unsubBrand();
+    };
+  }, []);
+
+  const saveSettings = async (newSettings) => {
+    setSettings(newSettings);
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), newSettings, { merge: true });
+  };
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        setUser(u);
+        const unsubProfile = onSnapshot(doc(db, 'artifacts', appId, 'users', u.uid, 'profile', 'data'), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setProfile(data);
+            if (data.isRegistered) {
+              setupNotifications(u.uid, db, messaging, appId);
+            }
+          }
+          else setProfile({});
+          setLoading(false);
+        });
+        return () => unsubProfile();
+      } else {
+        signInAnonymously(auth).catch(err => {
+          showNotify("Erreur de connexion", "error");
+          setLoading(false);
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const qOrders = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'orders'), 
+      where('userId', '==', user.uid), 
+      orderBy('createdAt', 'desc'), 
+      limit(20)
+    );
+
+    const unsubOrders = onSnapshot(qOrders, (snap) => {
+      const ords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setOrders(ords);
+      
+      let hasStatusChange = false;
+      const prevOrds = prevOrdersRef.current;
+      if (prevOrds.length > 0) {
+        ords.forEach(newO => {
+          const oldO = prevOrds.find(o => o.id === newO.id);
+          if (oldO && oldO.status !== newO.status) hasStatusChange = true;
+        });
+      }
+      if (hasStatusChange) playNotification();
+      prevOrdersRef.current = ords;
+    });
+
+    return () => unsubOrders();
+  }, [user]);
+
+  const updateStatus = async (id, currentStatus, updates = {}) => {
+    let newStatus = currentStatus;
+    if (currentStatus === 'pending') newStatus = 'preparing';
+    else if (currentStatus === 'preparing' && !updates.prepTime && updates.prepTime !== 0) newStatus = 'ready';
+    
+    if (updates.status) newStatus = updates.status; 
+    
+    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', id), {
+      status: newStatus,
+      updatedAt: serverTimestamp(),
+      ...updates
+    });
+  };
+
+  const handleLogout = async () => {
+    if (window.confirm('Voulez-vous vraiment vous déconnecter?')) {
+      await auth.signOut();
+      window.location.reload();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center space-y-4" style={{backgroundColor: brand?.bgColor || '#f8f9fa'}}>
+        <div className="w-16 h-16 rounded-full border-4 border-gray-200 border-t-[#ffbc0d] animate-spin" style={{borderTopColor: brand?.color || '#ffbc0d'}}></div>
+        <p className="text-xs font-black uppercase text-gray-400 tracking-widest">Chargement...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative font-sans text-gray-800 selection:bg-black selection:text-white" style={{ fontFamily: brand?.fontFamily || "'Poppins', sans-serif" }}>
+      
+      {notify && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-top-5 w-[90%] max-w-md">
+          <div className={`px-6 py-4 rounded-2xl shadow-2xl font-black text-[11px] uppercase tracking-widest flex items-center gap-3 border-2 ${notify.type === 'error' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-black text-white border-white/20'}`}>
+            {notify.type === 'error' ? <div className="bg-red-200 p-1.5 rounded-full"><X size={14} className="text-red-700"/></div> : <BellRing size={16} className="text-yellow-400 animate-bounce"/>}
+            <span className="leading-tight">{notify.msg}</span>
+          </div>
+        </div>
+      )}
+
+      {(!profile?.isRegistered) ? (
+        <AuthView 
+          brand={brand} 
+          settings={settings} 
+          showNotify={showNotify} 
+          db={db}
+          onComplete={async (data) => {
+            const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', data.phone);
+            const snap = await getDoc(clientRef);
+            let roleData = { isAdmin: false, isManager: false, managerBranchId: null, isDriver: false, isFreelance: false, blocked: false };
+            
+            if (snap.exists()) {
+              const c = snap.data();
+              if (c.blocked) { showNotify("Had l-compte msouwer (Bloqué) 🚫", "error"); return; }
+              await updateDoc(clientRef, { uid: user.uid });
+            } else {
+              await setDoc(clientRef, { name: data.name, phone: data.phone, blocked: false, isDriver: false, uid: user.uid, createdAt: serverTimestamp() });
+            }
+            
+            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), { ...data, ...roleData, isRegistered: true, updatedAt: serverTimestamp() }, { merge: true });
+            showNotify("Mar7ba bik! ✅", "success");
+          }} 
+        />
+      ) : (
+        <ClientView 
+          cart={cart} 
+          setCart={setCart} 
+          orders={orders} 
+          user={user} 
+          showNotify={showNotify} 
+          settings={settings} 
+          brand={brand} 
+          db={db} 
+          onLogout={handleLogout} 
+          defaultMenu={DEFAULT_MENU_ITEMS}
+        />
+      )}
+    </div>
+  );
+}

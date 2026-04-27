@@ -1,0 +1,21 @@
+{
+  "name": "Mon Bocadillo App - Officiel",
+  "short_name": "Mon Bocadillo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#ffbc0d",
+  "description": "L'application officielle de Mon Bocadillo",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1550507992-eb63ffee0224?w=192&h=192&fit=crop",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1550507992-eb63ffee0224?w=512&h=512&fit=crop",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
