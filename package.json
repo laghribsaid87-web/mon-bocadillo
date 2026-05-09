@@ -1,7 +1,7 @@
 {
   "name": "mon-bocadillo",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "main": "public/electron.cjs",
   "scripts": {
@@ -15,7 +15,7 @@
     "dist": "npm run build && electron-builder",
     "build:32": "npm run build && electron-builder --win --ia32",
     "build:64": "npm run build && electron-builder --win --x64",
-    "publish:win": "npm run build && electron-builder --win -p always",
+    "publish:win": "npm run build && electron-builder --win --ia32 --x64 -p always",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -75,7 +75,7 @@
       {
         "provider": "github",
         "owner": "laghribsaid87-web",
-        "repo": "menu-mon-bocadillo"
+        "repo": "mon-bocadillo"
       }
     ]
   }
