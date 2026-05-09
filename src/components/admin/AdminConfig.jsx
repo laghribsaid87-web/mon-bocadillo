@@ -5,6 +5,7 @@ import {
     Plus, Eye, Truck, Monitor, LayoutDashboard, History, Menu, MapPin, Printer,
     ChevronDown, ChevronUp, Smartphone, ChefHat
 } from 'lucide-react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { doc, setDoc } from 'firebase/firestore';
 import { FONTS_OPTIONS, DEFAULT_BRAND } from '../../config/constants';
 import AdminMenuEditor from './AdminMenuEditor';
@@ -568,7 +569,6 @@ export default function AdminConfig({
                                      try {
                                          if (!settings?.kdsEmail || !settings?.kdsPassword) return showNotify("Dkhel Email w Mot de passe!", "error");
                                          showNotify("Jari l'modification...", "info");
-                                         const { getFunctions, httpsCallable } = await import('firebase/functions');
                                          const fns = getFunctions();
                                          const updateAcc = httpsCallable(fns, 'updateSecureAccount');
                                          try {
@@ -776,7 +776,6 @@ export default function AdminConfig({
                                          try {
                                              if (!branch.managerEmail || !branch.managerPassword) return showNotify("Dkhel Email w Mot de passe!", "error");
                                              showNotify("Jari l'modification...", "info");
-                                             const { getFunctions, httpsCallable } = await import('firebase/functions');
                                              const fns = getFunctions();
                                              const updateAcc = httpsCallable(fns, 'updateSecureAccount');
                                              try {

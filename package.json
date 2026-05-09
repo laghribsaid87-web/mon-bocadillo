@@ -1,7 +1,9 @@
 {
   "name": "mon-bocadillo",
+  "description": "Caisse Mon Bocadillo Management Application",
+  "author": "Mon Bocadillo",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.4",
   "type": "module",
   "main": "public/electron.cjs",
   "scripts": {
@@ -15,7 +17,7 @@
     "dist": "npm run build && electron-builder",
     "build:32": "npm run build && electron-builder --win --ia32",
     "build:64": "npm run build && electron-builder --win --x64",
-    "publish:win": "npm run build && electron-builder --win --ia32 --x64 -p always",
+    "publish:win": "npm run build && electron-builder --win --x64 -p always && electron-builder --win --ia32 -p always",
     "lint": "eslint .",
     "preview": "vite preview"
   },

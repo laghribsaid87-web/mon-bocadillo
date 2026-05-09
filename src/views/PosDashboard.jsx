@@ -717,7 +717,10 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'tv':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => window.open('/tv', '_blank')} className={`${baseClass} bg-blue-600 hover:bg-blue-700 text-white border border-blue-700`}>
+                    <button key={btnId} {...dragProps} onClick={() => {
+                        const route = '/tv';
+                        window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
+                    }} className={`${baseClass} bg-blue-600 hover:bg-blue-700 text-white border border-blue-700`}>
                         <Monitor size={18} /> <span className="hidden sm:inline">Écran TV</span>
                     </button>
                 );
@@ -729,7 +732,10 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'kds':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => window.open('/kds', '_blank')} className={`${baseClass} bg-neutral-900 hover:bg-black text-white border border-neutral-800`}>
+                    <button key={btnId} {...dragProps} onClick={() => {
+                        const route = '/kds';
+                        window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
+                    }} className={`${baseClass} bg-neutral-900 hover:bg-black text-white border border-neutral-800`}>
                         <ChefHat size={18} className="text-orange-500" /> <span className="hidden sm:inline">Cuisine (KDS)</span>
                     </button>
                 );

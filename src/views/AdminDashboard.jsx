@@ -450,12 +450,18 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
             <div className="flex-1 overflow-y-auto py-6 px-4 no-scrollbar">
                 {renderNavItem({ id: "pos", icon: <ShoppingBag size={20}/>, label: "Caisse (POS)", hidden: !hasAccess('pos') })}
                 {hasAccess('kds') && (
-                    <button onClick={() => window.open('/kds', '_blank')} className="w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent">
+                    <button onClick={() => {
+                        const route = '/kds';
+                        window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
+                    }} className="w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent">
                         <div className="flex items-center gap-3"><ChefHat size={20}/><span>Cuisine (KDS)</span></div>
                     </button>
                 )}
                 {hasAccess('tv') && (
-                    <button onClick={() => window.open('/tv', '_blank')} className="w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent">
+                    <button onClick={() => {
+                        const route = '/tv';
+                        window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
+                    }} className="w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent">
                         <div className="flex items-center gap-3"><Monitor size={20}/><span>Écran TV</span></div>
                     </button>
                 )}

@@ -137,8 +137,10 @@ export default function AdminActiveOrders({
                     <ClipboardList size={22} className="text-blue-200" /> Résumé (Total)
                 </button>
                 {(!hasAccess || hasAccess('kds')) && (
-                    <button onClick={() => window.open('/kds', '_blank')} className="bg-neutral-900 hover:bg-black text-white px-6 py-4 rounded-[1.5rem] font-black text-xs md:text-sm uppercase tracking-widest shadow-xl flex items-center gap-3 transition-all active:scale-95 border-2 border-neutral-800">
-                        <ChefHat size={22} className="text-orange-500" /> Ouvrir l'Écran Cuisine (KDS)
+                    <button onClick={() => {
+                        const route = '/kds';
+                        window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
+                    }} className="bg-neutral-900 hover:bg-black text-white px-6 py-4 rounded-[1.5rem] font-black text-xs md:text-sm uppercase tracking-widest shadow-xl flex items-center gap-3 transition-all active:scale-95 border-2 border-neutral-800">                        <ChefHat size={22} className="text-orange-500" /> Ouvrir l'Écran Cuisine (KDS)
                     </button>
                 )}
             </div>

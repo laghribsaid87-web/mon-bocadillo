@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Truck, Download, Ban, User, Trash2, X, CheckSquare, MessageCircle, Star, BellRing } from 'lucide-react';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export default function AdminClients({
     f, setF,
@@ -166,7 +167,6 @@ export default function AdminClients({
         if (window.confirm(`Ghatsifet notification Push l ${selectedUsers.length} clients. Wakha?`)) {
             showNotify(`Jari l-envoi l ${selectedUsers.length} clients...`, "info");
             try {
-                const { getFunctions, httpsCallable } = await import('firebase/functions');
                 const functions = getFunctions();
                 const sendPushFn = httpsCallable(functions, 'sendMarketingPush');
                 await sendPushFn({ appId, tokens: selectedUsers.map(c => c.fcmToken), title: title, body: body });

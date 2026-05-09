@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingBag, User, Plus, ChevronRight, Lock, MapPin, Navigation, MessageCircle, Star, X, Home, Clock, Check, Phone, Utensils, Trash2, FileText, ClipboardList, BellRing } from 'lucide-react';
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
+import { getMessaging, onMessage, getToken } from 'firebase/messaging';
 import { getClosestBranch, getDeliveryFee, getWhatsAppFormat, generateOrderNumber, buildMessage, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
 import ClientTrackingMap from '../components/ClientTrackingMap';
 import StatusBadge from '../components/StatusBadge';
@@ -148,7 +149,6 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
         const setupFCM = async () => {
             if (!('Notification' in window) || Notification.permission !== 'granted') return;
             try {
-                const { getMessaging, onMessage, getToken } = await import('firebase/messaging');
                 const messaging = getMessaging();
                 
                 const token = await getToken(messaging, { vapidKey: VAPID_KEY });

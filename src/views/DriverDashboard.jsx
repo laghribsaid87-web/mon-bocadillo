@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Power, Truck, BellRing, MapPin, Navigation, Store, CheckCircle, Phone, MessageCircle, AlertTriangle, User, LogOut, Utensils, Map as MapIcon, Info, History, Check, X, Clock, Maximize, Minimize } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { getMessaging, onMessage, getToken } from 'firebase/messaging';
 import { getWhatsAppFormat, getDistance, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
 import StatusBadge from '../components/StatusBadge';
 import ClientTrackingMap from '../components/ClientTrackingMap';
@@ -148,7 +149,6 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     useEffect(() => {
         const setupFCM = async () => {
             try {
-                const { getMessaging, onMessage, getToken } = await import('firebase/messaging');
                 const messaging = getMessaging();
                 
                 try {
