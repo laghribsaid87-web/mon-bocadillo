@@ -41,7 +41,8 @@ export default function AdminMap({ onlineDrivers, branches }) {
         if (!mapRef.current) return;
         if (!mapInstance.current) {
             mapInstance.current = L.map(mapRef.current).setView([33.55, -7.67], 13);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(mapInstance.current);
+            // 🔥 Google Maps Epuré (Light Mode + Sans Restaurants/Banques POI) 7ta f L'Idara
+            L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&apistyle=s.t:2|p.v:off', { attribution: '© Google Maps', maxZoom: 20 }).addTo(mapInstance.current);
             
             branches.forEach(b => {
                 L.marker([b.lat, b.lng], { 

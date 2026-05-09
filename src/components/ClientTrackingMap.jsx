@@ -45,7 +45,8 @@ export default function ClientTrackingMap({ dLat, dLng, cLat, cLng, bLat, bLng, 
         if (!mapRef.current) return;
         if (!mapInstance.current) {
             mapInstance.current = L.map(mapRef.current, { zoomControl: false }).setView([dLat || cLat || 33.55, dLng || cLng || -7.67], 13);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© MB Bocadillo' }).addTo(mapInstance.current);
+            // 🔥 Google Maps Epuré (Light Mode + Sans Restaurants/Banques POI)
+            L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&apistyle=s.t:2|p.v:off', { attribution: '© Google Maps', maxZoom: 20 }).addTo(mapInstance.current);
             
             if (cLat && cLng) { 
                 cMarker.current = L.marker([cLat, cLng], { 
@@ -68,7 +69,7 @@ export default function ClientTrackingMap({ dLat, dLng, cLat, cLng, bLat, bLng, 
             else { 
                 dMarker.current = L.marker([dLat, dLng], { 
                         // 🔥 Zidna smooth-motorcycle bach l-moteur yt7rek b-slassa
-                        icon: L.divIcon({ className: 'd-icon smooth-motorcycle', html: `<div style="background-color: ${color}; color: black; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 2px solid white;">🛵</div>`, iconSize: [36, 36], iconAnchor: [18, 18] }) 
+                        icon: L.divIcon({ className: 'd-icon smooth-motorcycle', html: `<div style="background-color: #ffbc0d; color: black; border-radius: 8px; width: 110px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; border: 2px solid black; box-shadow: 0 4px 8px rgba(0,0,0,0.3); position: relative; font-family: sans-serif; letter-spacing: -0.5px;">MON BOCADILLO<div style="position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 8px solid black;"></div></div>`, iconSize: [110, 32], iconAnchor: [55, 40] }) 
                 }).addTo(mapInstance.current); 
             }
                 

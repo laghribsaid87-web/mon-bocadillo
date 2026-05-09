@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, X } from 'lucide-react';
+import { Lock, X, Download } from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, serverTimestamp, query, limit, orderBy, getDoc, setDoc } from 'firebase/firestore';
 
@@ -8,8 +8,9 @@ import { DEFAULT_BRAND, DEFAULT_SETTINGS } from './config/constants';
 import { setupNotifications } from './utils/helpers';
 import DriverDashboard from './views/DriverDashboard';
 import AuthView from './views/AuthView';
+import ErrorBoundary from './components/ErrorBoundary';
 
-export default function DriverApp() {
+function DriverAppInner() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -17,6 +18,25 @@ export default function DriverApp() {
   const [brand, setBrand] = useState(DEFAULT_BRAND);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [notify, setNotify] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(() => {
+        setDeferredPrompt(null);
+      });
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [audioObj] = useState(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
 
@@ -166,7 +186,7 @@ export default function DriverApp() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
         <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-black shadow-2xl relative text-center">
-          <button onClick={() => window.location.href = '/'} className="absolute top-5 right-5 text-gray-400 hover:text-red-500 bg-gray-100 rounded-full p-2"><X size={20}/></button>
+          <button onClick={() => window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#/' : '/'} className="absolute top-5 right-5 text-gray-400 hover:text-red-500 bg-gray-100 rounded-full p-2"><X size={20}/></button>
           <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-100"><Lock size={28} className="text-red-500" /></div>
           <h2 className="font-black uppercase mb-2 text-xl tracking-widest text-gray-800">Accès Refusé</h2>
           <p className="text-sm text-gray-500 mb-6 font-bold">Vous n'êtes pas enregistré comme livreur.</p>
@@ -178,8 +198,27 @@ export default function DriverApp() {
 
   return (
     <>
+      {deferredPrompt && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[9999] bg-white p-3 rounded-2xl shadow-2xl border-2 flex items-center gap-3 w-[90%] max-w-md animate-in slide-in-from-top-5" style={{borderColor: brand?.color || '#ffbc0d'}}>
+          <div className="bg-gray-100 p-2 rounded-xl shrink-0"><Download size={20} style={{color: brand?.color || '#ffbc0d'}}/></div>
+          <div className="flex-1 text-left">
+            <p className="text-[11px] font-black uppercase leading-tight text-gray-800">Installer l'Application</p>
+            <p className="text-[9px] font-bold text-gray-500 leading-tight">Accès rapide pour les coursiers</p>
+          </div>
+          <button onClick={handleInstallClick} className="px-4 py-2 text-[10px] font-black uppercase rounded-xl text-black shadow-md shrink-0" style={{backgroundColor: brand?.color || '#ffbc0d'}}>Installer</button>
+          <button onClick={() => setDeferredPrompt(null)} className="p-2 text-gray-400 hover:text-gray-600 bg-gray-50 rounded-lg shrink-0"><X size={14}/></button>
+        </div>
+      )}
       {notify && <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-full text-white shadow-lg font-bold text-xs uppercase tracking-widest ${notify.type === 'error' ? 'bg-red-500' : 'bg-black'}`}>{notify.msg}</div>}
       <DriverDashboard orders={orders} user={user} profile={profile} brand={brand} updateStatus={updateStatus} db={db} showNotify={showNotify} onLogout={handleLogout} clientsList={clientsList} handleReassignOrder={handleReassignOrder} settings={settings} appId={appId} />
     </>
   );
+}
+
+export default function DriverApp(props) {
+    return (
+        <ErrorBoundary>
+            <DriverAppInner {...props} />
+        </ErrorBoundary>
+    );
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BellRing, X } from 'lucide-react';
+import { BellRing, X, Download } from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, setDoc, query, where, orderBy, limit } from 'firebase/firestore';
 import { onMessage } from 'firebase/messaging';
@@ -10,6 +10,7 @@ import { setupNotifications } from './utils/helpers';
 
 import AuthView from './views/AuthView';
 import ClientView from './views/ClientView';
+import ClientScreen from './views/ClientScreen';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -19,6 +20,25 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
   const [notify, setNotify] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(() => {
+        setDeferredPrompt(null);
+      });
+    }
+  };
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [brand, setBrand] = useState(DEFAULT_BRAND);
   const [audioObj] = useState(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
@@ -142,6 +162,11 @@ export default function App() {
     }
   };
 
+  // 🔥 Route directe vers l'Écran TV (Support Electron w Web)
+  if (window.location.pathname === '/tv' || window.location.hash.includes('/tv')) {
+    return <ClientScreen brand={brand} db={db} appId={appId} />;
+  }
+
   if (loading) {
     return (
       <div className="h-screen flex flex-col items-center justify-center space-y-4" style={{backgroundColor: brand?.bgColor || '#f8f9fa'}}>
@@ -154,6 +179,18 @@ export default function App() {
   return (
     <div className="relative font-sans text-gray-800 selection:bg-black selection:text-white" style={{ fontFamily: brand?.fontFamily || "'Poppins', sans-serif" }}>
       
+      {deferredPrompt && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[9999] bg-white p-3 rounded-2xl shadow-2xl border-2 flex items-center gap-3 w-[90%] max-w-md animate-in slide-in-from-top-5" style={{borderColor: brand?.color || '#ffbc0d'}}>
+          <div className="bg-gray-100 p-2 rounded-xl shrink-0"><Download size={20} style={{color: brand?.color || '#ffbc0d'}}/></div>
+          <div className="flex-1 text-left">
+            <p className="text-[11px] font-black uppercase leading-tight text-gray-800">Installer l'Application</p>
+            <p className="text-[9px] font-bold text-gray-500 leading-tight">Accès rapide et meilleur suivi</p>
+          </div>
+          <button onClick={handleInstallClick} className="px-4 py-2 text-[10px] font-black uppercase rounded-xl text-black shadow-md shrink-0" style={{backgroundColor: brand?.color || '#ffbc0d'}}>Installer</button>
+          <button onClick={() => setDeferredPrompt(null)} className="p-2 text-gray-400 hover:text-gray-600 bg-gray-50 rounded-lg shrink-0"><X size={14}/></button>
+        </div>
+      )}
+
       {notify && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-top-5 w-[90%] max-w-md">
           <div className={`px-6 py-4 rounded-2xl shadow-2xl font-black text-[11px] uppercase tracking-widest flex items-center gap-3 border-2 ${notify.type === 'error' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-black text-white border-white/20'}`}>

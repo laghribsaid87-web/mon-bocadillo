@@ -1,15 +1,16 @@
 import { getToken, onMessage } from 'firebase/messaging';
 import { doc, setDoc } from 'firebase/firestore';
+import { VAPID_KEY } from '../config/firebase';
+import qz from 'qz-tray';
 
 export const setupNotifications = async (userId, db, messaging, appId) => {
   if (!messaging) return;
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      const token = await getToken(messaging, { vapidKey: 'BCmG0k02D2_b84rQ98s6N7T80u34vB5_m630B29b828z_e4M_q40_0Z-t4-YwM_U3c0' }); // Note: Using a placeholder VAPID key is wrong, better not to specify vapidKey or get the real one, actually Firebase works without vapidKey config if we have default setup, wait, for web push vapidKey is highly recommended. I will just pass the messaging instance and let it generate if possible, or I will omit vapidKey and let Firebase use the default one if not provided, or better, we can just call getToken(messaging).
-      // wait, `getToken(messaging)` without vapidKey works if the project is configured correctly, but it's recommended to provide vapidKey.
-      // I'll skip vapidKey for now and let Firebase handle it, or we can just try without.
-      const fcmToken = await getToken(messaging);
+      const fcmToken = await getToken(messaging, { 
+        vapidKey: VAPID_KEY
+      });
       if (fcmToken) {
         await setDoc(doc(db, 'artifacts', appId, 'users', userId, 'profile', 'data'), { fcmToken }, { merge: true });
       }
@@ -57,6 +58,20 @@ export const calculateETA = (distKm) => {
     return prepTime + travelTime + 5; // +5 min buffer dyal z7am
 };
 
+// 4.6. Fonction bach n-formatiw "Sans Ingrédient" b l'émoji f l-wl
+export const formatSansIngredient = (ingredient) => {
+    if (!ingredient) return '';
+    const trimIng = ingredient.trim();
+    const firstSpace = trimIng.indexOf(' ');
+    if (firstSpace !== -1) {
+        const firstPart = trimIng.substring(0, firstSpace);
+        if (!/^[a-zA-Z0-9À-ÿ]/.test(firstPart)) {
+            return `${firstPart} Sans ${trimIng.substring(firstSpace + 1).trim()}`;
+        }
+    }
+    return `Sans ${trimIng}`;
+};
+
 // 5. 🔥 FIX N-NIHAYI: 7yedna l-weqt w l-magana 100%!
 // Daba l-Idara maghadich t-7seb 2026, ghat-chouf ghir wach l-Boutona mch3oula awla la.
 export const isDriverOnline = (drv) => { 
@@ -81,7 +96,7 @@ export const formatPhoneNumber = (ph) => {
     let p = String(ph).replace(/\D/g, ''); 
     if (p.startsWith('00212')) p = p.substring(5); 
     if (p.startsWith('212')) p = p.substring(3); 
-    if (p.length === 9) p = '0' + p; 
+    if (p.length === 9 && (p.startsWith('6') || p.startsWith('7'))) p = '0' + p; 
     return p; 
 };
 
@@ -92,20 +107,107 @@ export const getWhatsAppFormat = (ph) => {
 };
 
 // 10. Fonction bach t-imprimer t-ticket dyal l-caisse
-export const printTicket = (o, brand) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return alert("Veuillez autoriser les pop-ups pour imprimer le ticket.");
-        const itemsHtml = (o.items || []).map(i => {
-            const parts = (i.name || '').split(' (Sans ');
-            const baseName = parts[0];
-            const optionsHtml = parts.length > 1 ? parts[1].replace(')','').split(', ').map(opt => `<br><span style="font-size: 10px; margin-left: 12px; color: #555;">- Sans ${opt}</span>`).join('') : '';
-            return `<tr><td style="padding: 4px 0; vertical-align: top;"><b>${i.qty}x ${baseName}</b>${optionsHtml}</td><td style="text-align: right; vertical-align: top; padding-top: 4px;">${(i.price * i.qty).toFixed(2)} DH</td></tr>`;
-        }).join('');
+export const printTicket = async (o, brand) => {
+    const itemsHtml = (o.items || []).map(i => {
+        const parts = (i.name || '').split(' (Sans ');
+        const baseName = parts[0];
+        const optionsHtml = parts.length > 1 ? parts[1].replace(')','').split(', ').map(opt => `<br><span style="font-size: 10px; margin-left: 12px; color: #555;">- ${formatSansIngredient(opt)}</span>`).join('') : '';
+        return `<tr><td style="padding: 4px 0; vertical-align: top;"><b>${i.qty}x ${baseName}</b>${optionsHtml}</td><td style="text-align: right; vertical-align: top; padding-top: 4px;">${(i.price * i.qty).toFixed(2)} DH</td></tr>`;
+    }).join('');
     const orderTypeHtml = o.orderType ? `<h3 style="margin: 5px 0; border: 1px solid #000; padding: 4px; text-transform: uppercase;">${o.orderType.replace('_', ' ')}</h3>` : '';
     const noteHtml = o.orderNote ? `<div class="divider"></div><p class="left bold" style="font-size: 11px; color: #000;">📝 NOTE CUISINE:</p><p class="left" style="font-size: 11px; font-style: italic;">${o.orderNote}</p>` : '';
     const paymentHtml = o.paymentMethod ? `<p class="left bold" style="font-size: 12px; margin-top: 5px;">Mode de paiement: ${o.paymentMethod.toUpperCase()}</p>` : '';
-    const html = `<html><head><style>body { font-family: monospace; width: 58mm; margin: 0 auto; padding: 5px; color: #000; } h1, h2, h3, p { margin: 4px 0; text-align: center; } table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; } .divider { border-top: 1px dashed #000; margin: 8px 0; } .text-right { text-align: right; } .bold { font-weight: bold; } .left { text-align: left; }</style></head><body><h2>${brand?.name?.toUpperCase() || 'BOCADILLO'}</h2>${orderTypeHtml}<h3>Ticket #${o.orderNumber || (o.id ? o.id.slice(-4).toUpperCase() : '')}</h3><p style="font-size: 10px;">${o.createdAt?.seconds ? new Date(o.createdAt.seconds*1000).toLocaleString('fr-FR') : new Date().toLocaleString('fr-FR')}</p><div class="divider"></div><p class="left bold">Client: ${o.customerName || o.name || 'Client'}</p><p class="left">${o.phone || ''}</p><p class="left" style="font-size:10px;">${o.address || ''}</p><div class="divider"></div><table>${itemsHtml}</table>${noteHtml}<div class="divider"></div><table><tr><td>S-Total</td><td class="text-right">${o.subtotal || 0} DH</td></tr><tr><td>Livraison</td><td class="text-right">${o.deliveryFee || 0} DH</td></tr>${o.discount > 0 ? `<tr><td>Promo</td><td class="text-right">-${o.discount} DH</td></tr>` : ''}${o.pointsUsed > 0 ? `<tr><td>Fidélité</td><td class="text-right">-${o.pointsUsed} DH</td></tr>` : ''}</table><div class="divider"></div><h2 style="text-align: right; font-size: 16px;">TOTAL: ${o.total || 0} DH</h2>${paymentHtml}<div class="divider"></div><p>Merci et bon appetit!</p><script>window.onload=function(){window.print();}; window.onafterprint=function(){window.close();};</script></body></html>`;
-    printWindow.document.write(html); printWindow.document.close();
+    
+    const headerLogoHtml = brand?.ticketLogoUrl ? `<div style="text-align: center;"><img src="${brand.ticketLogoUrl}" style="max-width: 140px; max-height: 70px; object-fit: contain; margin-bottom: 5px;" /></div>` : '';
+    const headerHtml = brand?.ticketHeader ? `<p style="font-size: 12px; margin: 2px 0;">${brand.ticketHeader}</p>` : '';
+    const phoneHtml = brand?.ticketPhone ? `<p style="font-size: 12px; margin: 2px 0;">Tél: ${brand.ticketPhone}</p>` : '';
+    const footerHtml = brand?.ticketFooter ? `<div class="divider"></div><p style="font-size: 12px; font-weight: bold; margin-top: 10px; text-align: center;">${brand.ticketFooter}</p>` : '<div class="divider"></div><p style="text-align: center;">Merci et bon appetit!</p>';
+
+    // HTML bla script dyal window.print() 7it QZ Tray kay-imprimi direct mn l-khalafiya
+    const html = `<html><head><style>body { font-family: monospace; width: ${brand?.ticketWidth || '100%'}; max-width: 80mm; box-sizing: border-box; margin: 0 auto; padding: 2px; color: #000; } h1, h2, h3, p { margin: 4px 0; text-align: center; } table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; } .divider { border-top: 1px dashed #000; margin: 8px 0; } .text-right { text-align: right; } .bold { font-weight: bold; } .left { text-align: left; }</style></head><body>${headerLogoHtml}<h2 style="margin: 0; font-size: 18px;">${brand?.name?.toUpperCase() || 'BOCADILLO'}</h2>${headerHtml}${phoneHtml}${orderTypeHtml}<h3>Ticket #${o.orderNumber || (o.id ? o.id.slice(-4).toUpperCase() : '')}</h3><p style="font-size: 10px;">${o.createdAt?.seconds ? new Date(o.createdAt.seconds*1000).toLocaleString('fr-FR') : new Date().toLocaleString('fr-FR')}</p><div class="divider"></div><p class="left bold">Client: ${o.customerName || o.name || 'Client'}</p><p class="left">${o.phone || ''}</p><p class="left" style="font-size:10px;">${o.address || ''}</p><div class="divider"></div><table>${itemsHtml}</table>${noteHtml}<div class="divider"></div><table><tr><td>S-Total</td><td class="text-right">${o.subtotal || 0} DH</td></tr><tr><td>Livraison</td><td class="text-right">${o.deliveryFee || 0} DH</td></tr>${o.discount > 0 ? `<tr><td>Promo</td><td class="text-right">-${o.discount} DH</td></tr>` : ''}${o.pointsUsed > 0 ? `<tr><td>Fidélité</td><td class="text-right">-${o.pointsUsed} DH</td></tr>` : ''}</table><div class="divider"></div><h2 style="text-align: right; font-size: 16px;">TOTAL: ${o.total || 0} DH</h2>${paymentHtml}${footerHtml}</body></html>`;
+
+    // 🔥 Fonction bach n-affichi notification non-bloquante l-caissier
+    const notifyCaissier = (msg) => {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            new Notification("Caisse - Impression", { body: msg, icon: '/favicon.svg' });
+        }
+    };
+
+    // 🔥 1. N-choufo wach l-application khdama 3la chkel Logiciel (.exe) b Electron
+    if (typeof window !== 'undefined' && window.require) {
+        try {
+            const ipcRenderer = window['require']('electron').ipcRenderer;
+            if (ipcRenderer) {
+                ipcRenderer.send('print-ticket', html);
+                return; // N7bso hna, Electron tkelef bl-impression f s-skat!
+            }
+        } catch(e) { console.error("Erreur Electron IPC:", e); }
+    }
+
+    // 🔥 2. Ila khdamin f Navigateur (Chrome) nkhdmo b QZ Tray b7al dima
+    // Impression 100% silencieuse m3a QZ Tray
+    try {
+        if (!qz.websocket.isActive()) {
+            await qz.websocket.connect();
+        }
+        
+        // 1. N9elbo 3la ga3 l-imprimantes w n3ezlo l-imprimante Thermique
+        const printers = await qz.printers.find();
+        let printer = printers.find(p => {
+            const n = p.toLowerCase();
+            return n.includes('pos') || n.includes('xp') || n.includes('80') || n.includes('58') || n.includes('ticket') || n.includes('receipt') || n.includes('thermal') || n.includes('epson') || n.includes('tm-');
+        });
+        
+        // Ila mal9inach imprimante bhad s-smia, nkhdmo b par défaut
+        if (!printer) {
+            printer = await qz.printers.getDefault();
+            const n = printer ? printer.toLowerCase() : '';
+            // 🔥 N-blockiw les imprimantes virtuelles li kay7elo fenêtre
+            if (!printer || n.includes('pdf') || n.includes('xps') || n.includes('fax') || n.includes('onenote') || n.includes('desktop') || n.includes('anydesk') || n.includes('microsoft')) {
+                console.warn("Imprimante non détectée. Vente passée sans bloquer la caisse.");
+                notifyCaissier("Imprimante non détectée ou éteinte. La vente est passée.");
+                return; // N7bso hna, may-imprimich w may-blokich l-caisse
+            }
+        }
+        
+        const config = qz.configs.create(printer, { 
+            margins: 0,
+            fallback: false // May7awelch y9leb 3la fallback y7el page
+        });
+        
+        const data = [{
+            type: 'pixel',
+            format: 'html',
+            flavor: 'plain',
+            data: html
+        }];
+        
+        await qz.print(config, data);
+        
+    } catch (e) {
+        console.error("Erreur QZ Tray:", e);
+        notifyCaissier("Imprimante débranchée ou QZ Tray fermé. Vente passée.");
+    }
+};
+
+// 11. Fonction centralisée bach nsifto l-WhatsApp direct bla machakil dyal l-navigateur
+export const openWhatsAppDirect = (phone, message) => {
+    const waPhone = getWhatsAppFormat(phone);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+        // En mobile: Ouvre l'application WhatsApp directement (0 onglet web, 0 page de confirmation)
+        window.location.href = `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`;
+    } else {
+        // En PC: Chrome bloque la réutilisation d'onglets (Cross-Origin Policy)
+        // On est obligé d'ouvrir un nouvel onglet pour WhatsApp Web
+        window.open(`https://web.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(message)}`, '_blank');
+        
+        // 🔥 SOLUTION ULTIME POUR LE PC DE CAISSE (0 ONGLET) :
+        // Si le caissier a installé l'application "WhatsApp Desktop" sur son PC (Windows/Mac),
+        // supprimez le window.open ci-dessus et décommentez la ligne suivante :
+        // window.location.href = `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`;
+    }
 };
 
 export const getStep = (s) => { switch(s) { case 'pending': return 1; case 'preparing': return 2; case 'ready': return 2; case 'out_for_delivery': return 3; case 'delivered': return 4; default: return 1; } };

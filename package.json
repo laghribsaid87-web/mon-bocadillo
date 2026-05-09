@@ -1,34 +1,82 @@
 {
   "name": "mon-bocadillo",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.1",
   "type": "module",
+  "main": "public/electron.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:web": "vite build",
+    "build:apk-client": "cross-env VITE_APP_TYPE=CLIENT vite build",
+    "build:apk-driver": "cross-env VITE_APP_TYPE=DRIVER vite build",
+    "electron:dev": "cross-env ELECTRON_START_URL=http://localhost:5173 electron .",
+    "app": "concurrently \"npm run dev\" \"npm run electron:dev\"",
+    "dist": "npm run build && electron-builder",
+    "build:32": "npm run build && electron-builder --win --ia32",
+    "build:64": "npm run build && electron-builder --win --x64",
+    "publish:win": "npm run build && electron-builder --win -p always",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "firebase": "^12.12.0",
-    "leaflet": "^1.9.4",
-    "leaflet-routing-machine": "^3.2.12",
-    "lucide-react": "^1.8.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "electron-updater": "^6.8.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
     "@eslint/js": "^9.39.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^22.3.27",
+    "electron-builder": "^26.8.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "firebase": "^12.12.0",
+    "framer-motion": "^12.38.0",
     "globals": "^17.4.0",
+    "leaflet": "^1.9.4",
+    "leaflet-routing-machine": "^3.2.12",
+    "lucide-react": "^1.8.0",
     "postcss": "^8.5.10",
+    "qz-tray": "^2.2.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "tailwindcss": "^3.4.19",
     "vite": "^8.0.4"
+  },
+  "build": {
+    "appId": "com.monbocadillo.caisse",
+    "productName": "Caisse Mon Bocadillo",
+    "artifactName": "${productName} Setup ${arch}.${ext}",
+    "directories": {
+      "buildResources": "public",
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "extraMetadata": {
+      "main": "dist/electron.cjs"
+    },
+    "win": {
+      "icon": "public/logo.png",
+      "target": [
+        "nsis"
+      ]
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "laghribsaid87-web",
+        "repo": "menu-mon-bocadillo"
+      }
+    ]
   }
 }

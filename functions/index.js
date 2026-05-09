@@ -59,7 +59,7 @@ exports.sendAdminNotificationOnNewOrder = functions.firestore
             // Vérifier que c'est bien le sous-dossier profile de la bonne app
             if (docSnap.ref.path.includes(`artifacts/${appId}/users/`)) {
                 const profile = docSnap.data();
-                if ((profile.isAdmin || profile.isManager) && profile.fcmToken) {
+                if ((profile.isAdmin || profile.isManager || profile.isKds) && profile.fcmToken) {
                     adminTokens.push(profile.fcmToken);
                 }
             }
@@ -71,6 +71,10 @@ exports.sendAdminNotificationOnNewOrder = functions.firestore
                     title: 'Nouvelle Commande! 🍔',
                     body: `Commande #${orderData.orderNumber || snap.id.slice(-4).toUpperCase()} de ${orderData.total} DH.`,
                     clickAction: `https://${appId}.web.app/idara`
+                },
+                data: {
+                    type: 'NEW_ORDER',
+                    orderId: snap.id
                 }
             };
             await admin.messaging().sendToDevice(adminTokens, payload);
@@ -131,6 +135,7 @@ exports.createSecureAccount = functions.https.onCall(async (data, context) => {
         const profileData = {
             isManager: role === 'manager',
             isAdmin: role === 'admin',
+            isKds: role === 'kds',
             isRegistered: true,
             email: email,
             managerBranchId: branchId || null
@@ -175,3 +180,35 @@ exports.updateSecureAccount = functions.https.onCall(async (data, context) => {
     }
 });
 
+// 7. Envoyer des notifications Push Marketing aux clients
+exports.sendMarketingPush = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'User must be logged in');
+    
+    const { appId, tokens, title, body } = data;
+    
+    if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
+        return { success: true, count: 0 };
+    }
+    if (!title || !body) {
+        throw new functions.https.HttpsError('invalid-argument', 'Title and body are required');
+    }
+
+    try {
+        const payload = {
+            notification: {
+                title: title,
+                body: body,
+                clickAction: `https://${appId || 'mon-bocadillo-menu'}.web.app/`
+            }
+        };
+        const options = { priority: "high", timeToLive: 60 * 60 * 24 };
+        
+        const response = await admin.messaging().sendToDevice(tokens, payload, options);
+        console.log(`Marketing Push envoyé avec succès à ${response.successCount} appareils.`);
+        
+        return { success: true, count: tokens.length, sent: response.successCount };
+    } catch (error) {
+        console.error("Error sending marketing push:", error);
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});

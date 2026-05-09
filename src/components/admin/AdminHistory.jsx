@@ -1,5 +1,5 @@
 import React from 'react';
-import { History, ChevronRight } from 'lucide-react';
+import { History, ChevronRight, Database, Download } from 'lucide-react';
 import StatusBadge from '../StatusBadge';
 
 export default function AdminHistory({
@@ -10,7 +10,14 @@ export default function AdminHistory({
     clientsList,
     expandedOrder, setExpandedOrder,
     brand,
-    role
+    role,
+    handleFetchArchive,
+    handleDownloadAndDeleteArchive,
+    archiveDates,
+    setArchiveDates,
+    isFetchingHistory,
+    fullHistoryFetched,
+    olderOrders
 }) {
     return (
         <div className="space-y-8 animate-in fade-in pb-10">
@@ -34,8 +41,38 @@ export default function AdminHistory({
                )}
            </div>
 
+           {/* 🔥 Panel Archive & Nettoyage Firebase (Réservé à l'Admin) */}
+           {role === 'admin' && (
+               <div className="bg-indigo-50 border border-indigo-200 p-5 md:p-6 rounded-[2rem] mb-8 flex flex-col md:flex-row items-center gap-4 justify-between shadow-inner">
+                   <div>
+                       <h3 className="text-indigo-800 font-black flex items-center gap-2 text-lg"><Database size={20}/> Archives & Nettoyage</h3>
+                       <p className="text-xs font-bold text-indigo-600 mt-1">Télécharger et supprimer l'historique pour libérer de l'espace sur Firebase.</p>
+                   </div>
+                   <div className="flex items-center gap-3 w-full md:w-auto flex-wrap md:flex-nowrap">
+                       <input type="date" className="px-4 py-3 rounded-xl text-sm font-bold border border-indigo-200 outline-none text-indigo-900 bg-white w-full md:w-auto" value={archiveDates.start} onChange={e => setArchiveDates({...archiveDates, start: e.target.value})} />
+                       <span className="font-black text-indigo-400 hidden md:block">à</span>
+                       <input type="date" className="px-4 py-3 rounded-xl text-sm font-bold border border-indigo-200 outline-none text-indigo-900 bg-white w-full md:w-auto" value={archiveDates.end} onChange={e => setArchiveDates({...archiveDates, end: e.target.value})} />
+                       
+                       <button onClick={handleFetchArchive} disabled={isFetchingHistory} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3.5 rounded-xl font-black text-xs uppercase shadow-md transition-all flex items-center justify-center gap-2 flex-1 md:flex-none">
+                           {isFetchingHistory ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : "Charger"}
+                       </button>
+
+                       {fullHistoryFetched && olderOrders && olderOrders.length > 0 && (
+                           <button onClick={handleDownloadAndDeleteArchive} disabled={isFetchingHistory} className="bg-red-500 hover:bg-red-600 text-white px-6 py-3.5 rounded-xl font-black text-xs uppercase shadow-md transition-all flex items-center justify-center gap-2 flex-1 md:flex-none animate-in zoom-in">
+                               <Download size={16}/> Sauvegarder & Supprimer
+                           </button>
+                       )}
+                   </div>
+               </div>
+           )}
+
            <div className="flex flex-col md:flex-row gap-4 mb-8 bg-white p-4 rounded-[2rem] shadow-lg border border-gray-100">
-              <div className="flex gap-3 flex-1"><button onClick={()=>setF({...f,type:'today'})} className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${f.type==='today'?'bg-black text-white shadow-xl scale-105':'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>Aujourd'hui</button><button onClick={()=>setF({...f,type:'yesterday'})} className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${f.type==='yesterday'?'bg-black text-white shadow-xl scale-105':'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>Hier</button>{role === 'admin' && <input type="date" value={f.date} onChange={e=>setF({...f,type:'custom',date:e.target.value})} className="flex-[2] bg-gray-50 px-5 py-4 rounded-2xl text-gray-800 outline-none border-2 border-transparent focus:border-blue-500 text-sm font-bold shadow-inner transition-all" />}</div>
+              <div className="flex gap-3 flex-1">
+                  <button onClick={()=>setF({...f,type:'today'})} className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${f.type==='today'?'bg-black text-white shadow-xl scale-105':'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>Aujourd'hui</button>
+                  {role === 'admin' && <button onClick={()=>setF({...f,type:'yesterday'})} className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${f.type==='yesterday'?'bg-black text-white shadow-xl scale-105':'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>Hier</button>}
+                  {role === 'admin' && <input type="date" value={f.date || ''} onChange={e=>setF({...f,type:'custom',date:e.target.value})} className="flex-[2] bg-gray-50 px-5 py-4 rounded-2xl text-gray-800 outline-none border-2 border-transparent focus:border-blue-500 text-sm font-bold shadow-inner transition-all" />}
+                  {role === 'admin' && f.type === 'archive' && <div className="flex-[2] bg-indigo-100 text-indigo-700 px-5 py-4 rounded-2xl font-black text-xs uppercase flex items-center justify-center border border-indigo-200">Archive Affichée</div>}
+              </div>
               <select className="flex-1 bg-blue-50 px-5 py-4 rounded-2xl text-blue-800 outline-none border-2 border-transparent focus:border-blue-500 font-black text-xs uppercase tracking-wider shadow-inner transition-all appearance-none cursor-pointer" value={historyDriverFilter} onChange={(e) => setHistoryDriverFilter(e.target.value)}><option value="ALL">👉 Tous les Livreurs</option>{(clientsList||[]).filter(c => c.isDriver === true).map(d => <option key={d.id} value={d.uid || d.id}>{d.name || d.phone || 'Inconnu'} {d.isFreelance ? '(Freelance)' : '(Officiel)'}</option>)}</select>
            </div>
 
@@ -68,6 +105,16 @@ export default function AdminHistory({
                                            </td>
                                            <td className="px-8 py-5">
                                                <span className="font-black text-gray-800 uppercase italic">{String(o.customerName || o.name || o.phone)}</span>
+                                               <div className="flex items-center gap-1 mt-1">
+                                                   <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${o.source === 'pos' ? 'bg-blue-50 text-blue-600 border-blue-200' : o.source === 'telephone' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                                                       {o.source === 'pos' ? 'Caisse (POS)' : o.source === 'telephone' ? 'Tél' : 'App'}
+                                                   </span>
+                                                   {o.source === 'pos' && o.orderType && (
+                                                       <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${o.orderType === 'sur_place' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-pink-50 text-pink-600 border-pink-200'}`}>
+                                                           {o.orderType === 'sur_place' ? 'Sur place' : 'À emporter'}
+                                                       </span>
+                                                   )}
+                                               </div>
                                            </td>
                                            <td className="px-8 py-5">
                                                <span className={`font-black text-lg ${o.status === 'rejected' ? 'text-red-400 line-through' : 'text-[#da291c]'}`}>{o.total} DH</span>

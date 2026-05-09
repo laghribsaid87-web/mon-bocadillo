@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, X, Mail, Key } from 'lucide-react';
+import { Lock, X, Mail, Key, ChefHat, Monitor } from 'lucide-react';
 import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, setDoc, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, setDoc, query, orderBy, limit, where } from 'firebase/firestore';
 
 import { auth, db, appId, messaging } from './config/firebase';
 import { DEFAULT_BRAND, DEFAULT_SETTINGS, DEFAULT_MENU_ITEMS } from './config/constants';
@@ -9,8 +9,10 @@ import { printTicket, isDriverOnline, getDistance, setupNotifications } from './
 
 import AdminDashboard from './views/AdminDashboard';
 import PosDashboard from './views/PosDashboard';
+import KitchenDashboard from './components/admin/KitchenDashboard';
+import ErrorBoundary from './components/ErrorBoundary';
 
-export default function AdminApp() {
+function AdminAppInner() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -22,6 +24,8 @@ export default function AdminApp() {
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [audioObj] = useState(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
+  const [kdsEmailInput, setKdsEmailInput] = useState('');
+  const [kdsPasswordInput, setKdsPasswordInput] = useState('');
   
   const prevOrdersRef = useRef([]);
   const onlineDriversRef = useRef([]);
@@ -72,7 +76,7 @@ export default function AdminApp() {
           if (docSnap.exists()) {
             const pData = docSnap.data();
             setProfile(pData);
-            if (pData.isAdmin || pData.isManager) {
+            if (pData.isAdmin || pData.isManager || pData.isKds) {
               setupNotifications(u.uid, db, messaging, appId);
             }
           }
@@ -111,6 +115,23 @@ export default function AdminApp() {
     }
   };
 
+  const handleKdsLogin = async () => {
+    if (!kdsEmailInput || !kdsPasswordInput) return showNotify("Dkhel Email w Mot de passe!", "error");
+    try {
+      const userCred = await signInWithEmailAndPassword(auth, kdsEmailInput.trim().toLowerCase(), kdsPasswordInput);
+      const pSnap = await getDoc(doc(db, 'artifacts', appId, 'users', userCred.user.uid, 'profile', 'data'));
+      const pData = pSnap.data();
+      if (pData?.isAdmin || pData?.isManager || pData?.isKds) {
+         showNotify("Accès Cuisine autorisé ✅", "success");
+      } else {
+         showNotify("Makandkch l'accès lel kuzina!", "error");
+         await auth.signOut();
+      }
+    } catch (e) {
+      showNotify("Email wla Mot de passe ghalat! ❌", "error");
+    }
+  };
+
   const handleLogout = async () => {
     if (window.confirm("Déconnexion ?")) {
       await auth.signOut();
@@ -119,9 +140,13 @@ export default function AdminApp() {
   };
 
   useEffect(() => {
-    if (!user || (!profile?.isAdmin && !profile?.isManager)) return;
+    const isAuthorized = (profile?.isAdmin || profile?.isManager || profile?.isKds);
+    if (!user || !isAuthorized) return;
 
-    const qOrders = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc'), limit(100));
+    // 🔥 On charge uniquement les commandes des 48 dernières heures par défaut
+    const limiteDate = new Date();
+    limiteDate.setDate(limiteDate.getDate() - 2);
+    const qOrders = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), where('createdAt', '>=', limiteDate), orderBy('createdAt', 'desc'));
     const unsubOrders = onSnapshot(qOrders, (snap) => {
         const ords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setOrders(ords);
@@ -222,12 +247,40 @@ export default function AdminApp() {
     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), newSettings, { merge: true });
   };
 
+  // 🔥 Chargement de l'écran KDS (Support Web w Electron via Hash)
+  if (window.location.pathname.startsWith('/kds') || window.location.hash.includes('/kds')) {
+    if (!profile?.isAdmin && !profile?.isManager && !profile?.isKds) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-950 font-sans selection:bg-orange-500/30">
+          {notify && <div className={`fixed top-4 right-4 p-4 rounded-xl z-50 text-white ${notify.type === 'error' ? 'bg-red-500' : 'bg-gray-800'}`}>{notify.msg}</div>}
+          <div className="bg-neutral-900 p-8 md:p-10 rounded-[3rem] w-full max-w-sm text-white shadow-2xl relative border border-neutral-800">
+            <button onClick={() => window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#/idara' : '/idara'} className="absolute top-5 right-5 text-neutral-500 hover:text-white bg-neutral-800 rounded-full p-2 transition-all"><X size={20}/></button>
+            <div className="w-20 h-20 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-neutral-700 shadow-inner"><ChefHat size={32} className="text-orange-500" /></div>
+            <h2 className="text-center font-black uppercase mb-2 text-2xl tracking-widest text-white">KDS Cuisine</h2>
+            <p className="text-center text-xs font-bold text-neutral-500 mb-8">Connectez-vous avec le compte cuisine</p>
+            <div className="space-y-4 mb-8">
+                <input type="email" placeholder="Email Cuisine" className="w-full bg-neutral-950 border-2 border-neutral-800 p-4 rounded-2xl text-center text-sm font-bold outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 transition-all shadow-inner" value={kdsEmailInput} onChange={e => setKdsEmailInput(e.target.value)} />
+                <input type="password" placeholder="Mot de passe" className="w-full bg-neutral-950 border-2 border-neutral-800 p-4 rounded-2xl text-center text-sm font-bold outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 transition-all shadow-inner" value={kdsPasswordInput} onChange={e => setKdsPasswordInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleKdsLogin()} />
+            </div>
+            <button onClick={handleKdsLogin} className="w-full bg-orange-600 text-white font-black uppercase py-5 rounded-2xl shadow-[0_0_20px_rgba(234,88,12,0.3)] active:scale-95 transition-all text-sm tracking-wider">Déverrouiller</button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <>
+        {notify && <div className={`fixed top-4 right-4 p-4 rounded-xl z-50 text-white shadow-lg ${notify.type === 'error' ? 'bg-red-500' : 'bg-gray-800'}`}>{notify.msg}</div>}
+        <KitchenDashboard activeOrders={orders} updateStatus={updateStatus} printTicket={printTicket} brand={brand} settings={settings} />
+      </>
+    );
+  }
+
   if (!profile?.isAdmin && !profile?.isManager) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{backgroundColor: brand?.bgColor || '#f8f9fa'}}>
         {notify && <div className={`fixed top-4 right-4 p-4 rounded-xl z-50 text-white ${notify.type === 'error' ? 'bg-red-500' : 'bg-gray-800'}`}>{notify.msg}</div>}
         <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-black shadow-2xl relative">
-          <button onClick={() => window.location.href = '/'} className="absolute top-5 right-5 text-gray-400 hover:text-red-500 bg-gray-100 rounded-full p-2"><X size={20}/></button>
+          <button onClick={() => window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#/' : '/'} className="absolute top-5 right-5 text-gray-400 hover:text-red-500 bg-gray-100 rounded-full p-2"><X size={20}/></button>
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200"><Lock size={28} className="text-gray-800" /></div>
           <h2 className="text-center font-black uppercase mb-6 text-xl tracking-widest text-gray-800">Accès Idara</h2>
           <div className="space-y-4 mb-6">
@@ -241,6 +294,12 @@ export default function AdminApp() {
               </div>
           </div>
           <button onClick={handleStaffLogin} className="w-full bg-black text-white font-black uppercase py-4 rounded-2xl shadow-lg active:scale-95 transition-all">Se Connecter</button>
+          
+          <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+              <button onClick={() => window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#/kds' : '/kds'} className="text-xs font-black text-gray-400 hover:text-orange-500 uppercase tracking-widest flex items-center justify-center gap-2 mx-auto transition-colors">
+                  <ChefHat size={16}/> Ouvrir l'Écran Cuisine (KDS)
+              </button>
+          </div>
         </div>
       </div>
     );
@@ -249,6 +308,26 @@ export default function AdminApp() {
   return (
     <>
       {notify && <div className={`fixed top-4 right-4 p-4 rounded-xl z-50 text-white shadow-lg ${notify.type === 'error' ? 'bg-red-500' : 'bg-gray-800'}`}>{notify.msg}</div>}
+      
+      {/* 🔥 Boutons flottants pour ouvrir KDS et TV depuis l'Idara */}
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3">
+          <button onClick={() => {
+              const route = '/tv';
+              window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank', 'width=1024,height=768');
+          }} className="bg-neutral-900 text-white p-4 md:px-6 md:py-4 rounded-full md:rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.4)] flex items-center justify-center gap-3 transition-all hover:scale-105 active:scale-95 border-2 border-neutral-700 group hover:bg-black">
+              <Monitor size={28} className="text-blue-400 group-hover:scale-110 transition-transform" /> 
+              <span className="hidden md:inline-block font-black uppercase text-sm tracking-widest text-white">Écran TV</span>
+          </button>
+
+          <button onClick={() => {
+              const route = '/kds';
+              window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank', 'width=1024,height=768');
+          }} className="bg-neutral-900 text-white p-4 md:px-6 md:py-4 rounded-full md:rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.4)] flex items-center justify-center gap-3 transition-all hover:scale-105 active:scale-95 border-2 border-neutral-700 group hover:bg-black">
+              <ChefHat size={28} className="text-orange-500 group-hover:rotate-12 transition-transform" /> 
+              <span className="hidden md:inline-block font-black uppercase text-sm tracking-widest text-white">Cuisine (KDS)</span>
+          </button>
+      </div>
+
       <AdminDashboard 
         role={profile.isAdmin ? 'admin' : 'manager'} 
         managerBranchId={profile.managerBranchId}
@@ -270,4 +349,12 @@ export default function AdminApp() {
       />
     </>
   );
+}
+
+export default function AdminApp(props) {
+    return (
+        <ErrorBoundary>
+            <AdminAppInner {...props} />
+        </ErrorBoundary>
+    );
 }

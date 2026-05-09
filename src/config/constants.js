@@ -1,11 +1,24 @@
 export const DEFAULT_BRAND = { 
     name: "Mon Bocadillo", displayName: "<span style='color:#ffbc0d'>M</span>on <span style='color:#ffbc0d'>B</span>ocadillo", phone: "212661800728", 
-    color: "#ffbc0d", textColor: "#000000", bgColor: "#f8f9fa", headerColor: "#ffffff", fontFamily: "'Poppins', sans-serif", buttonStyle: "pill",
-    coverUrl: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&q=80", promoMsg: "🔥 Livraison rapide & plats chauds ! M'rehba bikom.", theme: "premium", isAnimated: false, waInstanceId: "", waApiToken: "",   
+    color: "#ffbc0d", textColor: "#000000", bgColor: "#f8f9fa", headerColor: "#ffffff", 
+    // 🔥 ALWAN JDAD L-KDS W LES BOUTONS
+    btnBgColor: "#ffbc0d", btnTextColor: "#000000", kdsBgColor: "#f1f5f9", kdsCardColor: "#ffffff", kdsBtnReadyColor: "#22c55e",
+    fontFamily: "'Poppins', sans-serif", buttonStyle: "pill",
+    coverUrl: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&q=80", 
+    sliders: [
+        "https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&q=80",
+        "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=80",
+        "https://images.unsplash.com/photo-1512152272829-410a8be2a4af?w=800&q=80"
+    ],
+    ticketLogoUrl: "", ticketHeader: "", ticketPhone: "", ticketFooter: "Merci et bon appetit !", ticketWidth: "100%",
+    promoMsg: "🔥 Livraison rapide & plats chauds ! M'rehba bikom.", theme: "premium", isAnimated: false, waInstanceId: "", waApiToken: "",   
     texts: { 
         navMenu: "VOIR MENU", navTrack: "SUIVI", navProfile: "PROFIL", btnAdd: "Ajouter", btnCart: "Panier", btnOrder: "Commander",
         adminTitle: "Idara", btnAdminOfficial: "1. Officiel", btnReady: "Prêt (Wajad)", btnAdminAskDriver: "Demander Livreur", btnOutDelivery: "En route 🛵",
-        btnAcceptDriver: "Accepter", btnRejectDriver: "Rejeter", btnPickedUp: "J'ai récupéré la commande", btnDelivered: "Commande Livrée"
+        btnAcceptDriver: "Accepter", btnRejectDriver: "Rejeter", btnPickedUp: "J'ai récupéré la commande", btnDelivered: "Commande Livrée",
+        // 🔥 TEXTES JDAD L-KDS W L-APP
+        kdsTitle: "Cuisine (KDS)", btnKdsStart: "En préparation", btnKdsReady: "Commande Wajda", btnKdsCancel: "Annuler Cmd",
+        cartEmpty: "Panier vide", orderSuccess: "Commande daret b naja7!"
     },
     messages: {
         otp: "🍔 *{brandName}*\n\nVotre code de confirmation est : *{code}*",
@@ -20,6 +33,28 @@ export const DEFAULT_BRAND = {
     },
     animations: { photoZoom: true, priceBounce: true, titleFloat: true, categoryFloat: true, boutiqueFloat: true, plusPulse: true, promoMarquee: false }
 };
+
+export const PREDEFINED_INGREDIENTS = [
+  "🍅 Tomate", "🧅 Oignon", "🟢 Olive", "🥬 Laitue", "🥕 Carotte", "🥔 Purée de Pommes de Terre", "🥣 Sauce Mayonnaise Maison", "🌶️ Harissa"
+];
+
+export const PREDEFINED_EXTRAS = [
+  { name: '🍟 "Extra" Frites', price: 7 },
+  { name: '🐟 "Extra" Thon', price: 8 },
+  { name: '🥓 "Extra" Charcuterie', price: 4 },
+  { name: '🧀 "Extra" Fromage', price: 3 },
+  { name: '🍳 "Extra" Œuf', price: 3 }
+];
+
+export const PREDEFINED_DRINKS = [
+  { name: "🥤 Pepsi", price: 10 },
+  { name: "🍊 Mirinda Orange", price: 10 },
+  { name: "🍋 Mirinda Citron", price: 10 },
+  { name: "🍏 Mirinda Pomme", price: 10 },
+  { name: "🥤 Fanta Orange", price: 10 },
+  { name: "💧 Eau 50cl", price: 10 },
+  { name: "🧃 Jus d'orange", price: 25 }
+];
 
 export const DEFAULT_BRANCHES = [
   { id: 'laymoune', name: 'Laymoune', lat: 33.54059, lng: -7.67574, radius: 5, phone: '', isOpen: true, managerEmail: 'laymoune@bocadillo.com' },

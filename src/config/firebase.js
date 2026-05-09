@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { getMessaging } from 'firebase/messaging';
+import { getMessaging, isSupported } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAE5KH9KkeN22zCvv6Jx_BBBg3JJv-eaZA",
@@ -15,5 +15,18 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const messaging = typeof window !== 'undefined' && 'serviceWorker' in navigator ? getMessaging(app) : null;
+
+export const VAPID_KEY = "BO5lAnealXpHrw_wOovDsCbCOT8nWrtGMkDAoUPDYyDr6ONv3asreY_XHq6KDMLHUYeaUY9CjbTkREJRdpZ5UYg";
+
+export let messaging = null;
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  isSupported().then((supported) => {
+    if (supported) {
+      messaging = getMessaging(app);
+    }
+  }).catch(() => {
+    console.log("Firebase Messaging not supported");
+  });
+}
+
 export const appId = "mon-bocadillo-menu";
