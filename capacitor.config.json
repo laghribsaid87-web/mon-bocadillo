@@ -1,5 +1,9 @@
 {
   "appId": "com.monbocadillo.app",
-  "appName": " Mon Bocadillo Livreur",
-  "webDir": "dist"
+  "appName": "Mon Bocadillo Livreur",
+  "webDir": "dist",
+  "server": {
+    "url": "https://mon-bocadillo-menu.web.app/livreur",
+    "cleartext": true
+  }
 }
