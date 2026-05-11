@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2 } from 'lucide-react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, orderBy, limit, getDocs, startAfter } from 'firebase/firestore';
 import { db, appId } from '../../config/firebase';
 import { formatSansIngredient } from '../../utils/helpers';
 import LiveTimer from '../LiveTimer';
@@ -15,28 +15,24 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     const [showTotals, setShowTotals] = useState(false); // Jdid: State dyal résumé total
     const [isSoundEnabled, setIsSoundEnabled] = useState(false);
     const prevOrdersRef = useRef(new Set());
+
+    // 🔥 Jdid: States dyal l-historique (Pagination 10 b 10)
+    const [historyOrders, setHistoryOrders] = useState([]);
+    const [lastHistoryDoc, setLastHistoryDoc] = useState(null);
+    const [loadingHistory, setLoadingHistory] = useState(false);
     
     const [stationFilter, setStationFilter] = useState('ALL'); // ALL, CHAUD, FROID
     const [compactMode, setCompactMode] = useState(false);
     const [showStockModal, setShowStockModal] = useState(false);
     
-    const todayStr = new Date().toLocaleDateString('fr-FR');
-
     // Utilisation de useMemo pour éviter de recalculer les listes à chaque tick du timer ou autre state
-    const { preparingOrders, completedOrders } = useMemo(() => {
+    const { preparingOrders } = useMemo(() => {
         const preparing = (activeOrders || [])
             .filter(o => o.status === 'preparing' || o.status === 'pending')
             .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
             
-        const completed = (activeOrders || [])
-            .filter(o => ['ready', 'out_for_delivery', 'delivered'].includes(o.status))
-            .filter(o => {
-                return o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000).toLocaleDateString('fr-FR') === todayStr : false;
-            })
-            .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-            
-        return { preparingOrders: preparing, completedOrders: completed };
-    }, [activeOrders, todayStr]);
+        return { preparingOrders: preparing };
+    }, [activeOrders]);
 
     // Effet pour jouer un son de sonnette lors d'une nouvelle commande
     useEffect(() => {
@@ -76,6 +72,35 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
             audio.volume = 0.01;
             audio.play().catch(() => {});
         } catch (e) {}
+    };
+
+    // 🔥 Jdid: Fonction bach nchargiw l-historique 10 b 10 à la demande
+    const loadHistory = async (isLoadMore = false) => {
+        setLoadingHistory(true);
+        try {
+            let q = query(
+                collection(db, 'artifacts', appId, 'public', 'data', 'orders'),
+                where('status', 'in', ['ready', 'out_for_delivery', 'delivered']),
+                orderBy('createdAt', 'desc'),
+                limit(10)
+            );
+
+            if (isLoadMore && lastHistoryDoc) {
+                q = query(q, startAfter(lastHistoryDoc));
+            }
+
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                setLastHistoryDoc(snap.docs[snap.docs.length - 1]);
+                const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                if (isLoadMore) setHistoryOrders(prev => [...prev, ...fetched]);
+                else setHistoryOrders(fetched);
+            }
+        } catch (error) {
+            console.error("Erreur lors du chargement de l'historique :", error);
+        }
+        setLoadingHistory(false);
     };
 
     const filteredPreparingOrders = useMemo(() => {
@@ -241,10 +266,13 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                         <ClipboardList size={18} /> Résumé (Total)
                     </button>
                     <button 
-                        onClick={() => setShowHistory(true)} 
+                        onClick={() => {
+                            setShowHistory(true);
+                            if (historyOrders.length === 0) loadHistory(false);
+                        }} 
                         className="flex-1 md:flex-none bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white px-5 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border border-neutral-800 transition-all shadow-sm active:scale-95"
                     >
-                        <History size={18} /> Historique ({completedOrders.length})
+                        <History size={18} /> Historique
                     </button>
                     <button 
                         onClick={() => {
@@ -388,10 +416,10 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             <button onClick={() => setShowHistory(false)} className="p-2 text-neutral-400 hover:text-white bg-neutral-800 rounded-full transition-colors"><X size={24} /></button>
                         </div>
                         <div className="p-6 flex-1 overflow-y-auto space-y-4 no-scrollbar">
-                            {completedOrders.length === 0 ? (
-                                <div className="text-center text-neutral-500 py-10 font-bold">Aucune commande terminée aujourd'hui.</div>
+                            {historyOrders.length === 0 && !loadingHistory ? (
+                                <div className="text-center text-neutral-500 py-10 font-bold">Aucune commande dans l'historique.</div>
                             ) : (
-                                completedOrders.map(o => (
+                                historyOrders.map(o => (
                                     <div key={o.id} className="bg-neutral-800/50 border border-neutral-800 p-5 rounded-2xl flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                                         <div>
                                             <div className="flex items-center gap-3 mb-2">
@@ -437,6 +465,20 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         </div>
                                     </div>
                                 ))
+                            )}
+                            
+                            {/* 🔥 Bouton "Charger Plus" */}
+                            {historyOrders.length > 0 && (
+                                <div className="flex justify-center pt-4 border-t border-neutral-800 mt-4">
+                                    <button 
+                                        onClick={() => loadHistory(true)} 
+                                        disabled={loadingHistory}
+                                        className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-6 py-3 rounded-xl font-bold text-sm transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {loadingHistory ? <div className="w-4 h-4 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin"></div> : <AlignJustify size={16} />}
+                                        {loadingHistory ? "Chargement..." : "Charger 10 de plus"}
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>

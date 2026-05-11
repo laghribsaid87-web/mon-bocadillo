@@ -107,6 +107,54 @@ export default function AdminMaintenance({ db, appId, showNotify, safeOrders, cl
         }
     };
 
+    const handleHardReset = async () => {
+        const confirmWord = window.prompt("⚠️ ATTENTION : Tapez 'RESET' pour tout supprimer (Commandes + Clients + Livreurs). Action IRREVERSIBLE !");
+        if (confirmWord !== 'RESET') return;
+        
+        setIsProcessing(true);
+        showNotify("Suppression en cours... Veuillez patienter", "info");
+        try {
+            let batch = writeBatch(db);
+            let count = 0;
+            
+            // 1. Supprimer toutes les commandes
+            const ordersSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'orders'));
+            for (const order of ordersSnap.docs) {
+                batch.delete(order.ref);
+                count++;
+                if (count === 400) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                    count = 0;
+                }
+            }
+            
+            // 2. Supprimer tous les clients et livreurs
+            const clientsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'clients'));
+            for (const client of clientsSnap.docs) {
+                batch.delete(client.ref);
+                count++;
+                if (count === 400) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                    count = 0;
+                }
+            }
+            
+            if (count > 0) {
+                await batch.commit();
+            }
+
+            showNotify("Base de données réinitialisée avec succès ! ✅", "success");
+            // Recharger la page pour vider les states locaux
+            setTimeout(() => window.location.reload(), 2000);
+        } catch (error) {
+            console.error("Erreur Hard Reset:", error);
+            showNotify("Erreur lors de la suppression.", "error");
+        }
+        setIsProcessing(false);
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in pb-4 max-w-4xl mx-auto mt-6">
             <div className="flex items-center gap-3 mb-6 bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
@@ -151,7 +199,7 @@ export default function AdminMaintenance({ db, appId, showNotify, safeOrders, cl
                 </div>
 
                 {/* Script 3: Reset Compteur */}
-                <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-xl flex flex-col items-center text-center md:col-span-2 transition-transform hover:-translate-y-1">
+                <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-xl flex flex-col items-center text-center transition-transform hover:-translate-y-1">
                     <div className="w-20 h-20 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mb-5">
                         <RefreshCw size={40} />
                     </div>
@@ -163,6 +211,22 @@ export default function AdminMaintenance({ db, appId, showNotify, safeOrders, cl
                         className="w-full max-w-sm mx-auto bg-orange-600 hover:bg-orange-700 text-white font-black py-4 rounded-xl text-sm uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
                     >
                         <RefreshCw size={18} /> Tassfir l-3addad
+                    </button>
+                </div>
+
+                {/* Script 4: Hard Reset (Danger) */}
+                <div className="bg-red-50 p-8 rounded-[2.5rem] border border-red-200 shadow-xl flex flex-col items-center text-center transition-transform hover:-translate-y-1">
+                    <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-5">
+                        <Trash2 size={40} />
+                    </div>
+                    <h3 className="font-black text-red-900 text-lg mb-2 uppercase tracking-widest">4. Hard Reset (Formater)</h3>
+                    <p className="text-xs text-red-700 mb-8 font-medium">⚠️ Supprime TOUTES les commandes et TOUS les comptes (clients et livreurs). Action IRRÉVERSIBLE !</p>
+                    <button 
+                        onClick={handleHardReset}
+                        disabled={isProcessing}
+                        className="w-full mt-auto bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl text-sm uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
+                    >
+                        <Trash2 size={18} /> Tout Supprimer
                     </button>
                 </div>
             </div>

@@ -53,7 +53,7 @@ const PromoSlider = ({ brand, btnRadius, anims }) => {
     );
 };
 
-function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, brand, db, onLogout, onlineDrivers, defaultMenu }) {
+function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, brand, db, onLogout, onlineDrivers, defaultMenu, loadMoreOrders }) {
     const [v, setV] = useState('menu'); 
     const [info, setInfo] = useState({ name: '', phone: user?.phone || user?.phoneNumber || '', address: '', lat: null, lng: null, nearestBranch: null, gpsFailed: false }); 
     const [isG, setIsG] = useState(false); 
@@ -74,6 +74,8 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
     const [deferredPrompt, setDeferredPrompt] = useState(null); // Jdid: PWA Install Prompt
     const [showInstallBtn, setShowInstallBtn] = useState(false);
     const [notifPerm, setNotifPerm] = useState(typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'denied');
+    const [editPhoneMode, setEditPhoneMode] = useState(false);
+    const [newPhone, setNewPhone] = useState('');
     
     const activeBranches = settings.branches || DEFAULT_BRANCHES;
     const txtMenu = brand.texts?.navMenu || 'VOIR MENU'; 
@@ -193,6 +195,7 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
 
     const handleInstallApp = async () => {
         if (!deferredPrompt) return;
+        localStorage.setItem('pwa_mode', 'client');
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === 'accepted') {
@@ -226,6 +229,31 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
         } catch (error) {
             console.error(error);
             showNotify("Erreur lors de l'activation des notifications.", "error");
+        }
+    };
+
+    // 🔥 NOUVEAU : Fonction bach nbedlou n-nmra f profil w f les commandes li mazal en cours
+    const handleUpdatePhoneTracking = async () => {
+        const cleanPh = newPhone.replace(/[^\d]/g, '');
+        if (!/^(06|07)\d{8}$/.test(cleanPh)) {
+            showNotify("N-nmra khassha tbda b 06 wla 07 w fiha 10 d'ar9am!", "error");
+            return;
+        }
+        
+        try {
+            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), { phone: cleanPh }, { merge: true });
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', cleanPh), { name: info.name, phone: cleanPh, uid: user.uid }, { merge: true });
+            
+            const activeOrds = clientOrders.filter(o => !['delivered', 'rejected'].includes(o.status));
+            for (const o of activeOrds) {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', o.id), { phone: cleanPh });
+            }
+            
+            setInfo(prev => ({ ...prev, phone: cleanPh }));
+            setEditPhoneMode(false);
+            showNotify("Numéro mis à jour avec succès! ✅", "success");
+        } catch (e) {
+            showNotify("Erreur lors de la mise à jour.", "error");
         }
     };
 
@@ -311,18 +339,22 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
         if (orderNote.trim()) { msgBody += `\n\n📝 *Note Cuisine:* ${orderNote.trim()}`; }
         msgBody += "\n\nRevenez sur l'application pour suivre votre livreur en direct.";
         
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const waUrl = isMobile ? `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(msgBody)}` : `https://web.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(msgBody)}`;
-        
-        if (isMobile) {
-            window.location.href = waUrl;
-        } else {
-            if (clientWaWindow && !clientWaWindow.closed) {
-                clientWaWindow.location.href = waUrl;
-                clientWaWindow.focus();
+        if (settings?.whatsappRedirectEnabled !== false) {
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const waUrl = isMobile ? `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(msgBody)}` : `https://web.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(msgBody)}`;
+            
+            if (isMobile) {
+                window.location.href = waUrl;
             } else {
-                clientWaWindow = window.open(waUrl, 'whatsapp_client');
+                if (window.clientWaWindow && !window.clientWaWindow.closed) {
+                    window.clientWaWindow.location.href = waUrl;
+                    window.clientWaWindow.focus();
+                } else {
+                    window.clientWaWindow = window.open(waUrl, 'whatsapp_client');
+                }
             }
+        } else {
+            showNotify(brand.texts?.orderSuccess || "Commande passée avec succès !", "success");
         }
         setCart([]); setV('tracking'); setTrackTab('active'); setPromoApplied(null); setUsePoints(false); setPromoCodeInput(''); setOrderNote('');
     };
@@ -438,7 +470,10 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                    </div>
                )}
                <div className={`bg-white p-5 ${btnRadius} shadow-sm border border-black/5 text-left relative overflow-hidden`}><div className={`absolute top-0 right-0 bg-blue-100 text-blue-800 text-[9px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-blue-200`}>POINT: {info.nearestBranch?.name}</div><h3 className="font-black text-[11px] uppercase tracking-widest mb-3 border-b border-gray-50 pb-2 opacity-50">Infos Livraison</h3><div className="space-y-3"><div className={`w-full border-2 p-4 rounded-2xl flex flex-col gap-3 shadow-sm transition-all ${info.lat || info.nearestBranch ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}><div className="flex items-center justify-between"><div className="text-left flex-1"><p className="font-black text-gray-800 text-sm flex items-center gap-1"><Navigation size={14}/> Localisation Exacte <span className="text-red-500">*</span></p><p className={`text-[10px] font-bold mt-1 ${info.lat ? 'text-green-700' : info.nearestBranch ? 'text-blue-600' : 'text-red-500'}`}>{info.lat ? `✅ GPS: ${Number(info.lat).toFixed(5)}, ${Number(info.lng).toFixed(5)}` : info.nearestBranch ? `✅ Manuel: ${info.nearestBranch?.name}` : "❌ Darouri t7ded blastek"}</p></div><button onClick={handleGps} disabled={isG} className={`p-3 rounded-xl font-black text-xs transition-all flex items-center gap-2 ${info.lat ? 'bg-green-200 text-green-800' : 'bg-black text-white active:scale-95 shadow-md'}`}>{isG ? 'Kantsnaw...' : info.lat ? 'Mbedel' : '📍 7ded GPS'}</button></div>{info.gpsFailed && (<div className="mt-2 p-3 bg-red-100/50 rounded-xl border border-red-200 animate-in slide-in-from-top-2"><select className="w-full bg-white border border-gray-300 p-2.5 rounded-lg outline-none font-bold text-sm text-gray-700 mb-2" value={info.nearestBranch?.id || ''} onChange={(e) => { const branch = activeBranches.find(b => b.id === e.target.value); setInfo(prev => ({ ...prev, nearestBranch: branch, lat: null, lng: null })); }}><option value="" disabled>1. Khtar a9rab ma7al...</option>{activeBranches.map(b => <option key={b.id} value={b.id} disabled={b.isOpen === false}>{b.name} {b.isOpen === false ? '🚫' : ''}</option>)}</select><input type="url" placeholder="2. Coller Lien Google Maps" className="w-full bg-white border border-gray-300 p-2.5 rounded-lg outline-none focus:border-[#ffbc0d] text-xs font-bold text-gray-700" value={info.mapsLink || ''} onChange={(e) => setInfo(prev => ({ ...prev, mapsLink: e.target.value }))} /></div>)}</div></div>{(!info.lat && !info.nearestBranch) && (<button onClick={() => setV('profile')} className={`mt-4 w-full bg-white text-gray-800 py-3 ${btnRadius} font-black text-xs uppercase active:scale-95 transition-all shadow-sm border border-gray-200`}>👉 9ad l'GPS hna</button>)}</div>
-               <button onClick={handleFinalOrder} className={`w-full text-black py-5 ${btnRadius} font-black text-xl uppercase shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all border-b-4`} style={{backgroundColor: brand.color, borderBottomColor: 'rgba(0,0,0,0.2)'}}><MessageCircle size={24}/> {txtOrder} WhatsApp</button>
+               <button onClick={handleFinalOrder} className={`w-full text-black py-5 ${btnRadius} font-black text-xl uppercase shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all border-b-4`} style={{backgroundColor: brand.color, borderBottomColor: 'rgba(0,0,0,0.2)'}}>
+                   {settings?.whatsappRedirectEnabled !== false ? <MessageCircle size={24}/> : <Check size={24} strokeWidth={3}/>} 
+                   {settings?.whatsappRedirectEnabled !== false ? `${txtOrder} WhatsApp` : txtOrder}
+               </button>
             </div>
           )}
 
@@ -466,18 +501,25 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                      {clientOrders.filter(o=>['delivered', 'rejected'].includes(o.status)).length === 0 ? (
                          <p className="text-[10px] text-gray-400 font-bold text-left">Aucune commande passée.</p>
                      ) : (
-                         clientOrders.filter(o=>['delivered', 'rejected'].includes(o.status)).map(o => (
-                             <div key={o.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center text-left">
-                                 <div>
-                                     <p className="font-black text-sm uppercase">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</p>
-                                     <p className="text-[10px] text-gray-500 font-bold mt-0.5">{new Date(o.createdAt?.seconds*1000).toLocaleDateString()} • {o.total} DH</p>
+                         <>
+                             {clientOrders.filter(o=>['delivered', 'rejected'].includes(o.status)).map(o => (
+                                 <div key={o.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center text-left">
+                                     <div>
+                                         <p className="font-black text-sm uppercase">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</p>
+                                         <p className="text-[10px] text-gray-500 font-bold mt-0.5">{new Date(o.createdAt?.seconds*1000).toLocaleDateString()} • {o.total} DH</p>
+                                     </div>
+                                     <div className="flex flex-col items-end gap-2">
+                                        <StatusBadge status={o.status} />
+                                        <button onClick={() => setDetailOrder(o)} className="text-[9px] font-black uppercase text-blue-600 underline">Voir détails</button>
+                                     </div>
                                  </div>
-                                 <div className="flex flex-col items-end gap-2">
-                                    <StatusBadge status={o.status} />
-                                    <button onClick={() => setDetailOrder(o)} className="text-[9px] font-black uppercase text-blue-600 underline">Voir détails</button>
-                                 </div>
-                             </div>
-                         ))
+                             ))}
+                             {clientOrders.length >= 10 && (
+                                 <button onClick={loadMoreOrders} className="w-full mt-2 bg-gray-50 border border-gray-200 text-gray-700 py-3 rounded-xl font-black text-xs uppercase transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 hover:bg-gray-100">
+                                     ⬇️ Charger plus d'historique
+                                 </button>
+                             )}
+                         </>
                      )}
                   </div>
                </div>
@@ -492,6 +534,32 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                    <h2 className="text-3xl font-black uppercase italic leading-none text-gray-900">{info.name ? `Suivi dyalk a ${info.name.split(' ')[0]}` : 'Suivi'} 🛵</h2>
                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Ma commande en ligne</p>
                </div>
+
+               {/* 🔥 NOUVEAU : Bloc pour vérifier et modifier le numéro de téléphone */}
+               {clientOrders.filter(o=>!['delivered', 'rejected'].includes(o.status)).length > 0 && (
+                   <div className="px-4 mt-2 mb-4 md:max-w-md lg:max-w-xl mx-auto">
+                      {editPhoneMode ? (
+                          <div className="flex gap-2 animate-in slide-in-from-top-2">
+                             <input className="flex-1 bg-white border-2 border-orange-400 p-3 rounded-xl text-sm font-bold outline-none text-center tracking-widest shadow-inner" value={newPhone} onChange={e => setNewPhone(e.target.value.replace(/[^\d]/g, '').slice(0, 10))} placeholder="06XXXXXXXX" type="tel" autoFocus />
+                             <button onClick={handleUpdatePhoneTracking} className="bg-orange-500 hover:bg-orange-600 text-white px-4 rounded-xl text-xs font-black uppercase shadow-md active:scale-95 transition-all">Valider</button>
+                             <button onClick={() => setEditPhoneMode(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 rounded-xl text-xs font-black uppercase shadow-sm active:scale-95 transition-all">Annuler</button>
+                          </div>
+                      ) : (
+                          <div className="bg-orange-50 border-2 border-orange-200 p-3 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden">
+                              <div className="absolute top-0 left-0 w-1.5 h-full bg-orange-500 animate-pulse"></div>
+                              <div className="flex items-center gap-3 pl-2">
+                                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-orange-500 shadow-sm border border-orange-100 animate-bounce"><Phone size={18}/></div>
+                                  <div className="flex flex-col text-left">
+                                      <span className="text-[9px] font-black text-orange-800 uppercase tracking-widest">Ghan3eyto lik f had N-nmra :</span>
+                                      <span className="font-black text-orange-600 text-lg leading-none mt-0.5">{info.phone || '---'}</span>
+                                  </div>
+                              </div>
+                              <button onClick={() => { setNewPhone(info.phone || ''); setEditPhoneMode(true); }} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-colors shadow-md active:scale-95">Modifier</button>
+                          </div>
+                      )}
+                   </div>
+               )}
+
                <div className="flex flex-col gap-5 md:max-w-md lg:max-w-xl mx-auto px-2 md:px-0">
                {clientOrders.filter(o=>!['delivered', 'rejected'].includes(o.status)).length === 0 ? (
                    <div className="text-center py-12 bg-white rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col items-center justify-center">
@@ -653,65 +721,63 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                     const pureExtras = (selectedItem.extras || []).filter(e => !drinkNames.has(e.name));
                     const pureDrinks = (selectedItem.extras || []).filter(e => drinkNames.has(e.name));
                     
+                    const configuredOrder = selectedItem.stepOrder || ['variations', 'choices', 'removableIngredients', 'extras'];
                     const steps = [];
-                    if ((selectedItem.hasVariations && selectedItem.variations?.length > 0) || selectedItem.choices) {
-                        steps.push('base');
-                    }
-                    if (selectedItem.removableIngredients) {
-                        steps.push('ingredients');
-                    }
-                    if (pureExtras.length > 0) steps.push('extras');
-                    if (pureDrinks.length > 0) steps.push('drinks');
-                    if (steps.length === 0) steps.push('base');
+                    configuredOrder.forEach(stepType => {
+                        if (stepType === 'variations' && selectedItem.hasVariations && selectedItem.variations?.length > 0) steps.push('variations');
+                        if (stepType === 'choices' && selectedItem.choices) steps.push('choices');
+                        if (stepType === 'removableIngredients' && selectedItem.removableIngredients) steps.push('ingredients');
+                        if (stepType === 'extras') {
+                            if (pureExtras.length > 0) steps.push('extras');
+                            if (pureDrinks.length > 0) steps.push('drinks');
+                        }
+                    });
+                    if (steps.length === 0) steps.push('empty');
 
-                    const currentStepId = steps[customizationStep] || 'base';
+                    const currentStepId = steps[customizationStep] || steps[0];
 
                     return (
                         <>
-                            {currentStepId === 'base' && (
-                                <div className="animate-in slide-in-from-right-5">
-                                    {selectedItem.hasVariations && selectedItem.variations?.length > 0 && (
-                                      <div className="mb-6">
-                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Taille / Variante <span className="text-red-500">*</span></p>
-                                        <div className="space-y-2">
-                                          {selectedItem.variations.map((v, idx) => (
-                                            <label key={idx} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedVariation?.name === v.name ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedVariation?.name === v.name ? 'border-blue-500' : 'border-gray-300'}`}>
-                                                        {selectedVariation?.name === v.name && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}
-                                                    </div>
-                                                    <span className="font-bold text-sm text-gray-900">{v.name}</span>
+                            {currentStepId === 'variations' && selectedItem.hasVariations && selectedItem.variations?.length > 0 && (
+                                <div className="animate-in slide-in-from-right-5 mb-6">
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Taille / Variante <span className="text-red-500">*</span></p>
+                                    <div className="space-y-2">
+                                        {selectedItem.variations.map((v, idx) => (
+                                        <label key={idx} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedVariation?.name === v.name ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedVariation?.name === v.name ? 'border-blue-500' : 'border-gray-300'}`}>
+                                                    {selectedVariation?.name === v.name && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}
                                                 </div>
-                                                <span className="font-black text-blue-600">{v.price} DH</span>
-                                                <input type="radio" className="hidden" name="variation" checked={selectedVariation?.name === v.name} onChange={() => setSelectedVariation(v)} />
-                                            </label>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
+                                                <span className="font-bold text-sm text-gray-900">{v.name}</span>
+                                            </div>
+                                            <span className="font-black text-blue-600">{v.price} DH</span>
+                                            <input type="radio" className="hidden" name="variation" checked={selectedVariation?.name === v.name} onChange={() => setSelectedVariation(v)} />
+                                        </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
-                                    {selectedItem.choices && (
-                                      <div className="mb-6">
-                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Choix / Parfum <span className="text-red-500">*</span></p>
-                                        <div className="space-y-2">
-                                          {(selectedItem.choices || '').split(',').map(choice => {
-                                            const c = choice.trim();
-                                            if (!c) return null;
-                                            return (
-                                              <label key={c} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedChoice === c ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
-                                                  <div className="flex items-center gap-3">
-                                                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedChoice === c ? 'border-blue-500' : 'border-gray-300'}`}>
-                                                          {selectedChoice === c && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}
-                                                      </div>
-                                                      <span className="font-bold text-sm text-gray-900">{c}</span>
-                                                  </div>
-                                                  <input type="radio" className="hidden" name="choice" checked={selectedChoice === c} onChange={() => setSelectedChoice(c)} />
-                                              </label>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
+                            {currentStepId === 'choices' && selectedItem.choices && (
+                                <div className="animate-in slide-in-from-right-5 mb-6">
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Choix / Parfum <span className="text-red-500">*</span></p>
+                                    <div className="space-y-2">
+                                        {(selectedItem.choices || '').split(',').map(choice => {
+                                        const c = choice.trim();
+                                        if (!c) return null;
+                                        return (
+                                            <label key={c} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedChoice === c ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedChoice === c ? 'border-blue-500' : 'border-gray-300'}`}>
+                                                        {selectedChoice === c && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}
+                                                    </div>
+                                                    <span className="font-bold text-sm text-gray-900">{c}</span>
+                                                </div>
+                                                <input type="radio" className="hidden" name="choice" checked={selectedChoice === c} onChange={() => setSelectedChoice(c)} />
+                                            </label>
+                                        );
+                                        })}
+                                    </div>
                                 </div>
                             )}
 
@@ -829,18 +895,20 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                   const pureExtras = (selectedItem.extras || []).filter(e => !drinkNames.has(e.name));
                   const pureDrinks = (selectedItem.extras || []).filter(e => drinkNames.has(e.name));
                   
+                  const configuredOrder = selectedItem.stepOrder || ['variations', 'choices', 'removableIngredients', 'extras'];
                   const steps = [];
-                  if ((selectedItem.hasVariations && selectedItem.variations?.length > 0) || selectedItem.choices) {
-                      steps.push('base');
-                  }
-                  if (selectedItem.removableIngredients) {
-                      steps.push('ingredients');
-                  }
-                  if (pureExtras.length > 0) steps.push('extras');
-                  if (pureDrinks.length > 0) steps.push('drinks');
-                  if (steps.length === 0) steps.push('base');
+                  configuredOrder.forEach(stepType => {
+                      if (stepType === 'variations' && selectedItem.hasVariations && selectedItem.variations?.length > 0) steps.push('variations');
+                      if (stepType === 'choices' && selectedItem.choices) steps.push('choices');
+                      if (stepType === 'removableIngredients' && selectedItem.removableIngredients) steps.push('ingredients');
+                      if (stepType === 'extras') {
+                          if (pureExtras.length > 0) steps.push('extras');
+                          if (pureDrinks.length > 0) steps.push('drinks');
+                      }
+                  });
+                  if (steps.length === 0) steps.push('empty');
 
-                  const currentStepId = steps[customizationStep] || 'base';
+                  const currentStepId = steps[customizationStep] || steps[0];
                   const isLastStep = customizationStep >= steps.length - 1;
 
                   if (isLastStep) {
@@ -892,10 +960,8 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                           </button>
                           <button 
                               onClick={() => {
-                                  if (currentStepId === 'base') {
-                                      if (selectedItem.hasVariations && !selectedVariation) return showNotify("Veuillez choisir une taille !", "error");
-                                      if (selectedItem.choices && !selectedChoice) return showNotify("Veuillez choisir une option !", "error");
-                                  }
+                                  if (currentStepId === 'variations' && !selectedVariation) return showNotify("Veuillez choisir une taille !", "error");
+                                  if (currentStepId === 'choices' && !selectedChoice) return showNotify("Veuillez choisir une option !", "error");
                                   setCustomizationStep(prev => prev + 1);
                               }}
                               className="flex-[2] py-4 rounded-xl font-black text-lg uppercase text-black shadow-lg"

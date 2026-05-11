@@ -138,7 +138,7 @@ export const printTicket = async (o, brand) => {
         try {
             const ipcRenderer = window['require']('electron').ipcRenderer;
             if (ipcRenderer) {
-                ipcRenderer.send('print-ticket', html);
+                ipcRenderer.send('print-ticket', html, brand?.selectedPrinter);
                 return; // N7bso hna, Electron tkelef bl-impression f s-skat!
             }
         } catch(e) { console.error("Erreur Electron IPC:", e); }
@@ -153,7 +153,7 @@ export const printTicket = async (o, brand) => {
         
         // 1. N9elbo 3la ga3 l-imprimantes w n3ezlo l-imprimante Thermique
         const printers = await qz.printers.find();
-        let printer = printers.find(p => {
+        let printer = (brand && brand.selectedPrinter) ? brand.selectedPrinter : printers.find(p => {
             const n = p.toLowerCase();
             return n.includes('pos') || n.includes('xp') || n.includes('80') || n.includes('58') || n.includes('ticket') || n.includes('receipt') || n.includes('thermal') || n.includes('epson') || n.includes('tm-');
         });

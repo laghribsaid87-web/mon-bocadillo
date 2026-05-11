@@ -104,7 +104,13 @@ export default function AdminClients({
         if(window.confirm(`Wach met2ked bghiti ${blockStatus ? 'tbloqui' : 't-débloqui'} ${selectedClients.length} comptes f de99a?`)) {
             showNotify("Jari l'modification...", "info");
             try {
-                await Promise.all(selectedClients.map(id => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', id), {blocked: blockStatus}, {merge: true})));
+                await Promise.all(selectedClients.map(async (id) => {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', id), {blocked: blockStatus}, {merge: true});
+                    const c = (clientsList||[]).find(client => client.id === id);
+                    if (c && c.uid) {
+                        await setDoc(doc(db, 'artifacts', appId, 'users', c.uid, 'profile', 'data'), {blocked: blockStatus}, {merge: true});
+                    }
+                }));
                 showNotify(`${selectedClients.length} comptes tmodifiyaow ✅`, "success");
                 setSelectedClients([]);
             } catch (e) {
@@ -298,9 +304,23 @@ export default function AdminClients({
                                                    <span className={`inline-flex items-center px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${c.isFreelance ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
                                                        {c.isFreelance ? 'Livreur Freelance' : 'Livreur Officiel'}
                                                    </span>
+                                                   <div className="flex items-center gap-2 mt-1">
+                                                       <span className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-black bg-yellow-50 text-yellow-800 border border-yellow-200 shadow-sm">
+                                                           🔑 Code : {c.otp || 'N/A'}
+                                                       </span>
+                                                       <button onClick={async() => { const newOtp = Math.floor(1000 + Math.random() * 9000).toString(); await setDoc(doc(db,'artifacts',appId,'public','data','clients',c.id), {otp: newOtp, otpVerified: false}, {merge:true}); if(c.uid) await setDoc(doc(db,'artifacts',appId,'users',c.uid,'profile','data'), {otp: newOtp, otpVerified: false}, {merge:true}); showNotify("Code jdid t-généra! 🔄", "success"); }} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md text-[10px] font-bold transition-all shadow-sm" title="Générer un nouveau code">
+                                                           🔄 Bdel
+                                                       </button>
+                                                   </div>
                                                    <span className="text-[9px] font-bold text-gray-400 mt-1">Créé le: {c.createdDate}</span>
                                                    <span className="text-[9px] font-bold text-blue-500">Livreur depuis: {c.driverDate}</span>
                                                    
+                                                   {c.isAppInstalled ? (
+                                                       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-green-50 text-green-700 border border-green-200 mt-1">📱 App Installée</span>
+                                                   ) : (
+                                                       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-red-50 text-red-600 border border-red-200 mt-1" title="Khdam ghir mn Navigateur">🌐 Non Installée</span>
+                                                   )}
+
                                                    {c.otp && !c.otpVerified && (
                                                        <button 
                                                            onClick={() => {
@@ -335,8 +355,8 @@ export default function AdminClients({
                                            <div className="flex items-center justify-end gap-2">
                                                {!c.isDriver ? (
                                                    <>
-                                                       {role === 'admin' && <button onClick={async()=>{await setDoc(doc(db,'artifacts',appId,'public','data','clients',c.id), {blocked: !c.blocked}, {merge:true}); showNotify(c.blocked ? "Débloqué ✅" : "Bloqué 🚫", "success");}} className={`p-3 rounded-xl transition-all shadow-sm ${c.blocked ? 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200' : 'bg-gray-50 text-gray-400 hover:text-orange-500 hover:bg-orange-50 border border-gray-200'}`} title={c.blocked ? 'Débloquer' : 'Bloquer'}><Ban size={18}/></button>}
-                                                       <button onClick={async()=>{await setDoc(doc(db,'artifacts',appId,'public','data','clients',c.id), {isDriver: true, isFreelance: false, driverSince: Date.now()}, {merge:true}); if(c.uid) await setDoc(doc(db,'artifacts',appId,'users',c.uid,'profile','data'), {isDriver: true, isFreelance: false, driverSince: Date.now()}, {merge:true}); showNotify("Wella Livreur! 🛵", "success");}} className="p-3 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shadow-sm border border-gray-200" title="Rendre Livreur"><Truck size={18}/></button>
+                                                       {role === 'admin' && <button onClick={async()=>{await setDoc(doc(db,'artifacts',appId,'public','data','clients',c.id), {blocked: !c.blocked}, {merge:true}); if(c.uid) await setDoc(doc(db,'artifacts',appId,'users',c.uid,'profile','data'), {blocked: !c.blocked}, {merge:true}); showNotify(c.blocked ? "Débloqué ✅" : "Bloqué 🚫", "success");}} className={`p-3 rounded-xl transition-all shadow-sm ${c.blocked ? 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200' : 'bg-gray-50 text-gray-400 hover:text-orange-500 hover:bg-orange-50 border border-gray-200'}`} title={c.blocked ? 'Débloquer' : 'Bloquer'}><Ban size={18}/></button>}
+                                                       <button onClick={async()=>{ const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString(); await setDoc(doc(db,'artifacts',appId,'public','data','clients',c.id), {isDriver: true, isFreelance: false, driverSince: Date.now(), otp: generatedOtp, otpVerified: false}, {merge:true}); if(c.uid) await setDoc(doc(db,'artifacts',appId,'users',c.uid,'profile','data'), {isDriver: true, isFreelance: false, driverSince: Date.now(), otp: generatedOtp, otpVerified: false}, {merge:true}); showNotify("Wella Livreur! 🛵", "success");}} className="p-3 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shadow-sm border border-gray-200" title="Rendre Livreur"><Truck size={18}/></button>
                                                    {role === 'admin' && <button onClick={() => setPointsModal({ show: true, client: c, adjust: 0 })} className="p-3 bg-yellow-50 text-yellow-600 hover:bg-yellow-100 rounded-xl transition-all shadow-sm border border-yellow-200" title="Gérer les points"><Star size={18}/></button>}
                                                        {role === 'admin' && <button onClick={async()=>{if(window.confirm('Msa7 Client?')){await deleteDoc(doc(db,'artifacts',appId,'public','data','clients',c.id)); showNotify("Tmsa7 ✅", "success");}}} className="p-3 bg-gray-50 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shadow-sm border border-gray-200" title="Supprimer"><Trash2 size={18}/></button>}
                                                    </>

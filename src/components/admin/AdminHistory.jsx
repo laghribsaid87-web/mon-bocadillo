@@ -1,5 +1,5 @@
-import React from 'react';
-import { History, ChevronRight, Database, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { History, ChevronRight, Database, Download, AlignJustify } from 'lucide-react';
 import StatusBadge from '../StatusBadge';
 
 export default function AdminHistory({
@@ -17,14 +17,19 @@ export default function AdminHistory({
     setArchiveDates,
     isFetchingHistory,
     fullHistoryFetched,
-    olderOrders
+    olderOrders,
+    loadLazyHistory,
+    loadingLazyHistory,
+    hasMoreHistory
 }) {
+    const [tempDate, setTempDate] = useState('');
+
     return (
         <div className="space-y-8 animate-in fade-in pb-10">
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                <div className="bg-white p-8 md:p-10 rounded-[2.5rem] border border-gray-100 shadow-2xl flex flex-col justify-center relative overflow-hidden">
                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] text-black"><History size={150}/></div>
-                   <span className="text-sm font-black text-gray-400 uppercase tracking-widest mb-2">Recette {f.type==='today'?"Aujourd'hui":f.type==='yesterday'?"Hier":f.date||"Total"}</span>
+                   <span className="text-sm font-black text-gray-400 uppercase tracking-widest mb-2">Recette {f.type==='none' ? "En Attente" : f.date}</span>
                    <span className="text-5xl md:text-6xl font-black text-gray-900 tracking-tighter">{totalCollecte} <span className="text-2xl text-gray-400">DH</span></span>
                </div>
                {historyDriverFilter !== 'ALL' && (
@@ -67,12 +72,16 @@ export default function AdminHistory({
            )}
 
            <div className="flex flex-col md:flex-row gap-4 mb-8 bg-white p-4 rounded-[2rem] shadow-lg border border-gray-100">
-              <div className="flex gap-3 flex-1">
-                  <button onClick={()=>setF({...f,type:'today'})} className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${f.type==='today'?'bg-black text-white shadow-xl scale-105':'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>Aujourd'hui</button>
-                  {role === 'admin' && <button onClick={()=>setF({...f,type:'yesterday'})} className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${f.type==='yesterday'?'bg-black text-white shadow-xl scale-105':'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>Hier</button>}
-                  {role === 'admin' && <input type="date" value={f.date || ''} onChange={e=>setF({...f,type:'custom',date:e.target.value})} className="flex-[2] bg-gray-50 px-5 py-4 rounded-2xl text-gray-800 outline-none border-2 border-transparent focus:border-blue-500 text-sm font-bold shadow-inner transition-all" />}
-                  {role === 'admin' && f.type === 'archive' && <div className="flex-[2] bg-indigo-100 text-indigo-700 px-5 py-4 rounded-2xl font-black text-xs uppercase flex items-center justify-center border border-indigo-200">Archive Affichée</div>}
-              </div>
+               <div className="flex gap-3 flex-1 items-center">
+                   <span className="text-xs font-bold text-gray-500 uppercase px-3">📅 Date:</span>
+                   <input type="date" value={tempDate} onChange={e=>setTempDate(e.target.value)} className="flex-[2] bg-gray-50 px-5 py-4 rounded-2xl text-gray-800 outline-none border-2 border-transparent focus:border-blue-500 text-sm font-bold shadow-inner transition-all" />
+                   <button onClick={() => {
+                       if(!tempDate) return;
+                       setF({...f, type:'custom', date: tempDate});
+                   }} className="flex-1 py-4 bg-black text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2">
+                       🔍 Chercher
+                   </button>
+               </div>
               <select className="flex-1 bg-blue-50 px-5 py-4 rounded-2xl text-blue-800 outline-none border-2 border-transparent focus:border-blue-500 font-black text-xs uppercase tracking-wider shadow-inner transition-all appearance-none cursor-pointer" value={historyDriverFilter} onChange={(e) => setHistoryDriverFilter(e.target.value)}><option value="ALL">👉 Tous les Livreurs</option>{(clientsList||[]).filter(c => c.isDriver === true).map(d => <option key={d.id} value={d.uid || d.id}>{d.name || d.phone || 'Inconnu'} {d.isFreelance ? '(Freelance)' : '(Officiel)'}</option>)}</select>
            </div>
 
@@ -171,12 +180,28 @@ export default function AdminHistory({
                                    </React.Fragment>
                                );
                            })}
+                           
+                           {/* 🔥 Bouton "Charger Plus" (Pagination 10 par 10) */}
+                           {hasMoreHistory && filteredHistory.length >= 10 && (
+                               <tr>
+                                   <td colSpan="5" className="px-8 py-6 text-center border-t border-gray-100 bg-gray-50/50">
+                                       <button 
+                                           onClick={() => loadLazyHistory(true)}
+                                           disabled={loadingLazyHistory}
+                                           className="bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl font-bold text-sm transition-colors shadow-sm disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                                       >
+                                           {loadingLazyHistory ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <AlignJustify size={16} />}
+                                           {loadingLazyHistory ? "Chargement..." : "Charger 10 de plus"}
+                                       </button>
+                                   </td>
+                               </tr>
+                           )}
                        </tbody>
                    </table>
                    {filteredHistory.length===0 && (
                        <div className="py-16 text-center text-gray-400 flex flex-col items-center">
                            <History size={40} className="mb-3 opacity-20"/>
-                           <p className="font-semibold text-sm">Aucun historique trouvé</p>
+                           <p className="font-semibold text-sm">{f.type === 'none' ? 'Veuillez sélectionner une date et cliquer sur Chercher.' : 'Aucun historique trouvé pour cette date.'}</p>
                        </div>
                    )}
                </div>

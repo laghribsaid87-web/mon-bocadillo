@@ -96,6 +96,7 @@ export default function AdminConfig({
     db, appId, showNotify
 }) {
     const [showSimulator, setShowSimulator] = useState(false);
+    const [printersList, setPrintersList] = useState([]);
     const [previewApp, setPreviewApp] = useState('client'); // 'client' | 'driver' | 'pos' | 'admin'
     const [availableVoices, setAvailableVoices] = useState([]);
     const [expandedSec, setExpandedSec] = useState({ app_colors: true, txt_ui: true, txt_feat: true });
@@ -484,6 +485,30 @@ export default function AdminConfig({
                                      </div>
                                  </label>
                                  <label className="block md:col-span-2">
+                                     <span className="text-xs font-semibold text-gray-700 mb-1.5 flex justify-between items-center">
+                                         <span>Choix de l'Imprimante (Caisse)</span>
+                                         <button type="button" onClick={async () => {
+                                             try {
+                                                 const qz = (await import('qz-tray')).default;
+                                                 if (!qz.websocket.isActive()) await qz.websocket.connect();
+                                                 const printers = await qz.printers.find();
+                                                 setPrintersList(printers);
+                                                 if(showNotify) showNotify("Imprimantes détectées ✅", "success");
+                                             } catch(e) { 
+                                                 console.error(e); 
+                                                 if(showNotify) showNotify("Erreur QZ Tray: Impossible de détecter les imprimantes.", "error"); 
+                                             }
+                                         }} className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1 rounded shadow-sm text-[11px] border border-blue-200 active:scale-95 transition-all flex items-center gap-1"><Printer size={14}/> Rechercher</button>
+                                     </span>
+                                     <div className="flex gap-2">
+                                         <select className="w-1/3 bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 outline-none focus:border-blue-500 transition-colors cursor-pointer" value={printersList.includes(brand.selectedPrinter) ? brand.selectedPrinter : ''} onChange={e=>setBrand({...brand, selectedPrinter: e.target.value})}>
+                                             <option value="">Détection Auto (Par défaut)</option>
+                                             {printersList.map(p => <option key={p} value={p}>{p}</option>)}
+                                         </select>
+                                         <input className="flex-1 bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 outline-none focus:border-blue-500 transition-colors" value={brand.selectedPrinter || ''} onChange={e=>setBrand({...brand, selectedPrinter: e.target.value})} placeholder="Nom de l'imprimante (Si manuelle)..." />
+                                     </div>
+                                 </label>
+                                 <label className="block md:col-span-2">
                                      <span className="text-xs font-semibold text-gray-700 block mb-1.5">Format Imprimante (عبار الورق)</span>
                                      <select className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 outline-none focus:border-blue-500 transition-colors cursor-pointer" value={brand.ticketWidth || '100%'} onChange={e=>setBrand({...brand, ticketWidth: e.target.value})}>
                                          <option value="100%">Automatique (S'adapte à la machine) 🌟</option>
@@ -535,6 +560,10 @@ export default function AdminConfig({
                              <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all cursor-pointer shadow-sm">
                                  <input type="checkbox" checked={settings?.kitchenNoteEnabled !== false} onChange={(e) => { saveSettings({...settings, kitchenNoteEnabled: e.target.checked}); showNotify(e.target.checked ? "Notes cuisine activées ✅" : "Notes cuisine désactivées ❌", "success"); }} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 accent-blue-600" />
                                  <span className="text-sm font-bold text-gray-800">Activer les Notes de Cuisine</span>
+                             </label>
+                             <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all cursor-pointer shadow-sm">
+                                 <input type="checkbox" checked={settings?.whatsappRedirectEnabled !== false} onChange={(e) => { saveSettings({...settings, whatsappRedirectEnabled: e.target.checked}); showNotify(e.target.checked ? "Redirection WhatsApp activée ✅" : "Redirection WhatsApp désactivée ❌", "success"); }} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 accent-blue-600" />
+                                 <span className="text-sm font-bold text-gray-800">Redirection WhatsApp Client</span>
                              </label>
                              
                              <div className="flex flex-col gap-2 p-4 rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2">

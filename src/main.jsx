@@ -1,9 +1,14 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import AdminApp from './AdminApp.jsx'
-import DriverApp from './DriverApp.jsx'
 import './index.css'
+
+import L from 'leaflet';
+window.L = window.L || L;
+
+// 🔥 NOUVEAU: Lazy Loading (Code Splitting). Kola wa7ed kay-téléchargi ghir dakchi li ghaykhdem bih!
+const App = lazy(() => import('./App.jsx'));
+const AdminApp = lazy(() => import('./AdminApp.jsx'));
+const DriverApp = lazy(() => import('./DriverApp.jsx'));
 
 // 🔥 NOUVEAU: Capture globale de l'événement PWA (bach mayzgelhach React)
 window.deferredPWAInstall = null;
@@ -22,6 +27,8 @@ if ('serviceWorker' in navigator) {
 
 const path = window.location.pathname;
 const hash = window.location.hash;
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+const pwaMode = localStorage.getItem('pwa_mode');
 
 let RootComponent = App; // Par défaut, c'est l'application Client
 
@@ -44,11 +51,19 @@ if (import.meta.env.VITE_APP_TYPE === 'DRIVER') {
     RootComponent = AdminApp;
   } else if (path.startsWith('/livreur') || hash.includes('/livreur')) {
     RootComponent = DriverApp;
+  } else if (isStandalone && pwaMode === 'livreur') {
+    RootComponent = DriverApp;
   }
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RootComponent />
+    <Suspense fallback={
+      <div className="h-[100dvh] w-full flex flex-col items-center justify-center bg-gray-50">
+        <div className="w-12 h-12 border-4 border-gray-200 border-t-yellow-500 rounded-full animate-spin"></div>
+      </div>
+    }>
+      <RootComponent />
+    </Suspense>
   </React.StrictMode>,
 )

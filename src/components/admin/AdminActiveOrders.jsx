@@ -161,8 +161,8 @@ export default function AdminActiveOrders({
 
             <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10">
                 {displayedOrders.sort((a,b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)).map((o, index) => {
-                    const dName = o.driverName || (clientsList||[]).find(c => c.uid === o.driverId || c.phone === o.driverId)?.name || 'Inconnu';
-                    const dPhone = (clientsList||[]).find(c => c.uid === o.driverId || c.phone === o.driverId)?.phone || '';
+                    const dName = o.driverName || (clientsList||[]).find(c => (c.uid && c.uid === o.driverId) || (o.driverId && c.phone === o.driverId))?.name || 'Inconnu';
+                    const dPhone = (clientsList||[]).find(c => (c.uid && c.uid === o.driverId) || (o.driverId && c.phone === o.driverId))?.phone || '';
                     const theme = getSourceTheme(o.source, index, brand.color);
 
                     return (

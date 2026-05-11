@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Power, Truck, BellRing, MapPin, Navigation, Store, CheckCircle, Phone, MessageCircle, AlertTriangle, User, LogOut, Utensils, Map as MapIcon, Info, History, Check, X, Clock, Maximize, Minimize } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
+import { Power, Truck, BellRing, MapPin, Navigation, Store, CheckCircle, Phone, MessageCircle, AlertTriangle, User, LogOut, Utensils, Map as MapIcon, Info, History, Check, X, Clock, Share, PlusSquare } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getMessaging, onMessage, getToken } from 'firebase/messaging';
 import { getWhatsAppFormat, getDistance, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
 import StatusBadge from '../components/StatusBadge';
-import ClientTrackingMap from '../components/ClientTrackingMap';
 import LiveTimer from '../components/LiveTimer';
 import { VAPID_KEY } from '../config/firebase';
 
-export default function DriverDashboard({ orders, user, profile, brand, updateStatus, db, showNotify, onLogout, clientsList, handleReassignOrder, settings, appId }) {
+const ClientTrackingMap = lazy(() => import('../components/ClientTrackingMap'));
+
+export default function DriverDashboard({ orders, user, profile, brand, updateStatus, db, showNotify, onLogout, handleReassignOrder, settings, appId, loadMoreOrders }) {
     const [isOnline, setIsOnline] = useState(true);
     const [location, setLocation] = useState(null);
     const [tab, setTab] = useState('attente'); // 'attente', 'acceptee', 'en_route', 'history'
@@ -17,6 +18,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     // 🔥 Jdid: State dyal Sonnette w Vibreur
     const [isAppLoaded, setIsAppLoaded] = useState(false);
     const knownMissionsRef = useRef(new Set());
+    const [isSoundEnabled, setIsSoundEnabled] = useState(false);
 
     // 🔥 Jdid: State l-GPS on-demand
     const [gpsActive, setGpsActive] = useState(false);
@@ -25,6 +27,8 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     const [deferredPrompt, setDeferredPrompt] = useState(null); // Jdid: PWA Install
     const [showInstallBtn, setShowInstallBtn] = useState(false);
     const [confirmDialog, setConfirmDialog] = useState(null);
+    const [isStandalone, setIsStandalone] = useState(false);
+    const [deviceType, setDeviceType] = useState('desktop');
 
     useEffect(() => {
         // Zoom global de l'interface (Ajusté pour être un peu plus grand)
@@ -35,7 +39,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     const { myOrders, activeOrders, newMissions, toPickupMissions, deliveryMissions } = useMemo(() => {
         const myOrds = orders?.filter(o => {
             if (o.source === 'pos') return false;
-            if (o.driverId === user?.uid) return true;
+            if (user?.uid && o.driverId === user.uid) return true;
             if (!profile?.isFreelance && o.isFreelanceDriver && !o.driverAccepted && o.status !== 'delivered' && o.status !== 'rejected') return true;
             return false;
         }) || [];
@@ -104,8 +108,33 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
 
+    // 🔥 Track PWA Install Status & Device Type
+    useEffect(() => {
+        const checkStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        setIsStandalone(checkStandalone());
+
+        const ua = navigator.userAgent.toLowerCase();
+        if (/iphone|ipad|ipod/.test(ua)) setDeviceType('ios');
+        else if (/android/.test(ua)) setDeviceType('android');
+        else setDeviceType('desktop');
+
+        const mediaQuery = window.matchMedia('(display-mode: standalone)');
+        const handleChange = (e) => setIsStandalone(e.matches);
+        mediaQuery.addEventListener('change', handleChange);
+
+        // Update Firestore if installed
+        if (checkStandalone() && (user?.uid || profile?.phone)) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', profile?.phone || profile?.id || user?.uid), {
+                isAppInstalled: true
+            }, { merge: true }).catch(() => {});
+        }
+
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, [user?.uid, profile?.phone, profile?.id, db, appId]);
+
     const handleInstallApp = async () => {
         if (!deferredPrompt) return;
+        localStorage.setItem('pwa_mode', 'livreur');
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === 'accepted') {
@@ -115,35 +144,41 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         setDeferredPrompt(null);
     };
 
-    // 🔥 Jdid: Sonnette w Vibreur mnin katjih commande jdida
+    const enableSound = () => {
+        setIsSoundEnabled(true);
+        try {
+            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+            audio.volume = 0.01;
+            audio.play().catch(() => {});
+            if (navigator.vibrate) navigator.vibrate([1]);
+        } catch (e) {}
+    };
+
+    // 🔥 Jdid: Sonnette w Vibreur mnin katjih commande jdida (En boucle ta y-accepter)
     useEffect(() => {
-        if (!isAppLoaded) {
-            const initial = new Set();
-            (newMissions || []).forEach(o => initial.add(o.id));
-            knownMissionsRef.current = initial;
-            setIsAppLoaded(true);
-            return;
+        let alarmInterval;
+
+        if (isSoundEnabled && isOnline && newMissions && newMissions.length > 0) {
+            const playAlarm = () => {
+                try {
+                    const audio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
+                    audio.play().catch(e => console.log("Audio bloqué", e));
+                    
+                    if (navigator.vibrate) navigator.vibrate([800, 400, 800, 400, 800]); 
+                } catch (e) { console.log("Erreur son/vibreur", e); }
+            };
+            
+            // Nl3boha l-merra l-wla
+            playAlarm();
+            
+            // N3awdoha kola 4 tewani ta ywerek "Accepter" awla "Refuser"
+            alarmInterval = setInterval(playAlarm, 4000);
         }
 
-        if (!newMissions || newMissions.length === 0) return;
-
-        let hasNew = false;
-        newMissions.forEach(o => {
-            if (!knownMissionsRef.current.has(o.id)) {
-                hasNew = true;
-                knownMissionsRef.current.add(o.id);
-            }
-        });
-
-        if (hasNew && isOnline) {
-            try {
-                const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-                audio.play().catch(e => console.log("Audio bloqué", e));
-                
-                if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]); // Vibre 3 d-lmrat
-            } catch (e) { console.log("Erreur son/vibreur", e); }
-        }
-    }, [newMissions, isAppLoaded, isOnline]);
+        return () => {
+            if (alarmInterval) clearInterval(alarmInterval);
+        };
+    }, [newMissions, isOnline, isSoundEnabled]);
 
     // 🔥 Jdid: Listen FCM notifications silencieuses bach ych3el GPS
     useEffect(() => {
@@ -326,6 +361,41 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         showNotify("Message siftnah l-client! 📱", "success");
     };
 
+    // 🔥 BLOCKING UI IF NOT INSTALLED ON MOBILE
+    if (['ios', 'android'].includes(deviceType) && !isStandalone) {
+        return (
+            <div className="min-h-[100dvh] bg-gray-900 text-white flex flex-col items-center justify-center p-6 text-center z-[9999] relative" style={{fontFamily: brand.fontFamily}}>
+                <Truck size={64} className="text-blue-500 mb-6 animate-bounce mx-auto" />
+                <h1 className="text-2xl font-black uppercase tracking-widest mb-4">Installation Obligatoire</h1>
+                <p className="text-sm font-medium text-gray-400 mb-8 leading-relaxed max-w-sm mx-auto">
+                    Bach tkhdem b l'application dyal livreur, khassek darori t-installiha f tilifon dyalek. Hadchi kaykhelli GPS ykhdem mzyan.
+                </p>
+                
+                {deviceType === 'android' && (
+                    <div className="bg-gray-800 p-6 rounded-3xl w-full max-w-sm border border-gray-700 shadow-xl mx-auto">
+                        <h3 className="font-bold text-lg mb-4">Pour Android :</h3>
+                        {showInstallBtn ? (
+                            <button onClick={handleInstallApp} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-lg active:scale-95 transition-all text-sm uppercase">📲 Installer l'Application</button>
+                        ) : (
+                            <p className="text-xs text-gray-400">Ktsennaw l-navigateur... (Ouvrez le menu de Chrome et cliquez sur "Installer l'application")</p>
+                        )}
+                    </div>
+                )}
+
+                {deviceType === 'ios' && (
+                    <div className="bg-gray-800 p-6 rounded-3xl w-full max-w-sm border border-gray-700 shadow-xl text-left mx-auto">
+                        <h3 className="font-bold text-lg mb-4 text-center">Pour iPhone 🍎 :</h3>
+                        <ol className="text-sm font-medium text-gray-300 space-y-4">
+                            <li className="flex items-center gap-3">1️⃣ Cliquez sur l'icône <span className="bg-gray-700 p-1.5 rounded-lg text-blue-400"><Share size={16}/></span> en bas de Safari.</li>
+                            <li className="flex items-center gap-3">2️⃣ Choisissez <span className="bg-gray-700 p-1.5 rounded-lg font-black text-[10px] text-white">Sur l'écran d'accueil</span> <PlusSquare size={16}/></li>
+                            <li className="flex items-center gap-3">3️⃣ Cliquez sur <span className="font-bold text-blue-400">Ajouter</span> en haut à droite.</li>
+                        </ol>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     // 🔥 Fonction li kat-rssem l-carte dyal l-commande (bach man3awdouch l-koud 3 d-lmrat)
     const renderOrderCard = (o, index, isRecommended) => (
         <div key={o.id} className={`bg-white rounded-[2rem] border ${isRecommended ? 'border-green-500 ring-4 ring-green-200' : 'border-gray-100'} shadow-lg overflow-hidden animate-in slide-in-from-bottom-5 mb-6`}>
@@ -373,9 +443,16 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     <Store size={24} className="shrink-0 text-blue-500"/>
                     <div><p className="text-[9px] font-black uppercase text-blue-500 tracking-widest mb-0.5">Récupérer de:</p><p className="font-black text-base">{o.nearestBranch?.name || 'Restaurant'}</p></div>
                 </div>
-                <div className="flex gap-3 items-center p-4 bg-green-50/50 rounded-2xl border border-green-100 text-green-900 shadow-inner">
-                    <MapPin size={24} className="shrink-0 text-green-500"/>
-                    <div><p className="text-[9px] font-black uppercase text-green-600 tracking-widest mb-0.5">Livrer à:</p><p className="font-bold text-sm leading-tight">{o.address}</p></div>
+                <div className="flex gap-3 items-center p-4 bg-green-50/50 rounded-2xl border border-green-100 text-green-900 shadow-inner justify-between">
+                    <div className="flex items-center gap-3">
+                        <MapPin size={24} className="shrink-0 text-green-500"/>
+                        <div><p className="text-[9px] font-black uppercase text-green-600 tracking-widest mb-0.5">Livrer à:</p><p className="font-bold text-sm leading-tight">{o.address}</p></div>
+                    </div>
+                    {o.lat && o.lng && (
+                        <a href={`https://maps.google.com/?q=${o.lat},${o.lng}`} target="_blank" rel="noopener noreferrer" className="p-3 bg-green-200 text-green-800 hover:bg-green-300 rounded-xl transition-all shadow-sm shrink-0 flex items-center justify-center" title="Voir sur la carte">
+                            <MapIcon size={20}/>
+                        </a>
+                    )}
                 </div>
                 <div className="bg-gray-50 p-4 rounded-xl text-sm font-bold text-gray-700 border border-gray-100">
                     <div className="space-y-2">{(o.items||[]).map((i, idx) => <div key={idx} className="leading-tight"><span className="font-black">{i.qty}x {(i.name || '').split(' (Sans ')[0]}</span>{(i.name || '').includes(' (Sans ') && (i.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => <span key={oIdx} className="block text-[10px] text-red-500 font-black ml-4">- {formatSansIngredient(opt)}</span>)}</div>)}</div>
@@ -425,14 +502,16 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                         {location && o.lat && o.lng ? (
                             <>
                                 <div className="w-full h-64 rounded-2xl overflow-hidden shadow-inner border-2 border-blue-200 mb-2 bg-gray-100 relative">
-                                    <ClientTrackingMap 
-                                        dLat={location.lat} 
-                                        dLng={location.lng} 
-                                        cLat={o.lat} 
-                                        cLng={o.lng} 
-                                        color={brand.driverColor || brand.color || '#3b82f6'} 
-                                        height="100%" 
-                                    />
+                                    <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-blue-500 font-bold text-xs"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></div> Chargement de la carte...</div>}>
+                                        <ClientTrackingMap 
+                                            dLat={location.lat} 
+                                            dLng={location.lng} 
+                                            cLat={o.lat} 
+                                            cLng={o.lng} 
+                                            color={brand.driverColor || brand.color || '#3b82f6'} 
+                                            height="100%" 
+                                        />
+                                    </Suspense>
                                 </div>
                                 <button onClick={() => setFullScreenMap(`https://maps.google.com/maps?saddr=${location.lat},${location.lng}&daddr=${o.lat},${o.lng}&hl=fr&output=embed`)} className="w-full text-white py-4 rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all mb-4 hover:opacity-90" style={{backgroundColor: brand.driverColor || brand.color || '#2563eb'}}>
                                     <Navigation size={20}/> 📍 {brand.texts?.driverMapBtn || 'Démarrer Navigation GPS'}
@@ -511,13 +590,19 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     <div className="flex items-center gap-3">
                         <div className="bg-white/10 p-3 rounded-full border border-white/20"><Truck size={24} color={brand.driverColor || brand.color || '#3b82f6'}/></div>
                         <div>
-                            <h2 className="font-black uppercase italic tracking-wider text-base flex items-center gap-2">{brand.texts?.driverAppTitle || 'LIVREUR'} • {profile?.name}</h2>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                            <h2 className="font-black uppercase italic tracking-wider text-base flex items-center gap-2">{brand.texts?.driverAppTitle || 'LIVREUR'}</h2>
+                            <p className="text-sm font-black text-white/90 uppercase mt-0.5">{profile?.name}</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 mt-1">
                                 {profile?.isFreelance ? <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">Freelance</span> : <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded border border-green-500/30">Officiel</span>}
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        {!isSoundEnabled && (
+                            <button onClick={enableSound} className="px-3 py-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black uppercase rounded-xl shadow-md animate-pulse active:scale-95 transition-all">
+                                🔔 Activer Son
+                            </button>
+                        )}
                         {showInstallBtn && (
                             <button onClick={handleInstallApp} className="px-3 py-1.5 bg-blue-500 text-white text-[10px] font-black uppercase rounded-xl shadow-md animate-bounce active:scale-95 transition-all">
                                 📲 Installer
@@ -633,6 +718,9 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                                         </div>
                                     </div>
                                 ))}
+                                <button onClick={loadMoreOrders} className="w-full mt-4 bg-white border border-gray-200 text-gray-700 py-3 rounded-xl font-black text-xs uppercase transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 hover:bg-gray-50">
+                                    ⬇️ Charger plus (5 par 5)
+                                </button>
                             </div>
                         )}
                     </div>

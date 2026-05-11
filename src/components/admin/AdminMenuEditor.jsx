@@ -51,7 +51,7 @@ export default function AdminMenuEditor({
     }, [activeEditZone]);
 
     const handleAdd = () => {
-        setEditingItem({ id: 'new_'+Date.now(), name: '', price: '', category: '', img: '🍔', desc: '', removableIngredients: '', choices: '', maxOptions: 0, isNew: true, outOfStock: false, hasVariations: false, variations: [], station: '' });
+        setEditingItem({ id: 'new_'+Date.now(), name: '', price: '', category: '', img: '🍔', desc: '', removableIngredients: '', choices: '', maxOptions: 0, isNew: true, outOfStock: false, hasVariations: false, variations: [], station: '', stepOrder: ['variations', 'choices', 'removableIngredients', 'extras'] });
     };
 
     const handleEdit = (item) => {
@@ -169,6 +169,16 @@ export default function AdminMenuEditor({
             setEditableMenu((editableMenu || []).map(i => i.id === itemToSave.id ? itemToSave : i));
         }
         setEditingItem(null);
+    };
+
+    const moveStepOrder = (index, direction) => {
+        const currentOrder = editingItem.stepOrder || ['variations', 'choices', 'removableIngredients', 'extras'];
+        const newOrder = [...currentOrder];
+        if (index + direction < 0 || index + direction >= newOrder.length) return;
+        const temp = newOrder[index];
+        newOrder[index] = newOrder[index + direction];
+        newOrder[index + direction] = temp;
+        setEditingItem({ ...editingItem, stepOrder: newOrder });
     };
 
     return (
@@ -597,6 +607,28 @@ export default function AdminMenuEditor({
                                         <label className="block text-xs font-black text-gray-700 uppercase tracking-wide mb-2">Max choix permis (0 = illimité)</label>
                                         <input type="number" min="0" className="w-full px-5 py-4 bg-white border-2 border-gray-200 rounded-2xl text-sm font-bold text-gray-900 focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 outline-none transition-all shadow-sm" value={editingItem.maxOptions === undefined ? '' : editingItem.maxOptions} onChange={e => setEditingItem({...editingItem, maxOptions: parseInt(e.target.value) || 0})} />
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* 5. Ordre d'affichage (Wizard Client) */}
+                            <div className="bg-orange-50 p-6 md:p-8 rounded-3xl border border-orange-200">
+                                <h5 className="font-black text-sm text-orange-800 uppercase tracking-widest mb-4 flex items-center gap-2"><Layers size={18} className="text-orange-600"/> Ordre d'affichage au client</h5>
+                                <p className="text-xs font-bold text-orange-600 mb-4 leading-tight">Définissez l'ordre des étapes pour le client (1 par 1).</p>
+                                <div className="space-y-2">
+                                    {(editingItem.stepOrder || ['variations', 'choices', 'removableIngredients', 'extras']).map((step, idx) => (
+                                        <div key={step} className="flex items-center justify-between bg-white p-3 rounded-xl border border-orange-100 shadow-sm">
+                                            <span className="text-xs font-black text-gray-700 uppercase">
+                                                <span className="text-orange-400 mr-2">{idx + 1}.</span>
+                                                {step === 'variations' ? 'Prix & Tailles' : 
+                                                 step === 'choices' ? 'Choix Obligatoires' :
+                                                 step === 'removableIngredients' ? 'Garniture à retirer' : 'Suppléments & Boissons'}
+                                            </span>
+                                            <div className="flex flex-col border-l border-gray-100 pl-2">
+                                                <button onClick={() => moveStepOrder(idx, -1)} disabled={idx === 0} className="p-0.5 text-gray-400 hover:text-orange-600 disabled:opacity-30 transition-colors" title="Monter"><ChevronUp size={14}/></button>
+                                                <button onClick={() => moveStepOrder(idx, 1)} disabled={idx === (editingItem.stepOrder || ['variations', 'choices', 'removableIngredients', 'extras']).length - 1} className="p-0.5 text-gray-400 hover:text-orange-600 disabled:opacity-30 transition-colors" title="Descendre"><ChevronDown size={14}/></button>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 

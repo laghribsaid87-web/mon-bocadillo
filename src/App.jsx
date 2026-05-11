@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { BellRing, X, Download } from 'lucide-react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { BellRing, X, Download, Truck, Ban } from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, setDoc, query, where, orderBy, limit } from 'firebase/firestore';
 import { onMessage } from 'firebase/messaging';
@@ -8,14 +8,15 @@ import { auth, db, appId, messaging } from './config/firebase';
 import { DEFAULT_BRAND, DEFAULT_SETTINGS, DEFAULT_MENU_ITEMS } from './config/constants';
 import { setupNotifications } from './utils/helpers';
 
-import AuthView from './views/AuthView';
-import ClientView from './views/ClientView';
-import ClientScreen from './views/ClientScreen';
+const AuthView = lazy(() => import('./views/AuthView'));
+const ClientView = lazy(() => import('./views/ClientView'));
+const ClientScreen = lazy(() => import('./views/ClientScreen'));
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [orderLimit, setOrderLimit] = useState(10);
 
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
@@ -33,6 +34,7 @@ export default function App() {
 
   const handleInstallClick = () => {
     if (deferredPrompt) {
+      localStorage.setItem('pwa_mode', 'client');
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then(() => {
         setDeferredPrompt(null);
@@ -119,7 +121,7 @@ export default function App() {
       collection(db, 'artifacts', appId, 'public', 'data', 'orders'), 
       where('userId', '==', user.uid), 
       orderBy('createdAt', 'desc'), 
-      limit(20)
+      limit(orderLimit)
     );
 
     const unsubOrders = onSnapshot(qOrders, (snap) => {
@@ -139,7 +141,7 @@ export default function App() {
     });
 
     return () => unsubOrders();
-  }, [user]);
+  }, [user, orderLimit]);
 
   const updateStatus = async (id, currentStatus, updates = {}) => {
     let newStatus = currentStatus;
@@ -164,7 +166,11 @@ export default function App() {
 
   // 🔥 Route directe vers l'Écran TV (Support Electron w Web)
   if (window.location.pathname === '/tv' || window.location.hash.includes('/tv')) {
-    return <ClientScreen brand={brand} db={db} appId={appId} />;
+    return (
+      <Suspense fallback={<div className="h-screen flex items-center justify-center bg-gray-900 text-white font-bold">Chargement de l'Écran TV...</div>}>
+        <ClientScreen brand={brand} db={db} appId={appId} />
+      </Suspense>
+    );
   }
 
   if (loading) {
@@ -200,6 +206,44 @@ export default function App() {
         </div>
       )}
 
+      {profile?.blocked && (
+        <div className="min-h-screen flex items-center justify-center p-4 bg-red-50" style={{ fontFamily: brand?.fontFamily || "'Poppins', sans-serif" }}>
+          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl border-2 border-red-100">
+            <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <Ban size={36} />
+            </div>
+            <h2 className="text-2xl font-black uppercase tracking-widest text-red-800 mb-2">Accès Refusé</h2>
+            <p className="text-sm font-bold text-gray-500 mb-8">Votre compte a été bloqué par l'administration.</p>
+            <button onClick={handleLogout} className="w-full bg-black text-white font-black uppercase py-4 rounded-xl shadow-lg active:scale-95 transition-all">
+              Se Déconnecter
+            </button>
+          </div>
+        </div>
+      )}
+
+      {profile?.isDriver && (
+        <div className="min-h-screen flex items-center justify-center p-4 bg-blue-50" style={{ fontFamily: brand?.fontFamily || "'Poppins', sans-serif" }}>
+          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl border-2 border-blue-100">
+            <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <Truck size={36} />
+            </div>
+            <h2 className="text-2xl font-black uppercase tracking-widest text-blue-800 mb-2">Espace Livreur</h2>
+            <p className="text-sm font-bold text-gray-500 mb-8">Votre numéro est enregistré comme livreur. Vous ne pouvez pas utiliser l'application client.</p>
+            <button onClick={() => window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#/livreur' : '/livreur'} className="w-full bg-blue-600 text-white font-black uppercase py-4 rounded-xl shadow-lg active:scale-95 transition-all mb-3">
+              Aller à l'App Livreur
+            </button>
+            <button onClick={handleLogout} className="w-full bg-gray-100 text-gray-600 font-bold uppercase py-3 rounded-xl shadow-sm active:scale-95 transition-all border border-gray-200">
+              Se Déconnecter
+            </button>
+          </div>
+        </div>
+      )}
+
+  <Suspense fallback={
+    <div className="flex-1 flex flex-col items-center justify-center py-20 space-y-4">
+      <div className="w-12 h-12 border-4 border-gray-200 border-t-[#ffbc0d] rounded-full animate-spin" style={{borderTopColor: brand?.color || '#ffbc0d'}}></div>
+    </div>
+  }>
       {(!profile?.isRegistered) ? (
         <AuthView 
           brand={brand} 
@@ -214,6 +258,11 @@ export default function App() {
             if (snap.exists()) {
               const c = snap.data();
               if (c.blocked) { showNotify("Had l-compte msouwer (Bloqué) 🚫", "error"); return; }
+              if (c.isDriver) { 
+                  showNotify("Nta livreur! Dkhol mn l-lien dyal livreur.", "error"); 
+                  window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#/livreur' : '/livreur'; 
+                  return; 
+              }
               await updateDoc(clientRef, { uid: user.uid });
             } else {
               await setDoc(clientRef, { name: data.name, phone: data.phone, blocked: false, isDriver: false, uid: user.uid, createdAt: serverTimestamp() });
@@ -235,8 +284,10 @@ export default function App() {
           db={db} 
           onLogout={handleLogout} 
           defaultMenu={DEFAULT_MENU_ITEMS}
+          loadMoreOrders={() => setOrderLimit(prev => prev + 10)}
         />
       )}
+  </Suspense>
     </div>
   );
 }

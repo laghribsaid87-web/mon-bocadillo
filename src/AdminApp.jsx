@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Lock, X, Mail, Key, ChefHat, Monitor } from 'lucide-react';
 import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, setDoc, query, orderBy, limit, where } from 'firebase/firestore';
@@ -7,10 +7,10 @@ import { auth, db, appId, messaging } from './config/firebase';
 import { DEFAULT_BRAND, DEFAULT_SETTINGS, DEFAULT_MENU_ITEMS } from './config/constants';
 import { printTicket, isDriverOnline, getDistance, setupNotifications } from './utils/helpers';
 
-import AdminDashboard from './views/AdminDashboard';
-import PosDashboard from './views/PosDashboard';
-import KitchenDashboard from './components/admin/KitchenDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
+
+const AdminDashboard = lazy(() => import('./views/AdminDashboard'));
+const KitchenDashboard = lazy(() => import('./components/admin/KitchenDashboard'));
 
 function AdminAppInner() {
   const [user, setUser] = useState(null);
@@ -200,7 +200,7 @@ function AdminAppInner() {
          const isFirstAttempt = newRejectedBy.length === 0 && !forceBroadcast;
 
          onlineDriversRef.current.forEach(d => {
-             const cInfo = clientsListRef.current.find(c => c.uid === d.uid || (d.phone && c.id === d.phone));
+             const cInfo = clientsListRef.current.find(c => (c.uid && c.uid === d.uid) || (d.phone && c.id === d.phone));
              if(isDriverOnline(d) && d.isAvailable && cInfo && cInfo.isDriver === true && !newRejectedBy.includes(d.uid)) {
                  if (cInfo.isFreelance && !settings?.freelanceEnabled) return;
                  const dist = (d.lat && d.lng) ? getDistance(branch.lat, branch.lng, d.lat, d.lng) : 9999;
@@ -216,7 +216,7 @@ function AdminAppInner() {
          if (!bD && newRejectedBy.length > 0) {
              newRejectedBy = [];
              onlineDriversRef.current.forEach(d => {
-                 const cInfo = clientsListRef.current.find(c => c.uid === d.uid || (d.phone && c.id === d.phone));
+                 const cInfo = clientsListRef.current.find(c => (c.uid && c.uid === d.uid) || (d.phone && c.id === d.phone));
                  if(isDriverOnline(d) && d.isAvailable && cInfo && cInfo.isDriver === true) {
                      if (cInfo.isFreelance && !settings?.freelanceEnabled) return;
                      const dist = (d.lat && d.lng) ? getDistance(branch.lat, branch.lng, d.lat, d.lng) : 9999;
@@ -270,7 +270,9 @@ function AdminAppInner() {
     return (
       <>
         {notify && <div className={`fixed top-4 right-4 p-4 rounded-xl z-50 text-white shadow-lg ${notify.type === 'error' ? 'bg-red-500' : 'bg-gray-800'}`}>{notify.msg}</div>}
-        <KitchenDashboard activeOrders={orders} updateStatus={updateStatus} printTicket={printTicket} brand={brand} settings={settings} />
+        <Suspense fallback={<div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white"><div className="w-12 h-12 border-4 border-neutral-800 border-t-orange-500 rounded-full animate-spin"></div></div>}>
+            <KitchenDashboard activeOrders={orders} updateStatus={updateStatus} printTicket={printTicket} brand={brand} settings={settings} />
+        </Suspense>
       </>
     );
   }
@@ -328,7 +330,8 @@ function AdminAppInner() {
           </button>
       </div>
 
-      <AdminDashboard 
+  <Suspense fallback={<div className="h-screen w-full bg-slate-900 flex items-center justify-center"><div className="w-12 h-12 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin"></div></div>}>
+    <AdminDashboard 
         role={profile.isAdmin ? 'admin' : 'manager'} 
         managerBranchId={profile.managerBranchId}
         orders={orders} 
@@ -347,6 +350,7 @@ function AdminAppInner() {
         onLogout={handleLogout}
         appId={appId}
       />
+  </Suspense>
     </>
   );
 }

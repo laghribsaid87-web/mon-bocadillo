@@ -1,21 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Lock, X, Download } from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { collection, onSnapshot, doc, updateDoc, serverTimestamp, query, limit, orderBy, getDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, serverTimestamp, query, limit, orderBy, getDoc, setDoc, where, or, and } from 'firebase/firestore';
 
 import { auth, db, appId, messaging } from './config/firebase';
 import { DEFAULT_BRAND, DEFAULT_SETTINGS } from './config/constants';
 import { setupNotifications } from './utils/helpers';
-import DriverDashboard from './views/DriverDashboard';
-import AuthView from './views/AuthView';
+
 import ErrorBoundary from './components/ErrorBoundary';
+
+const DriverDashboard = lazy(() => import('./views/DriverDashboard'));
+const Auth = lazy(() => import('./views/Auth'));
 
 function DriverAppInner() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [clientsList, setClientsList] = useState([]);
   const [brand, setBrand] = useState(DEFAULT_BRAND);
+  const [orderLimit, setOrderLimit] = useState(5);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [notify, setNotify] = useState(null);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -31,6 +33,7 @@ function DriverAppInner() {
 
   const handleInstallClick = () => {
     if (deferredPrompt) {
+      localStorage.setItem('pwa_mode', 'livreur');
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then(() => {
         setDeferredPrompt(null);
@@ -76,16 +79,39 @@ function DriverAppInner() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         setUser(u);
-        const unsubProfile = onSnapshot(doc(db, 'artifacts', appId, 'users', u.uid, 'profile', 'data'), (docSnap) => {
+        const savedPhone = localStorage.getItem('driver_phone');
+
+        const unsubProfile = onSnapshot(doc(db, 'artifacts', appId, 'users', u.uid, 'profile', 'data'), async (docSnap) => {
           if (docSnap.exists()) {
             const pData = docSnap.data();
             setProfile(pData);
             if (pData.isRegistered) {
               setupNotifications(u.uid, db, messaging, appId);
             }
+            setLoading(false);
           }
-          else setProfile({});
-          setLoading(false);
+          else {
+            if (savedPhone) {
+              try {
+                const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', savedPhone);
+                const clientSnap = await getDoc(clientRef);
+                if (clientSnap.exists() && clientSnap.data().isDriver) {
+                   const data = clientSnap.data();
+                   await updateDoc(clientRef, { uid: u.uid });
+                   await setDoc(doc(db, 'artifacts', appId, 'users', u.uid, 'profile', 'data'), { ...data, isRegistered: true, isManager: false, isAdmin: false, isDriver: true, updatedAt: serverTimestamp() }, { merge: true });
+                   return;
+                } else {
+                   localStorage.removeItem('driver_phone');
+                   setProfile({});
+                }
+              } catch(e) {
+                setProfile({});
+              }
+            } else {
+              setProfile({});
+            }
+            setLoading(false);
+          }
         });
         return () => unsubProfile();
       } else {
@@ -98,9 +124,38 @@ function DriverAppInner() {
   useEffect(() => {
     if (!user || !profile?.isDriver) return;
 
-    const qOrders = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc'), limit(50));
+    const limiteDate = new Date();
+    limiteDate.setHours(limiteDate.getHours() - 24);
+
+    let qOrders;
+    const ordersRef = collection(db, 'artifacts', appId, 'public', 'data', 'orders');
+
+    if (profile.isFreelance) {
+        qOrders = query(
+            ordersRef,
+            where('driverId', '==', user.uid),
+            where('createdAt', '>=', limiteDate),
+            orderBy('createdAt', 'desc'),
+            limit(orderLimit)
+        );
+    } else {
+        qOrders = query(
+            ordersRef,
+            and(
+                where('createdAt', '>=', limiteDate),
+                or(
+                    where('driverId', '==', user.uid),
+                    and(where('isFreelanceDriver', '==', true), where('driverAccepted', '==', false))
+                )
+            ),
+            orderBy('createdAt', 'desc'),
+            limit(orderLimit)
+        );
+    }
+
     const unsubOrders = onSnapshot(qOrders, (snap) => {
-        const ords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const fetchedOrds = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const ords = fetchedOrds.filter(o => o.source !== 'pos');
         setOrders(ords);
         
         let hasStatusChange = false;
@@ -120,12 +175,15 @@ function DriverAppInner() {
           playNotification();
           myNewOrds.forEach(o => { updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', o.id), { notifiedDriver: true }); });
         }
+    }, (error) => {
+        console.error("🚨 Erreur Firestore (Index manquant) :", error);
+        if (error.message && error.message.includes("requires an index")) {
+            showNotify("⚠️ Khassk t-creer Index f Firebase! Chouf l-Console (F12)", "error");
+        }
     });
 
-    const unsubClients = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), limit(200)), (snap) => setClientsList(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-
-    return () => { unsubOrders(); unsubClients(); };
-  }, [user, profile]);
+    return () => unsubOrders();
+  }, [user, profile, orderLimit]);
 
   const updateStatus = async (orderId, newStatus, updates = {}) => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status: newStatus, updatedAt: serverTimestamp(), ...updates }); };
 
@@ -142,6 +200,7 @@ function DriverAppInner() {
   const handleLogout = async () => {
     if (window.confirm("Déconnexion ?")) {
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user.uid), { isOnline: false, isAvailable: false });
+      localStorage.removeItem('driver_phone');
       await auth.signOut();
       window.location.reload();
     }
@@ -153,31 +212,39 @@ function DriverAppInner() {
     return (
       <>
         {notify && <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-full text-white shadow-lg font-bold text-xs uppercase tracking-widest ${notify.type === 'error' ? 'bg-red-500' : 'bg-black'}`}>{notify.msg}</div>}
-        <AuthView 
-          brand={brand} 
-          settings={settings} 
-          showNotify={showNotify} 
-          db={db}
-          onComplete={async (data) => {
-            const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', data.phone);
-            const snap = await getDoc(clientRef);
-            let roleData = { isAdmin: false, isManager: false, managerBranchId: null, isDriver: true, isFreelance: true, blocked: false };
-            let finalData = { ...data };
-            
-            if (snap.exists()) {
-              const c = snap.data();
-              if (c.blocked) { showNotify("Had l-compte msouwer (Bloqué) 🚫", "error"); return; }
-              finalData.name = c.name || data.name;
-              roleData.isFreelance = c.isFreelance !== undefined ? c.isFreelance : true;
-              await updateDoc(clientRef, { isDriver: true, isFreelance: roleData.isFreelance, uid: user.uid });
-            } else {
-              await setDoc(clientRef, { name: data.name, phone: data.phone, blocked: false, isDriver: true, isFreelance: true, uid: user.uid, createdAt: serverTimestamp() });
+        <Suspense fallback={<div className="h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div></div>}>
+          <Auth 
+          type="livreur"
+          loading={loading}
+          onLogin={async (phone, pin) => {
+            setLoading(true);
+            let cleanPhone = phone.replace(/\D/g, '');
+            if (cleanPhone.length === 9 && (cleanPhone.startsWith('6') || cleanPhone.startsWith('7'))) cleanPhone = '0' + cleanPhone;
+            try {
+              const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', cleanPhone);
+              const snap = await getDoc(clientRef);
+              if (snap.exists()) {
+                const data = snap.data();
+                if (data.blocked) { showNotify("Had l-compte msouwer (Bloqué) 🚫", "error"); setLoading(false); return; }
+                if (data.isDriver && data.otp === pin) {
+                  localStorage.setItem('driver_phone', cleanPhone);
+                  await updateDoc(clientRef, { otpVerified: true, uid: user.uid });
+                  await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), { ...data, isRegistered: true, isManager: false, isAdmin: false, isDriver: true, updatedAt: serverTimestamp() }, { merge: true });
+                  showNotify("Mar7ba bik a Livreur! 🛵", "success");
+                } else {
+                  showNotify("L-Code OTP ghalat awla nta machi livreur.", "error");
+                }
+              } else {
+                showNotify("Had n-nmra ma-mssjlash 3ndna f l-Idara.", "error");
+              }
+            } catch (error) {
+              console.error(error);
+              showNotify("Mochkil f l-connexion.", "error");
             }
-            
-            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), { ...finalData, ...roleData, isRegistered: true, updatedAt: serverTimestamp() }, { merge: true });
-            showNotify("Mar7ba bik a Livreur! 🛵", "success");
+            setLoading(false);
           }} 
         />
+        </Suspense>
       </>
     );
   }
@@ -210,7 +277,9 @@ function DriverAppInner() {
         </div>
       )}
       {notify && <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-full text-white shadow-lg font-bold text-xs uppercase tracking-widest ${notify.type === 'error' ? 'bg-red-500' : 'bg-black'}`}>{notify.msg}</div>}
-      <DriverDashboard orders={orders} user={user} profile={profile} brand={brand} updateStatus={updateStatus} db={db} showNotify={showNotify} onLogout={handleLogout} clientsList={clientsList} handleReassignOrder={handleReassignOrder} settings={settings} appId={appId} />
+  <Suspense fallback={<div className="h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div></div>}>
+    <DriverDashboard orders={orders} user={user} profile={profile} brand={brand} updateStatus={updateStatus} db={db} showNotify={showNotify} onLogout={handleLogout} handleReassignOrder={handleReassignOrder} settings={settings} appId={appId} loadMoreOrders={() => setOrderLimit(prev => prev + 5)} />
+  </Suspense>
     </>
   );
 }

@@ -556,7 +556,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         // 🔥 ZEDNA HAD L-CODE: Impression Electron ola Web
         if (typeof window !== 'undefined' && window.require) {
             const { ipcRenderer } = window.require('electron');
-            ipcRenderer.send('print-ticket', html);
+            ipcRenderer.send('print-ticket', html, brand?.selectedPrinter);
         } else {
             const printWindow = window.open('', '', 'width=400,height=800');
             if (printWindow) {
@@ -640,7 +640,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Standard (Tél):</span><span>${caTel} DH</span></div>
             <hr style="border-top:1px dashed #000; margin:10px 0;"/>
             <p style="text-align:left; font-weight:bold; margin:5px 0;">Détails des ventes :</p>${itemsHtml || '<p style="text-align:left;">Aucun article</p>'}
-            <hr style="border-top:1px dashed #000; margin:10px 0;"/><div style="display:flex; justify-content:space-between; font-weight:bold; font-size:18px; margin-top:10px;"><span>C.A TOTAL:</span><span>${dailyCA} DH</span></div>
+            <hr style="border-top:1px dashed #000; margin:10px 0;"/><div style="display:flex; justify-content:space-between; font-weight:bold; font-size:18px; margin-top:10px;"><span>C.A TOTAL:</span><span>${isAdmin ? dailyCA + ' DH' : '*** DH'}</span></div>
             <p style="margin-top:20px; font-size:12px;">${type === 'Z' ? '*** CLOTURE Z ***' : '*** BILAN PROVISOIRE X ***'}</p>
             <script>
                 window.onload = function() {
@@ -657,7 +657,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         // 🔥 ZEDNA HAD L-CODE: Impression Electron ola Web
         if (typeof window !== 'undefined' && window.require) {
             const { ipcRenderer } = window.require('electron');
-            ipcRenderer.send('print-ticket', html);
+            ipcRenderer.send('print-ticket', html, brand?.selectedPrinter);
         } else {
             const printWindow = window.open('', '', 'width=400,height=800');
             if (printWindow) {
@@ -1254,7 +1254,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         <div className="p-5 sm:p-6 bg-gray-50 flex flex-col gap-4">
                             <div className="bg-white p-4 rounded-2xl border border-gray-200 text-center shadow-sm">
                                 <p className="text-gray-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1">Recette Globale du jour</p>
-                                <h3 className="text-3xl font-black text-purple-600">{dailyCA} MAD</h3>
+                                <h3 className="text-3xl font-black text-purple-600">{isAdmin ? `${dailyCA} MAD` : '*** MAD'}</h3>
                                 <p className="text-xs text-gray-400 mt-1 font-medium mb-3">{completedOrdersToday.length} commandes au total</p>
                                 
                                 <div className="grid grid-cols-3 gap-2 border-t border-gray-100 pt-3">

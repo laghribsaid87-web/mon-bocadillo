@@ -22,7 +22,7 @@ function createWindow() {
   win.loadURL(startUrl);
 
   // 🔥 ZEDNA HAD L-CODE: Kaytsenet l-demande dyal l'impression mn React w kay-imprimi f s-skat
-  ipcMain.on('print-ticket', (event, htmlContent) => {
+  ipcMain.on('print-ticket', (event, htmlContent, printerName = null) => {
     const printWin = new BrowserWindow({
       show: false, // Fenêtre mkhabya (invisible) bach y-imprimi mnha
       webPreferences: { nodeIntegration: true, contextIsolation: false }
@@ -33,28 +33,34 @@ function createWindow() {
     printWin.webContents.on('did-finish-load', async () => {
       try {
         const printers = await printWin.webContents.getPrintersAsync();
-        const thermalPrinter = printers.find(p => {
-          const n = p.name.toLowerCase();
-          return n.includes('pos') || n.includes('xp') || n.includes('80') || n.includes('58') || n.includes('ticket') || n.includes('receipt') || n.includes('thermal') || n.includes('epson') || n.includes('tm-');
-        });
+        let deviceName = '';
         
-        let deviceName = thermalPrinter ? thermalPrinter.name : '';
+        if (printerName && printers.some(p => p.name === printerName)) {
+            deviceName = printerName;
+        } else {
+            const thermalPrinter = printers.find(p => {
+              const n = p.name.toLowerCase();
+              return n.includes('pos') || n.includes('xp') || n.includes('80') || n.includes('58') || n.includes('ticket') || n.includes('receipt') || n.includes('thermal') || n.includes('epson') || n.includes('tm-');
+            });
+            
+            deviceName = thermalPrinter ? thermalPrinter.name : '';
 
-        if (!thermalPrinter) {
-          const defaultPrinter = printers.find(p => p.isDefault);
-          if (!defaultPrinter) {
-            console.log("Aucune imprimante détectée. Impression ignorée.");
-            printWin.close();
-            return;
-          }
-          const n = defaultPrinter.name.toLowerCase();
-          // 🔥 N-blockiw les imprimantes virtuelles (PDF/Fax/XPS)
-          if (n.includes('pdf') || n.includes('xps') || n.includes('onenote') || n.includes('fax') || n.includes('desktop') || n.includes('anydesk') || n.includes('microsoft')) {
-            console.log("Imprimante virtuelle détectée. Impression ignorée pour ne pas bloquer.");
-            printWin.close();
-            return;
-          }
-          deviceName = defaultPrinter.name;
+            if (!thermalPrinter) {
+              const defaultPrinter = printers.find(p => p.isDefault);
+              if (!defaultPrinter) {
+                console.log("Aucune imprimante détectée. Impression ignorée.");
+                printWin.close();
+                return;
+              }
+              const n = defaultPrinter.name.toLowerCase();
+              // 🔥 N-blockiw les imprimantes virtuelles (PDF/Fax/XPS)
+              if (n.includes('pdf') || n.includes('xps') || n.includes('onenote') || n.includes('fax') || n.includes('desktop') || n.includes('anydesk') || n.includes('microsoft')) {
+                console.log("Imprimante virtuelle détectée. Impression ignorée pour ne pas bloquer.");
+                printWin.close();
+                return;
+              }
+              deviceName = defaultPrinter.name;
+            }
         }
 
         printWin.webContents.print({ 
