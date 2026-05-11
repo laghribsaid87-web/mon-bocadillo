@@ -32,6 +32,9 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     const [isStandalone, setIsStandalone] = useState(false);
     const [deviceType, setDeviceType] = useState('desktop');
     const [forceBypassInstall, setForceBypassInstall] = useState(localStorage.getItem('bypass_install') === 'true');
+    const [showSetupModal, setShowSetupModal] = useState(localStorage.getItem('driver_setup_done') !== 'true');
+    const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
+    const [isScreenFlashing, setIsScreenFlashing] = useState(false);
 
     useEffect(() => {
         // Zoom global de l'interface (Ajusté pour être un peu plus grand)
@@ -151,6 +154,24 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         setDeferredPrompt(null);
     };
 
+    // 🔥 Jdid: Khli l-Ecran dima cha3el (Dow / Wake Lock) bach t-tilifon may-tFach
+    useEffect(() => {
+        let wakeLock = null;
+        const requestWakeLock = async () => {
+            try {
+                if ('wakeLock' in navigator && isOnline) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {}
+        };
+        requestWakeLock();
+        document.addEventListener('visibilitychange', requestWakeLock);
+        return () => { 
+            document.removeEventListener('visibilitychange', requestWakeLock); 
+            if (wakeLock) wakeLock.release(); 
+        };
+    }, [isOnline]);
+
     const enableSound = () => {
         setIsSoundEnabled(true);
         try {
@@ -163,6 +184,8 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
 
     // 🔥 Jdid: Sonnette w Vibreur mnin katjih commande jdida (En boucle ta y-accepter)
     useEffect(() => {
+        if (showSetupModal) return;
+
         let alarmInterval;
 
         if (isSoundEnabled && isOnline && newMissions && newMissions.length > 0) {
@@ -172,6 +195,10 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     audio.play().catch(e => console.log("Audio bloqué", e));
                     
                     if (navigator.vibrate) navigator.vibrate([800, 400, 800, 400, 800]); 
+                    
+                    // 🔥 Dow: N-clignotiw l'écran bach y-ban f d-delma
+                    setIsScreenFlashing(true);
+                    setTimeout(() => setIsScreenFlashing(false), 500);
                 } catch (e) { console.log("Erreur son/vibreur", e); }
             };
             
@@ -189,6 +216,8 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
 
     // 🔥 Jdid: Listen FCM notifications silencieuses bach ych3el GPS
     useEffect(() => {
+        if (showSetupModal) return;
+
         const setupFCM = async () => {
             try {
                 const messaging = getMessaging();
@@ -233,12 +262,12 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             }
         };
         setupFCM();
-    }, [user?.uid, db, appId]);
+    }, [user?.uid, db, appId, showSetupModal]);
 
     // Track GPS dyal Livreur (On-Demand & Auto-Stop)
     useEffect(() => {
         // 🔥 Dima n-trackiw l'GPS ila kan l-livreur "En ligne" bach yban f l'Idara (Live Map)
-        const shouldTrack = isOnline || gpsActive;
+        const shouldTrack = (isOnline || gpsActive) && !showSetupModal;
 
         if (!shouldTrack || !user?.uid) {
             return;
@@ -249,6 +278,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         let watchId;
         
         const pushLocation = async (pos) => {
+            setGpsPermissionDenied(false); // 🔥 T7iyd l-message l-7mer ila rje3 l-GPS khdem
             const lat = pos.coords.latitude; const lng = pos.coords.longitude;
             setLocation({ lat, lng });
 
@@ -270,19 +300,23 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
 
         const handleError = (err) => {
             console.error('GPS Error', err);
-            if (err.code === 1) showNotify("Mochkil f GPS, 3afak ch3el localisation w 3ti permission!", "error");
+            if (err.code === 1) {
+                setGpsPermissionDenied(true);
+            } else if (err.code === 3) {
+                console.log("GPS Timeout, le signal est faible...");
+            }
         };
 
         // 1. Push immédiat sans attendre le watch
-        navigator.geolocation.getCurrentPosition(pushLocation, handleError, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+        navigator.geolocation.getCurrentPosition(pushLocation, handleError, { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 });
 
         // 2. Lancement du watch pour les déplacements
-        watchId = navigator.geolocation.watchPosition(pushLocation, handleError, { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 });
+        watchId = navigator.geolocation.watchPosition(pushLocation, handleError, { enableHighAccuracy: true, timeout: 30000, maximumAge: 15000 });
         
         return () => {
             if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
         };
-    }, [isOnline, gpsActive, user?.uid, profile?.name, profile?.phone, db, appId, activeOrders.length, showNotify]);
+    }, [isOnline, gpsActive, user?.uid, profile?.name, profile?.phone, db, appId, activeOrders.length, showSetupModal]);
 
     // Hssab dyal l-youm
     const todayStr = new Date().toISOString().split('T')[0];
@@ -423,6 +457,50 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     setForceBypassInstall(true);
                 }} className="mt-8 text-gray-500 underline text-xs font-bold active:scale-95 transition-all">
                     J'ai déjà installé l'application (Passer)
+                </button>
+            </div>
+        );
+    }
+
+    // 🔥 BLOCKING UI: DEMANDE DES PERMISSIONS (GPS, Notifs, Audio)
+    if (showSetupModal) {
+        return (
+            <div className="min-h-[100dvh] bg-gray-900 text-white flex flex-col items-center justify-center p-6 text-center z-[9999] relative" style={{fontFamily: brand.fontFamily}}>
+                <div className="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                    <Navigation size={48} className="text-blue-500" />
+                </div>
+                <h1 className="text-2xl font-black uppercase tracking-widest mb-4">Autorisations Requises</h1>
+                <p className="text-sm font-medium text-gray-400 mb-8 leading-relaxed max-w-sm mx-auto">
+                    Bach t-wsellek l-khedma w nsiftoulik les commandes jdad, khassna n3rfou blastek (GPS) w nsiftoulik les notifications.
+                </p>
+                <button onClick={async () => {
+                    // 1. Audio unlock (Bach Sonnette tekhdem)
+                    enableSound();
+                    
+                    // 2. Notifications
+                    if ('Notification' in window) {
+                        try { await Notification.requestPermission(); } catch(e) {}
+                    }
+
+                    // 3. GPS
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            () => {
+                                localStorage.setItem('driver_setup_done', 'true');
+                                setShowSetupModal(false);
+                            }, 
+                            () => {
+                                localStorage.setItem('driver_setup_done', 'true');
+                                setShowSetupModal(false);
+                            }, 
+                            { enableHighAccuracy: true }
+                        );
+                    } else {
+                        localStorage.setItem('driver_setup_done', 'true');
+                        setShowSetupModal(false);
+                    }
+                }} className="w-full max-w-sm bg-blue-600 hover:bg-blue-500 text-white font-black uppercase py-4 rounded-xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-3 mx-auto">
+                    <CheckCircle size={20} /> Accepter & Démarrer
                 </button>
             </div>
         );
@@ -615,7 +693,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     );
 
     return (
-        <div className="min-h-[100dvh] pb-24 w-full overflow-x-hidden" style={{ fontFamily: brand.fontFamily, backgroundColor: brand.driverBgColor || brand.bgColor || '#f9fafb', color: brand.driverTextColor || brand.textColor || '#111827' }}>
+        <div className={`min-h-[100dvh] pb-24 w-full overflow-x-hidden transition-all duration-75 ${isScreenFlashing ? 'invert brightness-150' : ''}`} style={{ fontFamily: brand.fontFamily, backgroundColor: brand.driverBgColor || brand.bgColor || '#f9fafb', color: brand.driverTextColor || brand.textColor || '#111827' }}>
             {/* HEADER LIVREUR */}
             <header className="text-white p-5 rounded-b-[2.5rem] shadow-2xl sticky top-0 z-50 border-b border-white/10" style={{ backgroundColor: brand.driverHeaderColor || brand.headerColor || '#171717' }}>
                 <div className="flex justify-between items-center mb-4">
@@ -651,6 +729,22 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
 
             <div className="px-4 space-y-4 max-w-lg mx-auto">
                 
+                {/* BANNER GPS BLOQUÉ */}
+                {gpsPermissionDenied && (
+                    <div className="bg-red-100 border-2 border-red-500 rounded-2xl p-4 shadow-sm mt-4">
+                        <h3 className="font-black text-red-700 text-sm flex items-center gap-2 mb-2">
+                            <AlertTriangle size={18} /> GPS BLOQUÉ PAR CHROME / SAFARI
+                        </h3>
+                        <p className="text-xs text-red-600 font-medium mb-3 leading-relaxed">
+                            Wakha cha3elti GPS f tilifon, l-Navigateur mbloki s-sala7iya. 
+                            <strong> Khassk t-klicki 3la l-9fel 🔒 l-fou9 (Paramètres du site), w t-autoriser "Localisation" (Allow).</strong>
+                        </p>
+                        <button onClick={() => window.location.reload()} className="bg-red-500 hover:bg-red-600 text-white w-full py-3 rounded-xl font-black text-xs shadow-md active:scale-95 transition-all">
+                            🔄 J'ai autorisé le GPS, Actualiser
+                        </button>
+                    </div>
+                )}
+
                 {['attente', 'acceptee', 'en_route'].includes(tab) && (
                     <>
                         {/* MESSAGES DYAL RETOUR (Client majawbch) */}
