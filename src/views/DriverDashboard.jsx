@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
-import { Power, Truck, BellRing, MapPin, Navigation, Store, CheckCircle, Phone, MessageCircle, AlertTriangle, User, LogOut, Utensils, Map as MapIcon, Info, History, Check, X, Clock, Share, PlusSquare } from 'lucide-react';
+import { Power, Truck, BellRing, MapPin, Navigation, Store, CheckCircle, Phone, MessageCircle, AlertTriangle, User, LogOut, Utensils, Map as MapIcon, Info, History, Check, X, Clock, Share, PlusSquare, Download } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getMessaging, onMessage, getToken } from 'firebase/messaging';
 import { getWhatsAppFormat, getDistance, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
 import StatusBadge from '../components/StatusBadge';
 import LiveTimer from '../components/LiveTimer';
 import { VAPID_KEY } from '../config/firebase';
+
+const APP_VERSION = "1.0.0"; // 🔥 Version dyal l'application l-7aliya
 
 const ClientTrackingMap = lazy(() => import('../components/ClientTrackingMap'));
 
@@ -29,6 +31,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     const [confirmDialog, setConfirmDialog] = useState(null);
     const [isStandalone, setIsStandalone] = useState(false);
     const [deviceType, setDeviceType] = useState('desktop');
+    const [forceBypassInstall, setForceBypassInstall] = useState(localStorage.getItem('bypass_install') === 'true');
 
     useEffect(() => {
         // Zoom global de l'interface (Ajusté pour être un peu plus grand)
@@ -110,7 +113,11 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
 
     // 🔥 Track PWA Install Status & Device Type
     useEffect(() => {
-        const checkStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        const checkStandalone = () => window.matchMedia('(display-mode: standalone)').matches || 
+                                      window.matchMedia('(display-mode: fullscreen)').matches ||
+                                      window.matchMedia('(display-mode: minimal-ui)').matches ||
+                                      window.navigator.standalone || 
+                                      document.referrer.includes('android-app://');
         setIsStandalone(checkStandalone());
 
         const ua = navigator.userAgent.toLowerCase();
@@ -361,8 +368,26 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         showNotify("Message siftnah l-client! 📱", "success");
     };
 
+    // 🔥 BLOCKING UI IF UPDATE REQUIRED (APK VERSION CONTROL)
+    if (settings?.livreurAppVersion && settings.livreurAppVersion !== APP_VERSION) {
+        return (
+            <div className="min-h-[100dvh] bg-gray-900 text-white flex flex-col items-center justify-center p-6 text-center z-[9999] relative" style={{fontFamily: brand.fontFamily}}>
+                <div className="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center mb-6 animate-bounce">
+                    <Download size={40} className="text-black" />
+                </div>
+                <h1 className="text-2xl font-black uppercase tracking-widest mb-4">Mise à jour requise</h1>
+                <p className="text-sm font-medium text-gray-400 mb-8 leading-relaxed max-w-sm mx-auto">
+                    Wa7ed l-version jdida dyal l'application raha kayna. Khassek t-telechargiha w t-installiha bach t9der tkemel l-khedma.
+                </p>
+                <a href="/telecharger-livreur.html" className="w-full max-w-sm bg-yellow-500 text-black font-black uppercase py-4 rounded-xl shadow-lg active:scale-95 transition-all text-sm block mx-auto">
+                    Télécharger la mise à jour
+                </a>
+            </div>
+        );
+    }
+
     // 🔥 BLOCKING UI IF NOT INSTALLED ON MOBILE
-    if (['ios', 'android'].includes(deviceType) && !isStandalone) {
+    if (['ios', 'android'].includes(deviceType) && !isStandalone && !forceBypassInstall) {
         return (
             <div className="min-h-[100dvh] bg-gray-900 text-white flex flex-col items-center justify-center p-6 text-center z-[9999] relative" style={{fontFamily: brand.fontFamily}}>
                 <Truck size={64} className="text-blue-500 mb-6 animate-bounce mx-auto" />
@@ -392,6 +417,13 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                         </ol>
                     </div>
                 )}
+
+                <button onClick={() => {
+                    localStorage.setItem('bypass_install', 'true');
+                    setForceBypassInstall(true);
+                }} className="mt-8 text-gray-500 underline text-xs font-bold active:scale-95 transition-all">
+                    J'ai déjà installé l'application (Passer)
+                </button>
             </div>
         );
     }

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Télécharger l'App Livreur - Mon Bocadillo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f1f5f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+            max-width: 350px;
+            width: 90%;
+        }
+        .logo {
+            width: 90px;
+            height: 90px;
+            margin-bottom: 15px;
+            border-radius: 20px;
+            object-fit: contain;
+        }
+        h1 {
+            color: #1e293b;
+            font-size: 22px;
+            margin-bottom: 8px;
+            font-weight: 800;
+        }
+        p {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        .btn {
+            background-color: #ffbc0d;
+            color: #000000;
+            text-decoration: none;
+            padding: 14px 20px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            box-sizing: border-box;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 10px rgba(255, 188, 13, 0.3);
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <!-- L-logo dyalk, ila kan b smia khra f dossier public beddelha hna -->
+        <img src="/logo.png" alt="Mon Bocadillo" class="logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/1046/1046784.png'">
+        <h1>App Livreur</h1>
+        <p>Téléchargez la dernière version de l'application Mon Bocadillo (Android).</p>
+        <a href="/App-Livreur.apk" class="btn">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Télécharger l'APK
+        </a>
+    </div>
+</body>
+</html>

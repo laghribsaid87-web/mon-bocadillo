@@ -150,6 +150,57 @@ exports.createSecureAccount = functions.https.onCall(async (data, context) => {
     }
 });
 
+// 8. Notification au livreur lors d'une nouvelle assignation ou commande prête pour freelance
+exports.notifyDriverOnNewOrder = functions.firestore
+    .document('artifacts/{appId}/public/data/orders/{orderId}')
+    .onWrite(async (change, context) => {
+        const appId = context.params.appId;
+        const orderData = change.after.exists ? change.after.data() : null;
+        const previousData = change.before.exists ? change.before.data() : null;
+
+        if (!orderData) return null;
+
+        // Cas 1: Commande assignée à un livreur spécifique
+        const isNewAssignment = orderData.driverId && 
+            (!previousData || previousData.driverId !== orderData.driverId);
+        
+        // Cas 2: Commande prête pour les freelances (pas de driverId encore assigné)
+        const isNewFreelance = orderData.isFreelanceDriver && 
+            orderData.status === 'ready' && !orderData.driverId && 
+            (!previousData || previousData.status !== 'ready');
+
+        try {
+            if (isNewAssignment && !orderData.driverAccepted) {
+                const driverDoc = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("drivers").doc(orderData.driverId).get();
+                if (driverDoc.exists && driverDoc.data().fcmToken) {
+                    const token = driverDoc.data().fcmToken;
+                    const payload = {
+                        notification: { title: "🚨 Nouvelle Commande !", body: `Commande #${orderData.orderNumber || '...'} katsennak.`, sound: "default" },
+                        data: { type: "NEW_ORDER", orderId: context.params.orderId }
+                    };
+                    await admin.messaging().sendToDevice(token, payload, { priority: "high", timeToLive: 60 * 60 * 24 });
+                }
+            } else if (isNewFreelance) {
+                const driversSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("drivers")
+                    .where('isAvailable', '==', true).get();
+                
+                const tokens = [];
+                driversSnap.forEach(doc => { if (doc.data().fcmToken) tokens.push(doc.data().fcmToken); });
+
+                if (tokens.length > 0) {
+                    const payload = {
+                        notification: { title: "🚨 Commande Freelance Dispo !", body: `Commande #${orderData.orderNumber || '...'} wajda! Zreb 9bel mayhezha chi wa7ed.`, sound: "default" },
+                        data: { type: "NEW_FREELANCE_ORDER", orderId: context.params.orderId }
+                    };
+                    await admin.messaging().sendToDevice(tokens, payload, { priority: "high", timeToLive: 60 * 60 * 24 });
+                }
+            }
+        } catch (error) {
+            console.error("Erreur Notification Livreur:", error);
+        }
+        return null;
+    });
+
 // 6. Mettre à jour un compte sécurisé (Email/Mot de passe) depuis l'éditeur
 exports.updateSecureAccount = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'User must be logged in');
