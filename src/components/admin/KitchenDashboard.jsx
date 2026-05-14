@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2 } from 'lucide-react';
+import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2, Minus } from 'lucide-react';
 import { doc, updateDoc, collection, query, where, orderBy, limit, getDocs, startAfter } from 'firebase/firestore';
 import { db, appId } from '../../config/firebase';
 import { formatSansIngredient } from '../../utils/helpers';
@@ -283,6 +283,28 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                     >
                         <ArrowLeft size={18} /> Retour Caisse
                     </button>
+                    
+                    {/* Electron Window Controls */}
+                    <div className="hidden md:flex items-center gap-2 pl-2 border-l border-neutral-800 ml-2">
+                        <button onClick={() => {
+                            if (window.require) {
+                                const { ipcRenderer } = window.require('electron');
+                                ipcRenderer.send('minimize-window');
+                            }
+                        }} className="p-3 text-neutral-400 hover:text-white bg-neutral-900 hover:bg-neutral-800 rounded-2xl border border-neutral-800 transition-all shadow-sm active:scale-95" title="Réduire">
+                            <Minus size={18} />
+                        </button>
+                        <button onClick={() => {
+                            if (window.require) {
+                                const { ipcRenderer } = window.require('electron');
+                                ipcRenderer.send('close-window');
+                            } else {
+                                window.close();
+                            }
+                        }} className="p-3 text-red-400 hover:text-white bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-red-500 rounded-2xl transition-all shadow-sm active:scale-95" title="Fermer">
+                            <X size={18} />
+                        </button>
+                    </div>
                 </div>
             </header>
             

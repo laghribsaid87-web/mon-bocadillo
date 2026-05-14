@@ -1230,6 +1230,28 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     <button onClick={() => setShowUISettings(true)} className="ml-2 px-3 py-1.5 sm:py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors shadow-md flex items-center gap-1.5 text-[10px] sm:text-xs font-bold shrink-0">
                         <Monitor size={16}/> <span className="hidden sm:inline">Affichage / Zoom</span>
                     </button>
+                    
+                    {/* Electron Window Controls */}
+                    <div className="hidden md:flex items-center gap-2 pl-2 border-l border-gray-200 ml-2">
+                        <button onClick={() => {
+                            if (window.require) {
+                                const { ipcRenderer } = window.require('electron');
+                                ipcRenderer.send('minimize-window');
+                            }
+                        }} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shadow-sm bg-white border border-gray-200" title="Réduire">
+                            <Minus size={20} />
+                        </button>
+                        <button onClick={() => {
+                            if (window.require) {
+                                const { ipcRenderer } = window.require('electron');
+                                ipcRenderer.send('close-window');
+                            } else {
+                                window.close();
+                            }
+                        }} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shadow-sm bg-white border border-gray-200" title="Fermer">
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
                 </header>
                 

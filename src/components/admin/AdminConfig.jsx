@@ -3,7 +3,7 @@ import {
     Edit3, Palette, Settings, Zap, ImageIcon, Type, AlignLeft, Save,
     MessageCircle, MapIcon, MousePointer2, Home, ShoppingBag, User, Trash2,
     Plus, Eye, Truck, Monitor, LayoutDashboard, History, Menu, MapPin, Printer,
-    ChevronDown, ChevronUp, Smartphone, ChefHat, CheckCircle
+    ChevronDown, ChevronUp, Smartphone, ChefHat, CheckCircle, Minus, X
 } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { doc, setDoc } from 'firebase/firestore';
@@ -188,7 +188,30 @@ export default function AdminConfig({
                       <h2 className="text-2xl font-black italic uppercase tracking-tighter text-gray-800 flex items-center gap-3"><Settings size={24} className="text-[#da291c]"/> Configurer le Design</h2>
                       <p className="text-xs font-bold text-gray-500 mt-1">Personnalisez l'apparence et les paramètres de l'application.</p>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-4">
+                      {/* Electron Window Controls */}
+                      <div className="flex items-center gap-2 border-r-2 border-gray-100 pr-4">
+                          <button onClick={() => {
+                              if (window.require) {
+                                  const { ipcRenderer } = window.require('electron');
+                                  ipcRenderer.send('minimize-window');
+                              }
+                          }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all" title="Réduire">
+                              <Minus size={22} />
+                          </button>
+                          <button onClick={() => {
+                              if (window.require) {
+                                  const { ipcRenderer } = window.require('electron');
+                                  ipcRenderer.send('close-window');
+                              } else {
+                                  window.close();
+                              }
+                          }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all" title="Fermer">
+                              <X size={22} />
+                          </button>
+                      </div>
+                      
+                      <div className="flex gap-3">
                       <button onClick={() => setShowSimulator(!showSimulator)} className={`px-6 py-4 rounded-2xl font-black text-xs uppercase shadow-sm transition-all flex items-center gap-2 border-2 ${showSimulator ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>
                           <Smartphone size={18}/> {showSimulator ? 'Masquer App' : 'Afficher App'}
                       </button>
@@ -985,6 +1008,7 @@ export default function AdminConfig({
                      </div>
                  </div>
                  )}
+              </div>
               </div>
            </div>
         </div>

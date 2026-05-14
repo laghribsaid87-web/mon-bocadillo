@@ -8,6 +8,7 @@ export default function AdminMenuEditor({
     settings, saveSettings, showNotify
 }) {
     const [editingItem, setEditingItem] = useState(null);
+    const [editTab, setEditTab] = useState('basic');
     const [customPrompt, setCustomPrompt] = useState({ show: false });
     const [promptInput, setPromptInput] = useState({ name: '', price: '' });
     const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null });
@@ -63,6 +64,7 @@ export default function AdminMenuEditor({
             const item = (editableMenu || []).find(i => i.id === itemId);
             if (item && (!editingItem || editingItem.id !== itemId)) {
                 setEditingItem({ ...item, isNew: false });
+                setEditTab('basic');
                 setTimeout(() => {
                     document.getElementById('section-menu')?.scrollIntoView({ behavior: 'smooth' });
                 }, 100);
@@ -72,10 +74,12 @@ export default function AdminMenuEditor({
 
     const handleAdd = () => {
         setEditingItem({ id: 'new_'+Date.now(), name: '', price: '', category: '', img: '🍔', desc: '', removableIngredients: '', choices: '', maxOptions: 0, isNew: true, outOfStock: false, hasVariations: false, variations: [], station: '', stepOrder: ['variations', 'choices', 'removableIngredients', 'extras'] });
+        setEditTab('basic');
     };
 
     const handleEdit = (item) => {
         setEditingItem({ ...item, isNew: false });
+        setEditTab('basic');
     };
 
     const handleDelete = (id) => {
@@ -459,10 +463,22 @@ export default function AdminMenuEditor({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-12">
-                        {/* 📦 COLONNE GAUCHE : INFO DE BASE */}
-                        <div className="space-y-6">
-                            
+                    {/* TABS (NOUVEAU - POUR ALLÉGER L'INTERFACE) */}
+                    <div className="flex gap-3 mb-8 overflow-x-auto no-scrollbar pb-2">
+                        <button onClick={() => setEditTab('basic')} className={`px-6 py-3.5 rounded-xl font-black text-sm uppercase tracking-wide transition-all whitespace-nowrap flex items-center gap-2 ${editTab === 'basic' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}>
+                            <AlignLeft size={18}/> 1. Infos de Base
+                        </button>
+                        <button onClick={() => setEditTab('options')} className={`px-6 py-3.5 rounded-xl font-black text-sm uppercase tracking-wide transition-all whitespace-nowrap flex items-center gap-2 ${editTab === 'options' ? 'bg-purple-600 text-white shadow-md' : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}>
+                            <Settings2 size={18}/> 2. Options & Choix
+                        </button>
+                        <button onClick={() => setEditTab('advanced')} className={`px-6 py-3.5 rounded-xl font-black text-sm uppercase tracking-wide transition-all whitespace-nowrap flex items-center gap-2 ${editTab === 'advanced' ? 'bg-gray-900 text-white shadow-md' : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}>
+                            <Layers size={18}/> 3. Avancé & Stock
+                        </button>
+                    </div>
+
+                    <div className="w-full">
+                        {editTab === 'basic' && (
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-12 animate-in fade-in slide-in-from-right-4">
                             {/* BLOCK 1: INFORMATIONS GÉNÉRALES */}
                             <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200">
                                 <h5 className="font-black text-sm text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2"><Tag size={18} className="text-blue-500"/> Informations de Base</h5>
@@ -547,7 +563,7 @@ export default function AdminMenuEditor({
                                         )}
                                     </div>
                                 </div>
-                            </div>
+                                </div>
 
                             {/* BLOCK 2: PRIX & TAILLES */}
                             <div className="bg-emerald-50 p-6 md:p-8 rounded-3xl border border-emerald-200">
@@ -587,12 +603,13 @@ export default function AdminMenuEditor({
                                 )}
                             </div>
                         </div>
+                        )}
 
-                        {/* ⚙️ COLONNE DROITE : OPTIONS & REGLAGES */}
-                        <div className="space-y-6">
-                            <div className="bg-purple-50 p-6 md:p-8 rounded-3xl border border-purple-200">
-                                <h5 className="font-black text-sm text-purple-800 uppercase tracking-widest mb-6 flex items-center gap-2"><Settings2 size={18} className="text-purple-600"/> Options de Personnalisation</h5>
-                                <div className="space-y-6">
+                        {editTab === 'options' && (
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-12 animate-in fade-in slide-in-from-right-4">
+                                <div className="bg-purple-50 p-6 md:p-8 rounded-3xl border border-purple-200 flex flex-col gap-6">
+                                    <h5 className="font-black text-sm text-purple-800 uppercase tracking-widest flex items-center gap-2"><Settings2 size={18} className="text-purple-600"/> 1. Choix & Ingrédients</h5>
+                                    
                                     {/* 1. Choix / Parfum */}
                                     <div>
                                         <div className="flex items-center justify-between mb-3">
@@ -739,7 +756,10 @@ export default function AdminMenuEditor({
                                             )}
                                         </div>
                                     </div>
+                                </div>
 
+                                <div className="bg-purple-50 p-6 md:p-8 rounded-3xl border border-purple-200 flex flex-col gap-6">
+                                    <h5 className="font-black text-sm text-purple-800 uppercase tracking-widest flex items-center gap-2"><Plus size={18} className="text-purple-600"/> 2. Extras & Limites</h5>
                                     {/* 3. Extras */}
                                     <div>
                                         <div className="flex items-center justify-between mb-3">
@@ -824,7 +844,10 @@ export default function AdminMenuEditor({
                                     </div>
                                 </div>
                             </div>
+                        )}
 
+                        {editTab === 'advanced' && (
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-12 animate-in fade-in slide-in-from-right-4">
                             {/* 5. Ordre d'affichage (Wizard Client) */}
                             <div className="bg-orange-50 p-6 md:p-8 rounded-3xl border border-orange-200">
                                 <h5 className="font-black text-sm text-orange-800 uppercase tracking-widest mb-4 flex items-center gap-2"><Layers size={18} className="text-orange-600"/> Ordre d'affichage au client</h5>
@@ -861,6 +884,7 @@ export default function AdminMenuEditor({
                                 </label>
                             </div>
                         </div>
+                        )}
                     </div>
                 </div>
             )}
