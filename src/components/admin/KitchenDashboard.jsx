@@ -325,6 +325,13 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
                                             <span className="text-orange-400 font-black">{item.qty}x</span> {(item.name || '').split(' (Sans ')[0]}
                                             {(item.name || '').includes(' (Sans ') && <span className="text-[9px] text-red-400 font-black block uppercase tracking-wider mt-0.5">- {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map(opt => formatSansIngredient(opt)).join(', ')}</span>}
+                                            {item.isCombo && item.comboChoices && item.comboChoices.map((c, cIdx) => (
+                                                <div key={cIdx} className="text-[9px] text-gray-300 block mt-0.5 pl-2 border-l border-orange-500/50">
+                                                    <span className="text-orange-400">🔹 {c.name}</span>
+                                                    {c.removables?.length > 0 && <span className="text-red-400 ml-1">(- SANS: {c.removables.join(', ')})</span>}
+                                                    {c.selectedOption && <span className="text-blue-400 ml-1">({c.selectedOption})</span>}
+                                                </div>
+                                            ))}
                                         </div>
                                     ))}
                                     {o.orderNote && <div className="mt-2 text-[9px] text-red-300 bg-red-500/10 p-1.5 rounded border border-red-500/20 italic">"{o.orderNote}"</div>}
@@ -386,7 +393,18 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 )}
                                                 <div className="flex-1 pt-1">
                                                     <span className={`font-black text-xl text-white block leading-tight ${isChecked ? 'line-through decoration-2' : ''}`}>{item.qty}x {(item.name || '').split(' (Sans ')[0]}</span>
-                                                    {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => <span key={oIdx} className="inline-block bg-red-500/20 text-red-400 px-3 py-1 rounded-lg text-[11px] font-black mt-2 uppercase tracking-wider border border-red-500/20 mr-2">- {formatSansIngredient(opt)}</span>)}
+                                                    {(item.name || '').includes(' (Sans ') && <span className="inline-block bg-red-500/20 text-red-400 px-3 py-1 rounded-lg text-[11px] font-black mt-2 uppercase tracking-wider border border-red-500/20 mr-2">- {formatSansIngredient((item.name || '').split(' (Sans ')[1].replace(')','').split(', ').join(', '))}</span>}
+                                                    {item.isCombo && item.comboChoices && (
+                                                        <div className="mt-2 space-y-1.5 pl-3 border-l-2 border-orange-500 bg-orange-500/10 p-2 rounded-r-xl">
+                                                            {item.comboChoices.map((c, cIdx) => (
+                                                                <div key={cIdx} className="text-sm font-bold text-gray-200 flex flex-wrap items-center gap-1">
+                                                                    <span className="text-orange-400 mr-1">🔹 {c.name}</span>
+                                                                    {c.removables?.length > 0 && <span className="text-red-400 text-[11px] uppercase bg-red-500/20 px-2 py-0.5 rounded-md border border-red-500/20">- SANS {c.removables.join(', ')}</span>}
+                                                                    {c.selectedOption && <span className="text-blue-300 text-[11px] bg-blue-500/20 px-2 py-0.5 rounded-md border border-blue-500/20">({c.selectedOption})</span>}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -440,7 +458,13 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 {o.status === 'delivered' && <span className="text-[10px] font-black uppercase text-green-500 bg-green-500/10 border border-green-500/20 px-2 py-1 rounded-lg">Livré</span>}
                                             </div>
                                             <div className="text-sm font-bold text-neutral-400">
-                                                {(o.items || []).map(i => `${i.qty}x ${(i.name || '').split(' (Sans')[0]}`).join(', ')}
+                                                {(o.items || []).map(i => {
+                                                    let text = `${i.qty}x ${(i.name || '').split(' (Sans')[0]}`;
+                                                    if (i.isCombo && i.comboChoices) {
+                                                        text += ' [' + i.comboChoices.map(c => c.name + (c.removables?.length ? ' (SANS: '+c.removables.join(', ')+')' : '') + (c.selectedOption ? ' '+c.selectedOption : '')).join(' + ') + ']';
+                                                    }
+                                                    return text;
+                                                }).join(', ')}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -529,7 +553,11 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                     (o.items || []).forEach(i => {
                                                         const baseName = (i.name || '').split(' (Sans')[0];
                                                         const options = (i.name || '').includes(' (Sans') ? ' ' + (i.name || '').split(' (Sans ')[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt)).join(', ') : '';
-                                                        const key = baseName + options;
+                                                        let comboOpts = '';
+                                                        if (i.isCombo && i.comboChoices) {
+                                                            comboOpts = ' [' + i.comboChoices.map(c => c.name + (c.removables?.length ? ' SANS '+c.removables.join(',') : '') + (c.selectedOption ? ' '+c.selectedOption : '')).join(' + ') + ']';
+                                                        }
+                                                        const key = baseName + options + comboOpts;
                                                         if (!acc[key]) acc[key] = { qty: 0 };
                                                         acc[key].qty += i.qty;
                                                     });
@@ -560,7 +588,11 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 // On regroupe par nom exact (avec les options "Sans" pour ne pas mélanger)
                                                 const baseName = (i.name || '').split(' (Sans')[0];
                                                 const options = (i.name || '').includes(' (Sans') ? ' (Sans' + (i.name || '').split(' (Sans')[1] : '';
-                                                const key = baseName + options;
+                                                let comboOpts = '';
+                                                if (i.isCombo && i.comboChoices) {
+                                                    comboOpts = ' [' + i.comboChoices.map(c => c.name + (c.removables?.length ? ' SANS '+c.removables.join(',') : '') + (c.selectedOption ? ' '+c.selectedOption : '')).join(' + ') + ']';
+                                                }
+                                                const key = baseName + options + comboOpts;
                                                 
                                                 if (!acc[key]) acc[key] = { qty: 0, img: i.img };
                                                 acc[key].qty += i.qty;
@@ -569,7 +601,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         }, {})
                                     ).sort((a, b) => b[1].qty - a[1].qty).map(([name, data], idx) => {
                                         const baseName = name.split(' (Sans')[0];
-                                        const options = name.includes(' (Sans') ? name.split(' (Sans ')[1].replace(')', '') : '';
+                                        const options = name.replace(baseName, '').trim();
                                         return (
                                             <div key={idx} className="bg-neutral-800/50 border border-neutral-700 p-4 rounded-2xl flex items-center gap-4 hover:bg-neutral-800 transition-colors">
                                                 <div className="w-14 h-14 rounded-xl bg-neutral-900 border border-neutral-600 flex items-center justify-center shrink-0 overflow-hidden text-2xl">
@@ -577,7 +609,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 </div>
                                                 <div className="flex-1">
                                                     <div className="font-black text-lg text-white leading-tight">{baseName}</div>
-                                                    {options && <div className="text-[10px] text-red-400 font-bold uppercase mt-1">- {options.split(', ').map(opt => formatSansIngredient(opt)).join(', ')}</div>}
+                                                    {options && <div className="text-[10px] text-red-400 font-bold uppercase mt-1">- {options.replace(' (Sans ', '').replace(')', '')}</div>}
                                                 </div>
                                                 <div className="bg-blue-600 text-white w-12 h-12 rounded-xl flex items-center justify-center font-black text-2xl shadow-md shrink-0">
                                                     {data.qty}

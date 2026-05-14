@@ -19,16 +19,23 @@ const TEXT_ZONES = {
         { key: 'btnAdd', label: 'Bouton Ajouter (+)', def: 'Ajouter' },
         { key: 'btnCart', label: 'Titre Panier', def: 'Panier' },
         { key: 'btnOrder', label: 'Bouton Commander', def: 'Commander' },
-        { key: 'topQuality', label: 'Badge Qualité (Menu)', def: 'Top Qualité' },
-        { key: 'coverTitle', label: 'Titre Couverture', def: 'A7san Mada9' }
+        { key: 'topQuality', label: 'Badge Qualité', def: 'Top Qualité' },
+        { key: 'coverTitle', label: 'Titre Couverture', def: 'A7san Mada9' },
+        { key: 'btnConfirmAdd', label: 'Bouton Valider Choix', def: 'Valider' },
+        { key: 'btnCancel', label: 'Bouton Annuler', def: 'Non merci' },
+        { key: 'btnNext', label: 'Bouton Suivant', def: 'Suivant' }
     ],
     driver: [
         { key: 'driverAppTitle', label: 'Titre App Livreur', def: 'LIVREUR' },
         { key: 'driverBtnAccept', label: 'Bouton Accepter', def: 'Accepter (Prendre)' },
         { key: 'driverBtnReject', label: 'Bouton Refuser', def: 'Refuser' },
         { key: 'driverMapBtn', label: 'Bouton Carte GPS', def: 'Carte Live GPS' },
-        { key: 'driverTabMissions', label: 'Onglet Missions', def: 'Missions' },
-        { key: 'driverTabHistory', label: 'Onglet Historique', def: 'Historique' }
+        { key: 'btnCall', label: 'Bouton Appeler', def: 'Appeler' },
+        { key: 'btnMsgNear', label: 'Bouton Msg (Ana 9rib)', def: '"Ana 9rib nwsel"' },
+        { key: 'btnDelivered', label: 'Bouton Livrée', def: 'Commande Livrée' },
+        { key: 'btnPickedUp', label: 'Bouton Récupéré', def: "J'ai récupéré la commande" },
+        { key: 'driverTabMissions', label: 'Missions', def: 'Missions' },
+        { key: 'driverTabHistory', label: 'Historique', def: 'Historique' }
     ],
     pos: [
         { key: 'posAppTitle', label: 'Titre Caisse POS', def: 'CAISSE POS' },
@@ -36,7 +43,17 @@ const TEXT_ZONES = {
         { key: 'posBtnPay', label: 'Bouton Payer', def: 'Encaissement' },
         { key: 'posTotal', label: 'Texte Total', def: 'Total à payer' },
         { key: 'posCash', label: 'Bouton Espèce', def: 'Espèce' },
-        { key: 'posCard', label: 'Bouton Carte', def: 'Carte' }
+        { key: 'posCard', label: 'Bouton Carte', def: 'Carte' },
+        { key: 'btnCommandesWeb', label: 'Commandes Web', def: 'Commandes Web' },
+        { key: 'btnProblemes', label: 'Problèmes', def: 'Problèmes' },
+        { key: 'btnSuivi', label: 'Suivi', def: 'Suivi Web/Tél' },
+        { key: 'btnPretes', label: 'Prêtes', def: 'Prêtes (Servir)' },
+        { key: 'btnTv', label: 'Écran TV', def: 'Écran TV' },
+        { key: 'btnStandard', label: 'Standard Tél', def: 'Standard Tél' },
+        { key: 'btnKds', label: 'Cuisine KDS', def: 'Cuisine (KDS)' },
+        { key: 'btnQuitter', label: 'Quitter', def: 'Quitter' },
+        { key: 'posBtnSurPlace', label: 'Bouton Sur Place', def: '🍽️ Sur Place (Plateaux)' },
+        { key: 'posBtnAEmporter', label: 'Bouton À Emporter', def: '🛍️ À Emporter (Emballage)' }
     ],
     admin: [
         { key: 'adminAppTitle', label: 'Titre Idara', def: 'IDARA' },
@@ -71,7 +88,8 @@ const APP_TABS = {
     pos: [
         {id: 'apparence', label: '🎨 Couleurs & Style'},
         {id: 'textes', label: '📝 Textes'},
-        {id: 'print', label: '🖨️ Ticket Caisse'}
+        {id: 'print', label: '🖨️ Ticket Caisse'},
+        {id: 'features', label: '⚡ Fonctions'}
     ],
     admin: [
         {id: 'apparence', label: '🎨 Couleurs & Style'},
@@ -404,9 +422,9 @@ export default function AdminConfig({
                                              <div className="flex gap-3">
                                                  <input className="flex-1 bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-500 outline-none focus:border-blue-500 focus:bg-white transition-colors" placeholder="Titre (ex: Nouveau)" value={typeof brand.sliders?.[index] === 'object' ? brand.sliders[index].title || '' : ''} onChange={(e) => { const newS = [...(brand.sliders||[])]; const cur = typeof newS[index] === 'string' ? {img: newS[index]} : (newS[index] || {img:''}); newS[index] = {...cur, title: e.target.value}; setBrand({...brand, sliders: newS}); }} />
                                                  <input className="flex-1 bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-500 outline-none focus:border-blue-500 focus:bg-white transition-colors" placeholder="Badge (ex: -50%)" value={typeof brand.sliders?.[index] === 'object' ? brand.sliders[index].badge || '' : ''} onChange={(e) => { const newS = [...(brand.sliders||[])]; const cur = typeof newS[index] === 'string' ? {img: newS[index]} : (newS[index] || {img:''}); newS[index] = {...cur, badge: e.target.value}; setBrand({...brand, sliders: newS}); }} />
+                                             </div>
                                          </div>
                                      </div>
-                                         </div>
                                  ))}
                              </div>
                                  <button onClick={async () => { await setDoc(doc(db,'artifacts',appId,'public','data','settings','brand'), brand); showNotify("Sliders sauvegardés dans Firebase ✅", "success"); }} className="mt-4 w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2">
@@ -417,6 +435,47 @@ export default function AdminConfig({
                          )}
                      </div>
                      </>
+                     )}
+
+                     {previewApp === 'pos' && (
+                     <div id="section-pos-colors" className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden mt-8">
+                         <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 cursor-pointer flex justify-between items-center hover:bg-gray-100/50 transition-colors" onClick={() => toggleSec('pos_colors')}>
+                             <h3 className="font-bold text-gray-800 flex items-center gap-2"><Palette size={18} className="text-blue-500"/> 5. Couleurs des Boutons d'En-tête (POS)</h3>
+                             {expandedSec.pos_colors !== false ? <ChevronUp size={18} className="text-gray-500"/> : <ChevronDown size={18} className="text-gray-500"/>}
+                         </div>
+                         {expandedSec.pos_colors !== false && (
+                         <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in slide-in-from-top-2">
+                             {[
+                                 { key: 'btnPosWebColor', fallback: '#eff6ff', label: 'Commandes Web (Bg)' },
+                                 { key: 'btnPosWebTxtColor', fallback: '#1d4ed8', label: 'Commandes Web (Texte)' },
+                                 { key: 'btnPosProbColor', fallback: '#ef4444', label: 'Problèmes (Bg)' },
+                                 { key: 'btnPosProbTxtColor', fallback: '#ffffff', label: 'Problèmes (Texte)' },
+                                 { key: 'btnPosSuiviColor', fallback: '#f3e8ff', label: 'Suivi (Bg)' },
+                                 { key: 'btnPosSuiviTxtColor', fallback: '#7e22ce', label: 'Suivi (Texte)' },
+                                 { key: 'btnPosPretesColor', fallback: '#f0fdf4', label: 'Prêtes (Bg)' },
+                                 { key: 'btnPosPretesTxtColor', fallback: '#15803d', label: 'Prêtes (Texte)' },
+                                 { key: 'btnPosTvColor', fallback: '#2563eb', label: 'Écran TV (Bg)' },
+                                 { key: 'btnPosTvTxtColor', fallback: '#ffffff', label: 'Écran TV (Texte)' },
+                                 { key: 'btnPosStdColor', fallback: '#f97316', label: 'Standard Tél (Bg)' },
+                                 { key: 'btnPosStdTxtColor', fallback: '#ffffff', label: 'Standard Tél (Texte)' },
+                                 { key: 'btnPosKdsColor', fallback: '#171717', label: 'Cuisine KDS (Bg)' },
+                                 { key: 'btnPosKdsTxtColor', fallback: '#ffffff', label: 'Cuisine KDS (Texte)' },
+                                 { key: 'btnPosQuitColor', fallback: '#ffffff', label: 'Quitter (Bg)' },
+                                 { key: 'btnPosQuitTxtColor', fallback: '#374151', label: 'Quitter (Texte)' },
+                                 { key: 'btnPosSurPlaceColor', fallback: '#3b82f6', label: 'Sur Place (Bg Actif)' },
+                                 { key: 'btnPosAEmporterColor', fallback: '#ec4899', label: 'À Emporter (Bg Actif)' },
+                             ].map(c => (
+                                 <div key={c.key} className={`flex flex-col gap-2 p-4 rounded-2xl border transition-all ${activeEditZone === c.key ? 'ring-2 ring-blue-500/20 border-blue-300 bg-white' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                                     <span className="text-xs font-semibold text-gray-600">{c.label}</span>
+                                     <div className="flex items-center gap-2">
+                                         <input type="color" id={`edit-color-${c.key}`} className="w-6 h-6 rounded-md cursor-pointer border-0 p-0 bg-transparent" value={brand[c.key] || c.fallback} onChange={e=>setBrand({...brand, [c.key]: e.target.value})} onFocus={()=>setActiveEditZone(c.key)} />
+                                         <input id={`edit-${c.key}`} className="bg-transparent text-xs text-gray-800 font-mono outline-none flex-1 uppercase font-bold" value={brand[c.key] || c.fallback} onChange={e=>setBrand({...brand, [c.key]: e.target.value})} onFocus={()=>setActiveEditZone(c.key)} />
+                                     </div>
+                                 </div>
+                             ))}
+                         </div>
+                         )}
+                     </div>
                      )}
                  </div>
                  )}
@@ -706,6 +765,27 @@ export default function AdminConfig({
                                                  <span className="text-sm font-black text-blue-900 flex items-center gap-2"><Zap size={18} className={settings?.isBotMaestroEnabled ? "text-yellow-500 fill-yellow-500 animate-pulse" : "text-blue-400"}/> Activer Bot Maestro (Intelligence Artificielle)</span>
                                                  <span className="text-xs font-bold text-blue-700/80 mt-1 leading-relaxed">Le bot gère automatiquement les surcharges de la cuisine (Cloud Kitchen vers Zoubire) et redirige les livreurs intelligents (Mounqid) en cas de rush.</span>
                                              </div>
+                                         </label>
+                                     </>
+                                 )}
+
+                                 {previewApp === 'pos' && (
+                                     <>
+                                         <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all cursor-pointer shadow-sm md:col-span-2">
+                                             <input type="checkbox" checked={!settings?.hidePosSurPlace} onChange={(e) => { saveSettings({...settings, hidePosSurPlace: !e.target.checked}); showNotify(e.target.checked ? "Bouton Sur Place affiché ✅" : "Bouton Sur Place masqué ❌", "success"); }} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 accent-blue-600" />
+                                             <span className="text-sm font-bold text-gray-800">Afficher le bouton "Sur Place"</span>
+                                         </label>
+                                         <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all cursor-pointer shadow-sm md:col-span-2">
+                                             <input type="checkbox" checked={!settings?.hidePosAEmporter} onChange={(e) => { saveSettings({...settings, hidePosAEmporter: !e.target.checked}); showNotify(e.target.checked ? "Bouton À Emporter affiché ✅" : "Bouton À Emporter masqué ❌", "success"); }} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 accent-blue-600" />
+                                             <span className="text-sm font-bold text-gray-800">Afficher le bouton "À Emporter"</span>
+                                         </label>
+                                         <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all cursor-pointer shadow-sm md:col-span-2">
+                                             <input type="checkbox" checked={!settings?.hidePosBluetooth} onChange={(e) => { saveSettings({...settings, hidePosBluetooth: !e.target.checked}); showNotify(e.target.checked ? "Bouton Bluetooth affiché ✅" : "Bouton Bluetooth masqué ❌", "success"); }} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 accent-blue-600" />
+                                             <span className="text-sm font-bold text-gray-800">Afficher le bouton "Connecter Imprimante BT"</span>
+                                         </label>
+                                         <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all cursor-pointer shadow-sm md:col-span-2">
+                                             <input type="checkbox" checked={!settings?.hidePosTiroir} onChange={(e) => { saveSettings({...settings, hidePosTiroir: !e.target.checked, hidePosHistory: !e.target.checked, hidePosReports: !e.target.checked}); showNotify(e.target.checked ? "Boutons Action affichés ✅" : "Boutons Action masqués ❌", "success"); }} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 accent-blue-600" />
+                                             <span className="text-sm font-bold text-gray-800">Afficher les boutons "Tiroir / Historique / Rapports"</span>
                                          </label>
                                      </>
                                  )}

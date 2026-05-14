@@ -68,6 +68,7 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
     const [selectedVariation, setSelectedVariation] = useState(null);
     const [selectedChoice, setSelectedChoice] = useState(null);
     const [selectedExtras, setSelectedExtras] = useState([]);
+    const [comboSelections, setComboSelections] = useState({});
     const [customizationStep, setCustomizationStep] = useState(0);
     const [orderNote, setOrderNote] = useState('');
     const [detailOrder, setDetailOrder] = useState(null);
@@ -102,6 +103,14 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
         window.addEventListener('resize', updateFontSize);
         return () => window.removeEventListener('resize', updateFontSize);
     }, []);
+
+    const toggleComboRemovable = (itemIndex, ing) => {
+        setComboSelections(prev => {
+            const current = prev[itemIndex]?.removables || [];
+            const newRemovables = current.includes(ing) ? current.filter(x => x !== ing) : [...current, ing];
+            return { ...prev, [itemIndex]: { ...prev[itemIndex], removables: newRemovables } };
+        });
+    };
 
     useEffect(() => { 
         if (!user || !user.uid) { setIsAppLoading(false); return; }
@@ -410,12 +419,12 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                     const lastItem = itemCart[itemCart.length - 1];
                     setCart(cart.map(x=>x.cartItemId===lastItem.cartItemId?{...x,qty:x.qty-1}:x).filter(x=>x.qty>0));
                 }} className={themeType === 'premium' ? `bg-white/20 w-10 h-10 ${btnRadius} font-black text-white` : `bg-white w-7 h-7 ${btnRadius} text-red-500 font-black shadow-sm`}>-</button><span className="font-black text-sm">{totalQty}</span><button onClick={() => {
-                    if (i.removableIngredients || i.choices || (i.extras && i.extras.length > 0) || i.hasVariations) { setSelectedItem(i); setItemOptions([]); setSelectedVariation(i.hasVariations && i.variations?.length > 0 ? i.variations[0] : null); setSelectedChoice(null); setSelectedExtras([]); setCustomizationStep(0); } 
+                    if (i.removableIngredients || i.choices || (i.extras && i.extras.length > 0) || i.hasVariations || i.isCombo) { setSelectedItem(i); setItemOptions([]); setSelectedVariation(i.hasVariations && i.variations?.length > 0 ? i.variations[0] : null); setSelectedChoice(null); setSelectedExtras([]); setCustomizationStep(0); setComboSelections({}); } 
                     else { const lastItem = itemCart[itemCart.length - 1]; setCart(cart.map(x=>x.cartItemId===lastItem.cartItemId?{...x,qty:x.qty+1}:x)); }
                 }} className={themeType === 'premium' ? `w-10 h-10 ${btnRadius} text-black font-black` : `bg-white w-7 h-7 ${btnRadius} text-black font-black shadow-sm`} style={{backgroundColor: brand.color}}>+</button></div>
             ) : (
             <button disabled={!settings.isOpen || i.outOfStock} onClick={()=>{
-                    if (i.removableIngredients || i.hasVariations || i.choices || (i.extras && i.extras.length > 0)) { setSelectedItem(i); setItemOptions([]); setSelectedVariation(i.hasVariations && i.variations?.length > 0 ? i.variations[0] : null); setSelectedChoice(null); setSelectedExtras([]); } 
+                    if (i.removableIngredients || i.hasVariations || i.choices || (i.extras && i.extras.length > 0) || i.isCombo) { setSelectedItem(i); setItemOptions([]); setSelectedVariation(i.hasVariations && i.variations?.length > 0 ? i.variations[0] : null); setSelectedChoice(null); setSelectedExtras([]); setComboSelections({}); } 
                     else { setCart([...cart,{...i,qty:1, cartItemId: i.id + '_default'}]); }
                 }} className={`${themeType === 'premium' ? `text-black w-12 h-12 ${btnRadius} font-black text-xl shadow-xl flex items-center justify-center active:scale-90 transition-all` : `text-black w-full py-2.5 ${btnRadius} font-black text-[10px] uppercase shadow-sm`} ${anims.plusPulse ? 'animate-pulse text-red-500' : ''}`} style={{backgroundColor: brand.color}}>{themeType === 'premium' ? <Plus size={24} strokeWidth={3}/> : txtAdd}</button>
             )}
@@ -470,6 +479,14 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                        <div className="flex flex-col">
                           <div className="font-black text-sm uppercase leading-tight">{(i.name || '').split(' (Sans ')[0]}</div>
                           {(i.name || '').includes(' (Sans ') && (i.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, idx) => <div key={idx} className="text-[10px] text-red-500 font-bold mt-0.5 uppercase">- {formatSansIngredient(opt)}</div>)}
+                          
+                          {i.isCombo && i.comboChoices && i.comboChoices.map((c, idx) => (
+                              <div key={idx} className="text-[10px] text-gray-700 font-bold mt-1 pl-2 border-l-2 border-orange-400">
+                                  🔹 {c.name}
+                                  {c.removables?.length > 0 && <span className="text-red-500 uppercase ml-1">(SANS: {c.removables.join(', ')})</span>}
+                                  {c.selectedOption && <span className="text-blue-600 ml-1">({c.selectedOption})</span>}
+                              </div>
+                          ))}
                           
                           <div className="flex items-center gap-2 mt-2">
                               <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1 border border-gray-200">
@@ -731,6 +748,13 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                                   {(item.name || '').split(' (Sans ')[1].replace(')', '').split(', ').map((opt, oIdx) => <span key={oIdx}>- {formatSansIngredient(opt)}</span>)}
                               </span>
                           )}
+                          {item.isCombo && item.comboChoices && item.comboChoices.map((c, idx) => (
+                              <div key={idx} className="text-[10px] text-gray-700 font-bold mt-1 pl-2 border-l-2 border-orange-400">
+                                  🔹 {c.name}
+                                  {c.removables?.length > 0 && <span className="text-red-500 uppercase ml-1">(SANS: {c.removables.join(', ')})</span>}
+                                  {c.selectedOption && <span className="text-blue-600 ml-1">({c.selectedOption})</span>}
+                              </div>
+                          ))}
                       </div>
                     </div>
                     <span className="font-black text-gray-900 whitespace-nowrap ml-2">{item.price * item.qty} DH</span>
@@ -784,6 +808,44 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
               
               <div className="flex-1 overflow-y-auto mb-6">
                 {(() => {
+                    if (selectedItem.isCombo) {
+                        return (
+                            <div className="space-y-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Personnalisez votre Menu</p>
+                                {selectedItem.comboItems?.map((cItem, idx) => (
+                                    <div key={idx} className="p-4 border-2 border-gray-100 rounded-2xl bg-gray-50 shadow-sm">
+                                        <h4 className="font-black text-gray-900 mb-3 text-sm flex items-center gap-2">🔹 {cItem.name}</h4>
+                                        {cItem.type === 'sandwich' && (
+                                            <div>
+                                                <p className="text-[10px] text-gray-500 mb-2 font-bold uppercase">Ingrédients à retirer :</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['Tomate', 'Oignon', 'Olive', 'Laitue', 'Carotte'].map(ing => {
+                                                        const isRemoved = comboSelections[idx]?.removables?.includes(ing);
+                                                        return (
+                                                            <button key={ing} onClick={() => toggleComboRemovable(idx, ing)} className={`px-3 py-2 text-xs font-bold rounded-xl border-2 transition-all ${isRemoved ? 'bg-red-50 text-red-600 border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:border-red-200'}`}>
+                                                                Sans {ing}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {cItem.type === 'drink' && (
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {cItem.options?.map(opt => (
+                                                    <label key={opt} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${comboSelections[idx]?.selectedOption === opt ? 'bg-blue-50 border-blue-500' : 'bg-white border-gray-200 hover:border-blue-300'}`}>
+                                                        <input type="radio" className="w-5 h-5 accent-blue-600" checked={comboSelections[idx]?.selectedOption === opt} onChange={() => setComboSelections(prev => ({...prev, [idx]: {...prev[idx], selectedOption: opt}}))} />
+                                                        <span className="text-sm font-bold text-gray-800">{opt}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    }
+
                     const activeGlobalDrinks = settings?.globalDrinks !== undefined ? settings.globalDrinks : PREDEFINED_DRINKS;
                     const drinkNames = new Set(activeGlobalDrinks.map(d => d.name));
 
@@ -1011,6 +1073,26 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
 
                   const currentStepId = steps[customizationStep] || steps[0];
                   const isLastStep = customizationStep >= steps.length - 1;
+
+                  if (selectedItem.isCombo) {
+                      return (
+                          <button 
+                            onClick={() => {
+                                const missingDrink = selectedItem.comboItems?.findIndex((c, i) => c.type === 'drink' && !comboSelections[i]?.selectedOption);
+                                if (missingDrink !== -1) return showNotify(`Veuillez choisir une option pour: ${selectedItem.comboItems[missingDrink].name}`, "error");
+                                let comboChoices = selectedItem.comboItems?.map((c, i) => ({
+                                    name: c.name, removables: comboSelections[i]?.removables || [], selectedOption: comboSelections[i]?.selectedOption || null
+                                }));
+                                const cartItemId = selectedItem.id + '_combo_' + Date.now();
+                                setCart([...cart, { ...selectedItem, qty: 1, cartItemId, comboChoices }]);
+                                setSelectedItem(null);
+                                showNotify("Menu ajouté au panier ! 🍔", "success");
+                            }} 
+                            className="w-full py-4 rounded-xl font-black text-lg uppercase text-black shadow-lg"
+                            style={{backgroundColor: brand.color}}
+                          >Valider • {selectedItem.price} DH</button>
+                      );
+                  }
 
                   if (isLastStep) {
                       return (

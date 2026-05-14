@@ -9,11 +9,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [cart, setCart] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('');
 
-    const [orderType, setOrderType] = useState('sur_place'); // 'sur_place' wla 'a_emporter'
+    const [orderType, setOrderType] = useState(settings?.hidePosSurPlace ? 'a_emporter' : 'sur_place'); // 'sur_place' wla 'a_emporter'
     const [editCartItem, setEditCartItem] = useState(null); // Jdid: Modal modifier l-quantité
     const [selectedItemForOptions, setSelectedItemForOptions] = useState(null); // Jdid: Modal dyal les options
     const [selectedChoiceForOptions, setSelectedChoiceForOptions] = useState(null);
     const [selectedVariationForOptions, setSelectedVariationForOptions] = useState(null);
+    const [comboSelectionsForOptions, setComboSelectionsForOptions] = useState({});
     const [showPosSans, setShowPosSans] = useState(false);
     const [showPosExtras, setShowPosExtras] = useState(false);
     const [heldCarts, setHeldCarts] = useState([]); // Jdid: Commandes en attente
@@ -69,6 +70,11 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         return defaultPosUI;
     });
     const [showUISettings, setShowUISettings] = useState(false);
+
+    useEffect(() => {
+        if (settings?.hidePosSurPlace && orderType === 'sur_place') setOrderType('a_emporter');
+        if (settings?.hidePosAEmporter && orderType === 'a_emporter') setOrderType('sur_place');
+    }, [settings?.hidePosSurPlace, settings?.hidePosAEmporter]);
 
     // 🔥 NOUVEAU: Auto-reconnexion au démarrage (Web Bluetooth getDevices)
     useEffect(() => {
@@ -135,7 +141,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             }
             return newCart;
         });
-        handleProductClick(lastItem, true);
+        const originalItem = (settings?.menuItems || []).find(i => i.id === lastItem.id) || lastItem;
+        handleProductClick(originalItem, true);
     };
 
     const currentBranch = (settings?.branches || []).find(b => b.id === activeBranchId);
@@ -539,9 +546,106 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         }
     };
 
+    const handleEditCartItemOptions = (cartItem) => {
+        const originalItem = menuItems.find(i => i.id === cartItem.id);
+        if (!originalItem) {
+            showNotify("Produit introuvable dans le menu actuel", "error");
+            return;
+        }
+
+        const ingredients = originalItem.removableIngredients ? String(originalItem.removableIngredients).split(',').map(i => i.trim()).filter(Boolean) : [];
+        let choicesList = [];
+        if (originalItem.choices) {
+            const choicesStr = String(originalItem.choices).trim();
+            if (choicesStr.toUpperCase().startsWith('CAT:')) {
+                const catName = choicesStr.split(':')[1].trim();
+                const matchedItems = menuItems.filter(i => i.category === catName && !i.outOfStock && !(settings?.disabledItems || []).includes(i.id));
+                matchedItems.forEach(i => {
+                    if (i.hasVariations && i.variations?.length > 0) {
+                        i.variations.forEach(v => choicesList.push(`${i.name} (${v.name})` + (i.img ? ` | ${i.img}` : '')));
+                    } else {
+                        choicesList.push(i.name + (i.img ? ` | ${i.img}` : ''));
+                    }
+                });
+            } else if (choicesStr.toUpperCase().startsWith('PROD:')) {
+                const prodNames = choicesStr.substring(5).split(',').map(n => n.trim().toLowerCase());
+                const matchedItems = menuItems.filter(i => prodNames.includes((i.name || '').trim().toLowerCase()) && !i.outOfStock && !(settings?.disabledItems || []).includes(i.id));
+                matchedItems.forEach(i => {
+                    if (i.hasVariations && i.variations?.length > 0) {
+                        i.variations.forEach(v => choicesList.push(`${i.name} (${v.name})` + (i.img ? ` | ${i.img}` : '')));
+                    } else {
+                        choicesList.push(i.name + (i.img ? ` | ${i.img}` : ''));
+                    }
+                });
+            } else {
+                choicesList = choicesStr.split(',').map(i => i.trim()).filter(Boolean);
+            }
+        }
+
+        let guessedVariation = cartItem.selectedVariation;
+        if (!guessedVariation && originalItem.hasVariations && originalItem.variations?.length > 0) {
+            guessedVariation = originalItem.variations.find(v => cartItem.name.includes(`(${v.name})`)) || originalItem.variations[0];
+        }
+
+        let guessedChoice = cartItem.selectedChoice;
+        if (!guessedChoice && choicesList.length > 0) {
+            guessedChoice = choicesList.find(c => {
+                const choiceName = c.split('|')[0].trim();
+                return cartItem.name.includes(`(${choiceName})`);
+            }) || null;
+            if (guessedChoice) {
+                guessedChoice = guessedChoice.split('|')[0].trim();
+            }
+        }
+
+        let guessedSans = cartItem.selectedSans;
+        if (!guessedSans) {
+            const sansMatch = cartItem.name.match(/\(Sans ([^)]+)\)/);
+            if (sansMatch) {
+                guessedSans = sansMatch[1].split(',').map(s => s.trim());
+            } else {
+                guessedSans = [];
+            }
+        }
+
+        let guessedExtras = cartItem.selectedExtras;
+        if (!guessedExtras) {
+            const avecMatch = cartItem.name.match(/\(Avec ([^)]+)\)/);
+            if (avecMatch) {
+                guessedExtras = avecMatch[1].split(',').map(s => ({ name: s.trim(), price: 0 }));
+            } else {
+                guessedExtras = [];
+            }
+        }
+
+        setSelectedItemForOptions({
+            ...originalItem,
+            ingredients,
+            choices: choicesList,
+            selectedSans: guessedSans,
+            selectedExtras: guessedExtras,
+            isEditingCartItemName: cartItem.name,
+            editingCartItemQty: cartItem.qty
+        });
+
+        setSelectedVariationForOptions(guessedVariation);
+        setSelectedChoiceForOptions(guessedChoice);
+        setShowPosSans(ingredients.length > 0);
+        setShowPosExtras(originalItem.extras && originalItem.extras.length > 0);
+        setEditCartItem(null);
+    };
+
+    const togglePosComboRemovable = (itemIndex, ing) => {
+        setComboSelectionsForOptions(prev => {
+            const current = prev[itemIndex]?.removables || [];
+            const newRemovables = current.includes(ing) ? current.filter(x => x !== ing) : [...current, ing];
+            return { ...prev, [itemIndex]: { ...prev[itemIndex], removables: newRemovables } };
+        });
+    };
+
     const handleProductClick = (item, forceOptions = false) => {
         // Les choix w les tailles homa obligatoires, khassna dima n7ello l-modal fihom
-        const needsOptions = (item.hasVariations && item.variations?.length > 0) || (item.choices && item.choices.length > 0);
+        const needsOptions = (item.hasVariations && item.variations?.length > 0) || (item.choices && item.choices.length > 0) || item.isCombo;
 
         if (forceOptions || needsOptions) {
             const ingredients = item.removableIngredients ? String(item.removableIngredients).split(',').map(i => i.trim()).filter(Boolean) : [];
@@ -576,6 +680,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             setSelectedItemForOptions({ ...item, ingredients, choices: choicesList, selectedSans: [], selectedExtras: [] });
             setSelectedChoiceForOptions(null);
             setSelectedVariationForOptions(item.hasVariations && item.variations?.length > 0 ? item.variations[0] : null);
+            setComboSelectionsForOptions({});
             setShowPosSans(false);
             setShowPosExtras(false);
             setShowPosSans(ingredients.length > 0);
@@ -587,6 +692,21 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     const confirmOptionsAndAdd = () => {
         if (!selectedItemForOptions) return;
+        
+        if (selectedItemForOptions.isCombo) {
+            const missingDrink = selectedItemForOptions.comboItems?.findIndex((c, i) => c.type === 'drink' && !comboSelectionsForOptions[i]?.selectedOption);
+            if (missingDrink !== -1) return showNotify(`Veuillez choisir une option pour: ${selectedItemForOptions.comboItems[missingDrink].name}`, "error");
+            let comboChoices = selectedItemForOptions.comboItems?.map((c, i) => ({
+                name: c.name,
+                removables: comboSelectionsForOptions[i]?.removables || [],
+                selectedOption: comboSelectionsForOptions[i]?.selectedOption || null
+            }));
+            const cartItemId = selectedItemForOptions.id + '_combo_' + Date.now();
+            setCart([...cart, { ...selectedItemForOptions, qty: 1, cartItemId, comboChoices }]);
+            setSelectedItemForOptions(null);
+            return;
+        }
+
         if (selectedItemForOptions.hasVariations && !selectedVariationForOptions) {
             return showNotify("Veuillez choisir une taille !", "error");
         }
@@ -604,8 +724,46 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         if (selectedItemForOptions.selectedSans.length > 0) {
             note += ` (Sans ${selectedItemForOptions.selectedSans.join(', ')})`;
         }
-        const itemToAdd = { ...selectedItemForOptions, price: finalPrice };
-        addToCart(itemToAdd, note);
+        const itemToAdd = { 
+            ...selectedItemForOptions, 
+            price: finalPrice,
+            selectedVariation: selectedVariationForOptions,
+            selectedChoice: selectedChoiceForOptions,
+            selectedSans: selectedItemForOptions.selectedSans,
+            selectedExtras: selectedItemForOptions.selectedExtras
+        };
+        
+        if (selectedItemForOptions.isEditingCartItemName) {
+            const finalName = note ? selectedItemForOptions.name + note : selectedItemForOptions.name;
+            setCart(prev => {
+                const oldItem = prev.find(i => i.id === selectedItemForOptions.id && i.name === selectedItemForOptions.isEditingCartItemName);
+                if (!oldItem) return prev;
+                
+                const isNameChanged = finalName !== oldItem.name;
+                
+                // Si l'utilisateur modifie un produit avec une quantité > 1, on le sépare du groupe
+                if (isNameChanged && oldItem.qty > 1) {
+                    let newCart = prev.map(i => {
+                        if (i.id === oldItem.id && i.name === oldItem.name) return { ...i, qty: i.qty - 1 };
+                        return i;
+                    });
+                    
+                    const existingNew = newCart.find(i => i.id === itemToAdd.id && i.name === finalName);
+                    if (existingNew) return newCart.map(i => i.id === itemToAdd.id && i.name === finalName ? { ...i, qty: i.qty + 1 } : i);
+                    return [...newCart, { ...itemToAdd, name: finalName, qty: 1 }];
+                } else {
+                    let filtered = prev.filter(i => !(i.id === selectedItemForOptions.id && i.name === selectedItemForOptions.isEditingCartItemName));
+                    const existing = filtered.find(i => i.id === selectedItemForOptions.id && i.name === finalName);
+                    if (existing) {
+                        return filtered.map(i => i.id === selectedItemForOptions.id && i.name === finalName ? { ...i, qty: i.qty + oldItem.qty } : i);
+                    } else {
+                        return [...filtered, { ...itemToAdd, name: finalName, qty: oldItem.qty }];
+                    }
+                }
+            });
+        } else {
+            addToCart(itemToAdd, note);
+        }
         setSelectedItemForOptions(null);
     };
 
@@ -686,6 +844,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         const sansList = item.name.split(' (Sans ')[1].replace(')', '').split(', ');
                         sansList.forEach(opt => { text += `  - Sans ${formatSansIngredient(opt)}\n`; });
                     }
+                    if (item.isCombo && item.comboChoices) {
+                        item.comboChoices.forEach(c => {
+                            text += `  🔹 ${c.name}\n`;
+                            if (c.removables?.length > 0) text += `    - Sans ${c.removables.join(', ')}\n`;
+                            if (c.selectedOption) text += `    - ${c.selectedOption}\n`;
+                        });
+                    }
                 });
                 
                 text += `--------------------------------\n`;
@@ -712,6 +877,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 <span>${item.price * item.qty} DH</span>
             </div>
             ${item.name.includes(' (Sans') ? `<div style="font-size:12px; color:#da291c; margin-top:-3px; margin-bottom:5px; font-weight: bold;">- ${item.name.split(' (Sans ')[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt)).join('<br>- ')}</div>` : ''}
+            ${item.isCombo && item.comboChoices ? item.comboChoices.map(c => `
+                <div style="font-size:12px; color:#555; margin-left:10px; font-weight: bold;">
+                    🔹 ${c.name}
+                    ${c.removables?.length ? `<span style="color:#da291c;">(SANS: ${c.removables.join(', ')})</span>` : ''}
+                    ${c.selectedOption ? `<span style="color:#2563eb;">(${c.selectedOption})</span>` : ''}
+                </div>
+            `).join('') : ''}
         `).join('');
 
         const kitchenItemsHtml = order.items.map(item => `
@@ -719,6 +891,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 ${item.qty}x ${item.name.split(' (Sans')[0]}
             </div>
             ${item.name.includes(' (Sans') ? `<div style="font-size:16px; margin-top:-5px; margin-bottom:8px; font-weight: 900; text-transform: uppercase;">*** ${item.name.split(' (Sans ')[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt)).join(' ***<br>*** ')} ***</div>` : ''}
+            ${item.isCombo && item.comboChoices ? item.comboChoices.map(c => `
+                <div style="font-size:16px; margin-top:5px; font-weight: bold; padding-left: 15px; border-left: 2px solid #000;">
+                    🔹 ${c.name}
+                    ${c.removables?.length ? `<br><span style="color:#000;">*** SANS: ${c.removables.join(', ')} ***</span>` : ''}
+                    ${c.selectedOption ? `<br><span style="color:#000;">*** ${c.selectedOption} ***</span>` : ''}
+                </div>
+            `).join('') : ''}
         `).join('');
 
         const dateStr = new Date().toLocaleString('fr-FR');
@@ -935,66 +1114,82 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
         switch(btnId) {
             case 'commandes_web':
+                const webBg = brand?.btnPosWebColor || ''; const webTxt = brand?.btnPosWebTxtColor || '';
+                const webStyle = webBg ? { backgroundColor: webBg, color: webTxt || '#ffffff', borderColor: webBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
-                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => {
+                    <button key={btnId} {...dragProps} style={webStyle} onClick={() => {
                         if (pendingOnline.length > 0) setShowPendingModal(true);
                         else { if (setTab) setTab('active'); else window.location.href = '/idara'; }
-                    }} className={`${baseClass} ${pendingOnline.length > 0 ? 'bg-red-500 text-white animate-pulse border border-red-600' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'}`}>
+                    }} className={`${baseClass} ${pendingOnline.length > 0 ? 'bg-red-500 text-white animate-pulse border border-red-600' : (webBg ? '' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100')}`}>
                         <BellRing size={18} className={pendingOnline.length > 0 ? 'animate-bounce' : ''}/>
-                        <span className="hidden sm:inline">Commandes Web</span>
+                        <span className="hidden sm:inline">{brand?.texts?.btnCommandesWeb || 'Commandes Web'}</span>
                         {pendingOnline.length > 0 && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{pendingOnline.length}</span>}
                     </button>
                 );
             case 'problemes':
                 if (problemOrders.length === 0) return null;
+                const probBg = brand?.btnPosProbColor || ''; const probTxt = brand?.btnPosProbTxtColor || '';
+                const probStyle = probBg ? { backgroundColor: probBg, color: probTxt || '#ffffff', borderColor: probBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
-                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setShowProblemModal(true)} className={`${baseClass} bg-red-500 text-white border border-red-600 animate-pulse`}>
-                        <AlertTriangle size={18} /> <span className="hidden sm:inline">Problèmes</span>
+                    <button key={btnId} {...dragProps} style={probStyle} onClick={() => setShowProblemModal(true)} className={`${baseClass} ${probBg ? '' : 'bg-red-500 text-white border border-red-600'} animate-pulse`}>
+                        <AlertTriangle size={18} /> <span className="hidden sm:inline">{brand?.texts?.btnProblemes || 'Problèmes'}</span>
                         <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{problemOrders.length}</span>
                     </button>
                 );
             case 'suivi':
+                const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSuiviTxtColor || '';
+                const suiviStyle = suiviBg ? { backgroundColor: suiviBg, color: suiviTxt || '#ffffff', borderColor: suiviBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
-                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setShowOnlineOrdersModal(true)} className={`${baseClass} ${onlineOrders.length > 0 ? 'bg-purple-500 text-white hover:bg-purple-600 border-purple-600' : 'bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100'}`}>
-                        <ShoppingBag size={18} /> <span className="hidden sm:inline">Suivi Web/Tél</span>
+                    <button key={btnId} {...dragProps} style={suiviStyle} onClick={() => setShowOnlineOrdersModal(true)} className={`${baseClass} ${onlineOrders.length > 0 ? 'bg-purple-500 text-white hover:bg-purple-600 border-purple-600' : (suiviBg ? '' : 'bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100')}`}>
+                        <ShoppingBag size={18} /> <span className="hidden sm:inline">{brand?.texts?.btnSuivi || 'Suivi Web/Tél'}</span>
                         {onlineOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{onlineOrders.length}</span>}
                     </button>
                 );
             case 'pretes':
+                const preteBg = brand?.btnPosPretesColor || ''; const preteTxt = brand?.btnPosPretesTxtColor || '';
+                const preteStyle = preteBg ? { backgroundColor: preteBg, color: preteTxt || '#ffffff', borderColor: preteBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
-                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setShowReadyPosModal(true)} className={`${baseClass} ${readyPosOrders.length > 0 ? 'bg-green-500 text-white animate-pulse border border-green-600' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'}`}>
-                        <CheckCircle size={18} /> <span className="hidden sm:inline">Prêtes (Servir)</span>
+                    <button key={btnId} {...dragProps} style={preteStyle} onClick={() => setShowReadyPosModal(true)} className={`${baseClass} ${readyPosOrders.length > 0 ? 'bg-green-500 text-white animate-pulse border border-green-600' : (preteBg ? '' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100')}`}>
+                        <CheckCircle size={18} /> <span className="hidden sm:inline">{brand?.texts?.btnPretes || 'Prêtes (Servir)'}</span>
                         {readyPosOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{readyPosOrders.length}</span>}
                     </button>
                 );
             case 'tv':
+                const tvBg = brand?.btnPosTvColor || ''; const tvTxt = brand?.btnPosTvTxtColor || '';
+                const tvStyle = tvBg ? { backgroundColor: tvBg, color: tvTxt || '#ffffff', borderColor: tvBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
-                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => {
+                    <button key={btnId} {...dragProps} style={tvStyle} onClick={() => {
                         const route = '/tv';
                         window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
-                    }} className={`${baseClass} bg-blue-600 hover:bg-blue-700 text-white border border-blue-700`}>
-                        <Monitor size={18} /> <span className="hidden sm:inline">Écran TV</span>
+                    }} className={`${baseClass} ${tvBg ? '' : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-700'}`}>
+                        <Monitor size={18} /> <span className="hidden sm:inline">{brand?.texts?.btnTv || 'Écran TV'}</span>
                     </button>
                 );
             case 'standard':
+                const stdBg = brand?.btnPosStdColor || ''; const stdTxt = brand?.btnPosStdTxtColor || '';
+                const stdStyle = stdBg ? { backgroundColor: stdBg, color: stdTxt || '#ffffff', borderColor: stdBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
-                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setShowStandardModal(true)} className={`${baseClass} bg-orange-500 hover:bg-orange-600 text-white border border-orange-600`}>
-                        📞 <span className="hidden sm:inline">Standard Tél</span>
+                    <button key={btnId} {...dragProps} style={stdStyle} onClick={() => setShowStandardModal(true)} className={`${baseClass} ${stdBg ? '' : 'bg-orange-500 hover:bg-orange-600 text-white border border-orange-600'}`}>
+                        📞 <span className="hidden sm:inline">{brand?.texts?.btnStandard || 'Standard Tél'}</span>
                     </button>
                 );
             case 'kds':
+                const kdsBg = brand?.btnPosKdsColor || ''; const kdsTxt = brand?.btnPosKdsTxtColor || '';
+                const kdsStyle = kdsBg ? { backgroundColor: kdsBg, color: kdsTxt || '#ffffff', borderColor: kdsBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
-                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => {
+                    <button key={btnId} {...dragProps} style={kdsStyle} onClick={() => {
                         const route = '/kds';
                         window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
-                    }} className={`${baseClass} bg-neutral-900 hover:bg-black text-white border border-neutral-800`}>
-                        <ChefHat size={18} className="text-orange-500" /> <span className="hidden sm:inline">Cuisine (KDS)</span>
+                    }} className={`${baseClass} ${kdsBg ? '' : 'bg-neutral-900 hover:bg-black text-white border border-neutral-800'}`}>
+                        <ChefHat size={18} className="text-orange-500" /> <span className="hidden sm:inline">{brand?.texts?.btnKds || 'Cuisine (KDS)'}</span>
                     </button>
                 );
             case 'quitter':
+                const quitBg = brand?.btnPosQuitColor || ''; const quitTxt = brand?.btnPosQuitTxtColor || '';
+                const quitStyle = quitBg ? { backgroundColor: quitBg, color: quitTxt || '#374151', borderColor: quitBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
-                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setTab ? setTab('active') : (onQuit ? onQuit() : window.location.href = '/idara')} className={`${baseClass} bg-white border border-gray-200 hover:bg-gray-50 text-gray-700`}>
-                        <ArrowLeft size={18}/> <span className="hidden sm:inline">Quitter</span>
+                    <button key={btnId} {...dragProps} style={quitStyle} onClick={() => setTab ? setTab('active') : (onQuit ? onQuit() : window.location.href = '/idara')} className={`${baseClass} ${quitBg ? '' : 'bg-white border border-gray-200 hover:bg-gray-50 text-gray-700'}`}>
+                        <ArrowLeft size={18}/> <span className="hidden sm:inline">{brand?.texts?.btnQuitter || 'Quitter'}</span>
                     </button>
                 );
             default:
@@ -1010,7 +1205,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
             {/* MAIN CONTENT (LEFT) */}
             <div className="flex-1 flex flex-col h-full w-full overflow-hidden relative">
-                <header className="p-3 sm:p-4 shadow-sm font-black text-lg sm:text-2xl flex items-center gap-2 z-10 overflow-x-auto no-scrollbar shrink-0 w-full" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff', color: brand?.posColor || brand?.color || '#4f46e5' }}>
+                <header className="p-3 sm:p-4 shadow-sm font-black text-lg sm:text-2xl flex flex-wrap items-center gap-y-3 gap-x-2 z-10 shrink-0 w-full" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff', color: brand?.posColor || brand?.color || '#4f46e5' }}>
                     <div className="flex items-center gap-2 shrink-0 mr-2">
                         <ShoppingCart size={24} className="sm:w-7 sm:h-7"/> <span className="truncate max-w-[120px] sm:max-w-none">{brand?.texts?.posAppTitle || brand?.name || 'Caisse POS'}</span>
                     </div>
@@ -1018,14 +1213,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     {/* BUTTONS IN HEADER */}
                     {displayedButtons.map((btnId, idx) => renderHeaderButton(btnId, idx))}
 
-                    {/* BOUTON RESET POSITIONS (Si l'ordre a été modifié) */}
-                    {isAdmin && headerBtnsOrder.length > 0 && (
-                        <button onClick={handleResetPositions} className="ml-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-500 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0">
-                            ↺ Réinitialiser
-                        </button>
-                    )}
-
-                <div className="ml-auto flex items-center gap-2 shrink-0 pl-2">
+                <div className="ml-auto flex flex-wrap items-center gap-y-2 gap-x-2 shrink-0 pl-2">
                     {!isNetOnline ? (
                         <div className="flex items-center gap-1.5 bg-red-100 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm border border-red-200">
                             <span className="relative flex h-2.5 w-2.5">
@@ -1158,7 +1346,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 no-scrollbar" style={{ zoom: cart.length > 4 ? Math.max(0.55, 1 - (cart.length - 4) * 0.08) : 1 }}>
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 no-scrollbar" style={{ zoom: cart.length > 6 ? Math.max(0.65, 1 - (cart.length - 6) * 0.05) : 1 }}>
                     <AnimatePresence>
                         {cart.length === 0 ? (
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 flex flex-col items-center justify-center text-gray-300 h-full mt-20 gap-4">
@@ -1167,21 +1355,26 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             </motion.div>
                         ) : (
                             cart.map((item, idx) => (
-                                <motion.div key={`${item.id}-${idx}`} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }} onClick={() => setEditCartItem(item)} className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5 cursor-pointer hover:shadow-md transition-all">
-                                    <div className="flex flex-col items-center bg-gray-50 rounded-2xl p-1.5 border border-gray-100/80" onClick={(e) => e.stopPropagation()}>
-                                        <button onClick={() => updateCartItemQty(item, 1)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-black font-bold text-xl transition-colors">+</button>
-                                        <span className="font-black text-sm my-1">{item.qty}</span>
-                                        <button onClick={() => updateCartItemQty(item, -1)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-black font-bold text-xl transition-colors">-</button>
+                                <motion.div key={`${item.id}-${idx}`} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }} onClick={() => setEditCartItem(item)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all">
+                                    <div className="flex items-center justify-center bg-gray-100 rounded-lg px-2.5 py-1.5 shrink-0 border border-gray-200">
+                                        <span className="font-black text-sm text-gray-800">{item.qty}x</span>
                                     </div>
-                                    <div className="flex-1">
-                                        <h4 className="font-black text-gray-900 text-lg leading-tight">{item.name.split(' (Sans')[0]}</h4>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-gray-900 text-sm leading-tight truncate">{item.name.split(' (Sans')[0]}</h4>
                                         {item.name.includes(' (Sans') && (
-                                            <div className="text-[11px] text-red-400 mt-1 font-bold tracking-wide uppercase">
-                                                {item.name.split(' (Sans ')[1].replace(')', '').split(', ').map((opt, oIdx) => <div key={oIdx}>- {formatSansIngredient(opt)}</div>)}
+                                            <div className="text-[10px] text-red-500 font-bold tracking-wide uppercase mt-0.5 line-clamp-2">
+                                                {item.name.split(' (Sans ')[1].replace(')', '').split(', ').map((opt, oIdx) => <span key={oIdx}>- {formatSansIngredient(opt)} </span>)}
                                             </div>
                                         )}
+                                        {item.isCombo && item.comboChoices && item.comboChoices.map((c, cIdx) => (
+                                            <div key={cIdx} className="text-[10px] text-gray-600 font-bold mt-1 pl-2 border-l-2 border-orange-400">
+                                                🔹 {c.name}
+                                                {c.removables?.length > 0 && <span className="text-red-500 uppercase ml-1">(SANS: {c.removables.join(', ')})</span>}
+                                                {c.selectedOption && <span className="text-blue-600 ml-1">({c.selectedOption})</span>}
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div className="font-black text-xl tracking-tighter" style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}>
+                                    <div className="font-black text-sm sm:text-base tracking-tighter shrink-0" style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}>
                                         {item.price * item.qty}
                                     </div>
                                 </motion.div>
@@ -1191,10 +1384,16 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 </div>
 
                 <div className="p-6 sm:p-8 bg-white/90 backdrop-blur-xl border-t border-gray-100/50 shadow-[0_-10px_40px_rgba(0,0,0,0.02)] shrink-0">
-                    <div className="flex gap-2 mb-6 p-1.5 bg-gray-100 rounded-2xl border border-gray-200">
-                        <button onClick={() => setOrderType('sur_place')} className={`flex-1 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${orderType === 'sur_place' ? 'bg-blue-500 shadow-md text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>🍽️ Sur Place (Plateaux)</button>
-                        <button onClick={() => setOrderType('a_emporter')} className={`flex-1 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${orderType === 'a_emporter' ? 'bg-pink-500 shadow-md text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>🛍️ À Emporter (Emballage)</button>
-                    </div>
+                    {(!settings?.hidePosSurPlace || !settings?.hidePosAEmporter) && (
+                        <div className="flex gap-2 mb-6 p-1.5 bg-gray-100 rounded-2xl border border-gray-200">
+                            {!settings?.hidePosSurPlace && (
+                                <button onClick={() => setOrderType('sur_place')} style={orderType === 'sur_place' ? {backgroundColor: brand?.btnPosSurPlaceColor || '#3b82f6', color: '#ffffff'} : {}} className={`flex-1 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${orderType === 'sur_place' ? 'shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>{brand?.texts?.posBtnSurPlace || '🍽️ Sur Place (Plateaux)'}</button>
+                            )}
+                            {!settings?.hidePosAEmporter && (
+                                <button onClick={() => setOrderType('a_emporter')} style={orderType === 'a_emporter' ? {backgroundColor: brand?.btnPosAEmporterColor || '#ec4899', color: '#ffffff'} : {}} className={`flex-1 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${orderType === 'a_emporter' ? 'shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>{brand?.texts?.posBtnAEmporter || '🛍️ À Emporter (Emballage)'}</button>
+                            )}
+                        </div>
+                    )}
 
                     <div className="flex justify-between items-end mb-6">
                         <span className="text-gray-400 font-bold uppercase tracking-widest text-xs">{brand?.texts?.posTotal || 'Total à payer'}</span>
@@ -1216,22 +1415,24 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </div>
 
                     <div className="flex gap-3">
-                        {(!hasAccess || hasAccess('pos_drawer')) && (
+                        {!settings?.hidePosTiroir && (!hasAccess || hasAccess('pos_drawer')) && (
                             <button onClick={openDrawer} className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><Unlock size={18} className="text-green-500"/><span>Tiroir</span></button>
                         )}
-                        {(!hasAccess || hasAccess('pos_history')) && (
+                        {!settings?.hidePosHistory && (!hasAccess || hasAccess('pos_history')) && (
                             <button onClick={() => setShowHistoryModal(true)} className="flex-1 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><History size={18}/><span>Historique</span></button>
                         )}
-                        {(!hasAccess || hasAccess('pos_reports')) && (
+                        {!settings?.hidePosReports && (!hasAccess || hasAccess('pos_reports')) && (
                             <button onClick={() => setShowXZModal(true)} className="flex-1 py-3 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><ClipboardList size={18}/><span>Rapports</span></button>
                         )}
                     </div>
-                    <div className="flex gap-3 mt-3">
-                        <button onClick={handleBluetoothConnect} disabled={isBtConnecting} className={`flex-1 py-3 border rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors ${btCharacteristic ? 'bg-green-50 hover:bg-green-100 border-green-200 text-green-700' : (isBtConnecting ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700')}`}>
-                            <Bluetooth size={18} className={`${btCharacteristic ? "text-green-500" : "text-blue-500"} ${isBtConnecting ? "animate-pulse" : ""}`}/>
-                            <span>{isBtConnecting ? "Connexion en cours..." : (btCharacteristic ? "Imprimante BT Connectée" : "Connecter Imprimante BT")}</span>
-                        </button>
-                    </div>
+                    {!settings?.hidePosBluetooth && (
+                        <div className="flex gap-3 mt-3">
+                            <button onClick={handleBluetoothConnect} disabled={isBtConnecting} className={`flex-1 py-3 border rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors ${btCharacteristic ? 'bg-green-50 hover:bg-green-100 border-green-200 text-green-700' : (isBtConnecting ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700')}`}>
+                                <Bluetooth size={18} className={`${btCharacteristic ? "text-green-500" : "text-blue-500"} ${isBtConnecting ? "animate-pulse" : ""}`}/>
+                                <span>{isBtConnecting ? "Connexion en cours..." : (btCharacteristic ? "Imprimante BT Connectée" : "Connecter Imprimante BT")}</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </aside>
 
@@ -1249,6 +1450,21 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 <span className="text-3xl font-black w-10 text-center">{editCartItem.qty}</span>
                                 <button onClick={() => updateCartItemQty(editCartItem, 1)} className="w-14 h-14 bg-gray-50 rounded-xl shadow-sm flex items-center justify-center text-3xl font-black text-gray-600 hover:text-blue-600 border border-gray-100">+</button>
                             </div>
+                            {(() => {
+                                const originalItem = menuItems.find(i => i.id === editCartItem.id);
+                                const showBtn = originalItem && (
+                                    originalItem.removableIngredients || 
+                                    (originalItem.extras && originalItem.extras.length > 0) ||
+                                    originalItem.hasVariations ||
+                                    originalItem.choices
+                                );
+                                if (!showBtn) return null;
+                                return (
+                                    <button onClick={() => handleEditCartItemOptions(editCartItem)} className="w-full py-4 bg-white border border-blue-200 hover:bg-blue-50 text-blue-600 font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm">
+                                        ⚙️ Modifier Options / Sans
+                                    </button>
+                                );
+                            })()}
                             {(!hasAccess || hasAccess('pos_delete')) && (
                                 <button onClick={() => { deleteFromCart(editCartItem.id, editCartItem.name); setEditCartItem(null); }} className="w-full py-4 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"><Trash2 size={20}/> Supprimer du panier</button>
                             )}
@@ -1282,6 +1498,42 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         </div>
                         
                         <div className="flex-1 overflow-y-auto max-h-[60vh] bg-gray-50">
+
+                        {selectedItemForOptions.isCombo && (
+                            <div className="p-5 border-b border-gray-200 space-y-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Personnalisez votre Menu</p>
+                                {selectedItemForOptions.comboItems?.map((cItem, idx) => (
+                                    <div key={idx} className="p-4 border-2 border-gray-100 rounded-2xl bg-gray-50 shadow-sm">
+                                        <h4 className="font-black text-gray-900 mb-3 text-sm flex items-center gap-2">🔹 {cItem.name}</h4>
+                                        {cItem.type === 'sandwich' && (
+                                            <div>
+                                                <p className="text-[10px] text-gray-500 mb-2 font-bold uppercase">Ingrédients à retirer :</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['Tomate', 'Oignon', 'Olive', 'Laitue', 'Carotte'].map(ing => {
+                                                        const isRemoved = comboSelectionsForOptions[idx]?.removables?.includes(ing);
+                                                        return (
+                                                            <button key={ing} onClick={() => togglePosComboRemovable(idx, ing)} className={`px-3 py-2 text-xs font-bold rounded-xl border-2 transition-all ${isRemoved ? 'bg-red-50 text-red-600 border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:border-red-200'}`}>
+                                                                Sans {ing}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {cItem.type === 'drink' && (
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {cItem.options?.map(opt => (
+                                                    <label key={opt} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${comboSelectionsForOptions[idx]?.selectedOption === opt ? 'bg-blue-50 border-blue-500' : 'bg-white border-gray-200 hover:border-blue-300'}`}>
+                                                        <input type="radio" className="w-5 h-5 accent-blue-600" checked={comboSelectionsForOptions[idx]?.selectedOption === opt} onChange={() => setComboSelectionsForOptions(prev => ({...prev, [idx]: {...prev[idx], selectedOption: opt}}))} />
+                                                        <span className="text-sm font-bold text-gray-800">{opt}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
                         {selectedItemForOptions.hasVariations && selectedItemForOptions.variations?.length > 0 && (
                             <div className="p-5 border-b border-gray-200">
@@ -1396,7 +1648,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         
                         <div className="p-4 bg-white border-t border-gray-100 flex gap-3">
                             <button onClick={() => setSelectedItemForOptions(null)} className="flex-1 py-4 font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Annuler</button>
-                            <button onClick={confirmOptionsAndAdd} className="flex-[2] py-4 font-black text-white rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2" style={{backgroundColor: brand?.posColor || brand?.color || '#4f46e5'}}><CheckCircle size={20}/> Valider l'ajout</button>
+                            <button onClick={confirmOptionsAndAdd} className="flex-[2] py-4 font-black text-white rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2" style={{backgroundColor: brand?.posColor || brand?.color || '#4f46e5'}}><CheckCircle size={20}/> {selectedItemForOptions.isEditingCartItemName ? "Valider la modification" : "Valider l'ajout"}</button>
                         </div>
                     </div>
                 </div>
@@ -1428,6 +1680,32 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 <input type="range" min="10" max="24" step="1" value={posUI.fontSize} onChange={e => setPosUI({...posUI, fontSize: Number(e.target.value)})} className="w-full accent-blue-600" />
                             </div>
                             <button onClick={() => setPosUI(defaultPosUI)} className="w-full py-3 mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs uppercase transition-colors">Réinitialiser par défaut</button>
+                            {isAdmin && headerBtnsOrder.length > 0 && (
+                                <button onClick={handleResetPositions} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs uppercase transition-colors">↺ Réinitialiser l'ordre des boutons</button>
+                            )}
+                                
+                                {isAdmin && (
+                                    <div className="space-y-3 border-t border-gray-100 pt-4 mt-4">
+                                        <h3 className="text-sm font-black text-gray-800 mb-2">Activer / Désactiver les boutons :</h3>
+                                        <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                                            <span className="text-xs font-bold text-gray-700">Bouton "Sur Place"</span>
+                                            <input type="checkbox" checked={!settings?.hidePosSurPlace} onChange={(e) => saveSettings({...settings, hidePosSurPlace: !e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer" />
+                                        </label>
+                                        <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                                            <span className="text-xs font-bold text-gray-700">Bouton "À Emporter"</span>
+                                            <input type="checkbox" checked={!settings?.hidePosAEmporter} onChange={(e) => saveSettings({...settings, hidePosAEmporter: !e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer" />
+                                        </label>
+                                        <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                                            <span className="text-xs font-bold text-gray-700">Connecter Imprimante BT</span>
+                                            <input type="checkbox" checked={!settings?.hidePosBluetooth} onChange={(e) => saveSettings({...settings, hidePosBluetooth: !e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer" />
+                                        </label>
+                                        <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                                            <span className="text-xs font-bold text-gray-700">Tiroir / Historique / Rapports</span>
+                                            <input type="checkbox" checked={!settings?.hidePosTiroir} onChange={(e) => saveSettings({...settings, hidePosTiroir: !e.target.checked, hidePosHistory: !e.target.checked, hidePosReports: !e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer" />
+                                        </label>
+                                    </div>
+                                )}
+                                
                             <button onClick={() => setShowUISettings(false)} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm transition-colors shadow-md">Valider</button>
                         </div>
                     </div>
@@ -1452,8 +1730,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                             <p className="font-black text-gray-800 text-sm">Panier {held.time}</p>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <p className="text-xs text-gray-500 font-bold">{held.cart.reduce((s,i)=>s+i.qty,0)} articles</p>
-                                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md text-white ${held.orderType === 'sur_place' ? 'bg-blue-500' : 'bg-pink-500'}`}>
-                                                    {held.orderType === 'sur_place' ? '🍽️ SUR PLACE (PLATEAUX)' : '🛍️ À EMPORTER (EMBALLAGE)'}
+                                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md text-white`} style={{ backgroundColor: held.orderType === 'sur_place' ? (brand?.btnPosSurPlaceColor || '#3b82f6') : (brand?.btnPosAEmporterColor || '#ec4899') }}>
+                                                    {held.orderType === 'sur_place' ? (brand?.texts?.posBtnSurPlace || '🍽️ SUR PLACE (PLATEAUX)') : (brand?.texts?.posBtnAEmporter || '🛍️ À EMPORTER (EMBALLAGE)')}
                                                 </span>
                                             </div>
                                         </div>
@@ -1565,8 +1843,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                     <div key={o.id} className="bg-white p-4 rounded-2xl border border-green-200 shadow-sm flex justify-between items-center">
                                         <div>
                                             <p className="font-black text-gray-900 text-2xl">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</p>
-                                            <p className={`text-[10px] font-black uppercase mt-1 px-2 py-1 rounded-md w-fit text-white ${o.orderType === 'sur_place' ? 'bg-blue-500' : 'bg-pink-500'}`}>
-                                                {o.orderType === 'sur_place' ? '🍽️ SUR PLACE (PLATEAUX)' : '🛍️ À EMPORTER (EMBALLAGE)'}
+                                            <p className={`text-[10px] font-black uppercase mt-1 px-2 py-1 rounded-md w-fit text-white`} style={{ backgroundColor: o.orderType === 'sur_place' ? (brand?.btnPosSurPlaceColor || '#3b82f6') : (brand?.btnPosAEmporterColor || '#ec4899') }}>
+                                                {o.orderType === 'sur_place' ? (brand?.texts?.posBtnSurPlace || '🍽️ SUR PLACE (PLATEAUX)') : (brand?.texts?.posBtnAEmporter || '🛍️ À EMPORTER (EMBALLAGE)')}
                                             </p>
                                         </div>
                                         <button onClick={() => { updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() }); showNotify("Remis au client ! ✅", "success"); if (readyPosOrders.length === 1) setShowReadyPosModal(false); }} className="bg-green-500 text-white px-5 py-3 rounded-xl font-black text-sm hover:bg-green-600 transition-colors shadow-md">Remis au client</button>

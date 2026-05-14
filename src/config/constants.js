@@ -66,7 +66,20 @@ export const DEFAULT_MENU_ITEMS = [
   { id: 'b1', name: 'Bocadillo Complet', price: 29, category: 'Bocadillos', img: '🥪', desc: 'Complet m3a kolchi' },
   { id: 'b2', name: 'Bocadillo Tangérois', price: 29, category: 'Bocadillos', img: '🌯', desc: '7ar w m9awem' },
   { id: 's1', name: 'Sandwich Américain', price: 44, category: 'Sandwichs', img: '🍔', desc: 'Viande hachée, fromage' },
-  { id: 'f1', name: 'Formule Toi Et Moi', price: 112, category: 'Formules', img: '👩‍❤️‍👨', desc: 'Pour 2 personnes' }
+  { 
+    id: 'f1', 
+    name: 'Formule Toi Et Moi', 
+    price: 112, 
+    category: 'Formules', 
+    img: '👩‍❤️‍👨', 
+    desc: 'Pour 2 personnes (2 Sandwichs + 1L Boisson)',
+    isCombo: true,
+    comboItems: [
+      { id: "c1", name: "1er Complet", type: "sandwich" },
+      { id: "c2", name: "2ème Complet", type: "sandwich" },
+      { id: "d1", name: "Boisson 1L", type: "drink", options: ["1 Litre Coca", "1 Litre Hawaii", "1 Litre Sprite", "1 Litre Fanta"] }
+    ]
+  }
 ];
 
 export const DEFAULT_SETTINGS = { isOpen: true, disabledItems: [], branches: DEFAULT_BRANCHES };

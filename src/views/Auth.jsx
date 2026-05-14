@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Lock, Phone, Mail, ArrowRight, Truck, Store } from 'lucide-react';
 
 export default function Auth({ onLogin, onResetPassword, loading, type = 'admin', brand }) {
@@ -6,6 +6,7 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
   const [pin, setPin] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const autoLoginAttempted = useRef(false);
 
   useEffect(() => {
       // Zoom global de l'interface (Ajusté pour être un peu plus grand)
@@ -20,7 +21,23 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
           const match = window.location.hash.match(/phone=([^&]+)/);
           if (match && match[1]) setPhone(match[1]);
       }
-  }, []);
+
+      // 🔥 Auto-Login Livreur (Sauvegardé sur l'appareil)
+      if (type === 'livreur' && !autoLoginAttempted.current) {
+          autoLoginAttempted.current = true;
+          const savedPhone = localStorage.getItem('driver_auto_phone');
+          const savedPin = localStorage.getItem('driver_auto_pin');
+          
+          if (savedPhone && savedPin && onLogin) {
+              setPhone(savedPhone);
+              setPin(savedPin);
+              // Petit délai pour s'assurer que l'état de l'application est prêt
+              setTimeout(() => {
+                  onLogin(savedPhone, savedPin);
+              }, 150);
+          }
+      }
+  }, [type, onLogin]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -28,6 +45,8 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
       if (type === 'admin') {
         onLogin(email, password);
       } else {
+        localStorage.setItem('driver_auto_phone', phone);
+        localStorage.setItem('driver_auto_pin', pin);
         onLogin(phone, pin);
       }
     }
@@ -156,6 +175,21 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
           >
             {loading ? 'Connexion en cours...' : 'Se connecter'} <ArrowRight size={16} />
           </button>
+
+          {type === 'livreur' && localStorage.getItem('driver_auto_phone') && (
+              <button 
+                  type="button" 
+                  onClick={() => {
+                      localStorage.removeItem('driver_auto_phone');
+                      localStorage.removeItem('driver_auto_pin');
+                      setPhone('');
+                      setPin('');
+                  }} 
+                  className="w-full mt-4 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors text-center"
+              >
+                  Changer de compte livreur
+              </button>
+          )}
         </form>
       </div>
 

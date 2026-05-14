@@ -399,6 +399,7 @@ export default function AdminMenuEditor({
                                                             {item.hasVariations && <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-100"><Layers size={10} className="mr-1"/> Tailles</span>}
                                                         {item.choices && <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium text-purple-600 bg-purple-50 border border-purple-100"><Tag size={10} className="mr-1"/> Choix</span>}
                                                         {item.extras && item.extras.length > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium text-green-600 bg-green-50 border border-green-100"><Plus size={10} className="mr-1"/> Suppléments</span>}
+                                                    {item.isCombo && <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-100"><Layers size={10} className="mr-1"/> Combo (Menu)</span>}
                                                         </div>
                                                     </div>
                                                 </div>

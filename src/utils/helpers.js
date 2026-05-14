@@ -117,7 +117,18 @@ export const printTicket = async (o, brand) => {
         const parts = (i.name || '').split(' (Sans ');
         const baseName = parts[0];
         const optionsHtml = parts.length > 1 ? parts[1].replace(')','').split(', ').map(opt => `<br><span style="font-size: 10px; margin-left: 12px; color: #555;">- ${formatSansIngredient(opt)}</span>`).join('') : '';
-        return `<tr><td style="padding: 4px 0; vertical-align: top;"><b>${i.qty}x ${baseName}</b>${optionsHtml}</td><td style="text-align: right; vertical-align: top; padding-top: 4px;">${(i.price * i.qty).toFixed(2)} DH</td></tr>`;
+    
+    let finalOptionsHtml = optionsHtml;
+    if (i.isCombo && i.comboChoices) {
+        finalOptionsHtml = i.comboChoices.map(c => {
+            let txt = `<br><span style="font-size: 10px; margin-left: 12px; color: #000;">🔹 ${c.name}</span>`;
+            if (c.removables && c.removables.length > 0) txt += `<span style="font-size: 10px; color: #555;"> (SANS: ${c.removables.join(', ')})</span>`;
+            if (c.selectedOption) txt += `<span style="font-size: 10px; color: #555;"> (${c.selectedOption})</span>`;
+            return txt;
+        }).join('');
+    }
+
+    return `<tr><td style="padding: 4px 0; vertical-align: top;"><b>${i.qty}x ${baseName}</b>${finalOptionsHtml}</td><td style="text-align: right; vertical-align: top; padding-top: 4px;">${(i.price * i.qty).toFixed(2)} DH</td></tr>`;
     }).join('');
     const orderTypeHtml = o.orderType ? `<h3 style="margin: 5px 0; border: 1px solid #000; padding: 4px; text-transform: uppercase;">${o.orderType.replace('_', ' ')}</h3>` : '';
     const noteHtml = o.orderNote ? `<div class="divider"></div><p class="left bold" style="font-size: 11px; color: #000;">📝 NOTE CUISINE:</p><p class="left" style="font-size: 11px; font-style: italic;">${o.orderNote}</p>` : '';
