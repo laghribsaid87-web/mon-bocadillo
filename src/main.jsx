@@ -27,7 +27,11 @@ if ('serviceWorker' in navigator) {
 
 const path = window.location.pathname;
 const hash = window.location.hash;
-const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                     window.matchMedia('(display-mode: fullscreen)').matches ||
+                     window.matchMedia('(display-mode: minimal-ui)').matches ||
+                     window.navigator.standalone || 
+                     document.referrer.includes('android-app://');
 const pwaMode = localStorage.getItem('pwa_mode');
 
 let RootComponent = App; // Par défaut, c'est l'application Client

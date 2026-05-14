@@ -198,14 +198,21 @@ export default function AdminActiveOrders({
 
                             {/* Driver Assignment Info (Very Top & Compact) */}
                             {o.driverId && (
-                                <div className={`px-3 py-1.5 flex justify-between items-center border-b ${(!o.driverAccepted && o.status === 'preparing') ? 'bg-orange-50 border-orange-100' : 'bg-blue-50 border-blue-100'}`}>
+                                <div className={`px-3 py-1.5 flex justify-between items-center border-b ${(!o.driverAccepted) ? 'bg-orange-50 border-orange-100' : 'bg-blue-50 border-blue-100'}`}>
                                     <div className="flex items-center gap-2">
-                                        {(!o.driverAccepted && o.status === 'preparing') ? (
+                                        {(!o.driverAccepted) ? (
                                             <div className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></div>
                                         ) : (
                                             <CheckCircle size={12} className="text-blue-600"/>
                                         )}
-                                        <span className="text-gray-900 font-bold text-[10px] uppercase tracking-tight">{dName} <span className="text-[9px] text-gray-500 ml-1">({(!o.driverAccepted && o.status === 'preparing') ? <OrderTimer assignedAtLocal={o.assignedAtLocal} updatedAt={o.updatedAt} /> : 'Livreur Confirmé'})</span></span>
+                                        <span className="text-gray-900 font-bold text-[10px] uppercase tracking-tight flex items-center gap-1.5">
+                                            {dName}
+                                            {(!o.driverAccepted) ? (
+                                                <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded border border-orange-200 animate-pulse flex items-center gap-1 shadow-sm">⏱ <OrderTimer assignedAtLocal={o.assignedAtLocal} updatedAt={o.updatedAt} /></span>
+                                            ) : (
+                                                <span className="text-[9px] text-gray-500 ml-1">(Livreur Confirmé)</span>
+                                            )}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {dPhone && <a href={`tel:${dPhone}`} className="text-blue-600 hover:text-blue-800 text-[10px] font-bold p-1 bg-white rounded shadow-sm border border-blue-100"><Phone size={12} className="inline"/></a>}
@@ -295,7 +302,7 @@ export default function AdminActiveOrders({
                                     </button>
                                 )}
                                 
-                                {!o.driverId && o.status !== 'pending' && (onlineDrivers||[]).filter(d => isDriverOnline(d) && !d.isAvailable).length > 0 && (
+                                {!o.driverId && o.status !== 'pending' && (onlineDrivers||[]).filter(d => isDriverOnline(d)).length > 0 && (
                                     <select 
                                         className="w-24 bg-purple-50 text-purple-800 py-2.5 px-1 rounded-lg font-bold text-[9px] uppercase border border-purple-200 outline-none text-center cursor-pointer shadow-sm transition-all"
                                         onClick={(e)=>e.stopPropagation()}
@@ -318,8 +325,8 @@ export default function AdminActiveOrders({
                                         }}
                                     >
                                         <option value="">Grouper</option>
-                                        {(onlineDrivers||[]).filter(d => isDriverOnline(d) && !d.isAvailable).map(d => (
-                                            <option key={d.uid} value={d.uid}>{d.name} ({d.activeOrdersCount || 1})</option>
+                                        {(onlineDrivers||[]).filter(d => isDriverOnline(d)).map(d => (
+                                            <option key={d.uid} value={d.uid}>{d.name} {d.isAvailable ? '' : '(Plein)'}</option>
                                         ))}
                                     </select>
                                 )}

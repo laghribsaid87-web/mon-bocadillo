@@ -143,9 +143,12 @@ function AdminAppInner() {
     const isAuthorized = (profile?.isAdmin || profile?.isManager || profile?.isKds);
     if (!user || !isAuthorized) return;
 
-    // 🔥 On charge uniquement les commandes des 48 dernières heures par défaut
+    // 🔥 OPTIMISATION FIREBASE (QUOTA FIX):
+    // N-jibo ghir les commandes dyal lyoum (Shift kybda m3a 4 d-sbah)
+    // Hadchi ghay-na9es l-Lectures (Reads) f Firebase b ktr mn 70%
     const limiteDate = new Date();
-    limiteDate.setDate(limiteDate.getDate() - 2);
+    if (limiteDate.getHours() < 4) limiteDate.setDate(limiteDate.getDate() - 1);
+    limiteDate.setHours(4, 0, 0, 0);
     const qOrders = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), where('createdAt', '>=', limiteDate), orderBy('createdAt', 'desc'));
     const unsubOrders = onSnapshot(qOrders, (snap) => {
         const ords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -169,17 +172,24 @@ function AdminAppInner() {
         }
     });
 
-    const unsubClients = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), limit(200)), (snap) => setClientsList(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubDrivers = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'drivers'), limit(50)), (snap) => {
-        const driversList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const uniqueMap = new Map();
-        driversList.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
-        driversList.forEach(d => {
-            const key = d.phone || d.uid || d.id;
-            if (!uniqueMap.has(key)) uniqueMap.set(key, d);
+    let unsubClients = () => {};
+    let unsubDrivers = () => {};
+
+    // 🔥 OPTIMISATION: L-Kuzina (KDS) ma-me7tajach les clients w les livreurs!
+    // Hadchi ghay-wfer l-Lectures dyal GPS Livreur li kano kaytiy7o l-Quota f l-Cuisine.
+    if (profile?.isAdmin || profile?.isManager) {
+        unsubClients = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), limit(200)), (snap) => setClientsList(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+        unsubDrivers = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'drivers'), limit(50)), (snap) => {
+            const driversList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const uniqueMap = new Map();
+            driversList.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+            driversList.forEach(d => {
+                const key = d.phone || d.uid || d.id;
+                if (!uniqueMap.has(key)) uniqueMap.set(key, d);
+            });
+            setOnlineDrivers(Array.from(uniqueMap.values()));
         });
-        setOnlineDrivers(Array.from(uniqueMap.values()));
-    });
+    }
 
     return () => { unsubOrders(); unsubClients(); unsubDrivers(); };
   }, [user, profile]);

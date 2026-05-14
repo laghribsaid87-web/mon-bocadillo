@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Lock, X, Download } from 'lucide-react';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, serverTimestamp, query, limit, orderBy, getDoc, setDoc, where, or, and } from 'firebase/firestore';
 
 import { auth, db, appId, messaging } from './config/firebase';
@@ -76,56 +76,67 @@ function DriverAppInner() {
   }, []);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        setUser(u);
-        const savedPhone = localStorage.getItem('driver_phone');
+    let unsubAuth = null;
+    let unsubProfile = null;
 
-        const unsubProfile = onSnapshot(doc(db, 'artifacts', appId, 'users', u.uid, 'profile', 'data'), async (docSnap) => {
-          if (docSnap.exists()) {
-            const pData = docSnap.data();
-            setProfile(pData);
-            if (pData.isRegistered) {
-              setupNotifications(u.uid, db, messaging, appId);
+    // 🔥 Darna persistence locale bach Firebase y39el 3la l-livreur dima
+    setPersistence(auth, browserLocalPersistence).then(() => {
+      unsubAuth = onAuthStateChanged(auth, async (u) => {
+        if (u) {
+          setUser(u);
+          const savedPhone = localStorage.getItem('driver_phone');
+  
+          if (unsubProfile) unsubProfile();
+          unsubProfile = onSnapshot(doc(db, 'artifacts', appId, 'users', u.uid, 'profile', 'data'), async (docSnap) => {
+            if (docSnap.exists()) {
+              const pData = docSnap.data();
+              setProfile(pData);
+              if (pData.isRegistered) {
+                setupNotifications(u.uid, db, messaging, appId);
+              }
+              setLoading(false);
             }
-            setLoading(false);
-          }
-          else {
-            if (savedPhone) {
-              try {
-                const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', savedPhone);
-                const clientSnap = await getDoc(clientRef);
-                if (clientSnap.exists() && clientSnap.data().isDriver) {
-                   const data = clientSnap.data();
-                   await updateDoc(clientRef, { uid: u.uid });
-                   await setDoc(doc(db, 'artifacts', appId, 'users', u.uid, 'profile', 'data'), { ...data, isRegistered: true, isManager: false, isAdmin: false, isDriver: true, updatedAt: serverTimestamp() }, { merge: true });
-                   return;
-                } else {
-                   localStorage.removeItem('driver_phone');
-                   setProfile({});
+            else {
+              if (savedPhone) {
+                try {
+                  const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', savedPhone);
+                  const clientSnap = await getDoc(clientRef);
+                  if (clientSnap.exists() && clientSnap.data().isDriver) {
+                     const data = clientSnap.data();
+                     localStorage.setItem('pwa_mode', 'livreur');
+                     await updateDoc(clientRef, { uid: u.uid });
+                     await setDoc(doc(db, 'artifacts', appId, 'users', u.uid, 'profile', 'data'), { ...data, isRegistered: true, isManager: false, isAdmin: false, isDriver: true, updatedAt: serverTimestamp() }, { merge: true });
+                     return;
+                  } else {
+                     localStorage.removeItem('driver_phone');
+                     setProfile({});
+                  }
+                } catch(e) {
+                  setProfile({});
                 }
-              } catch(e) {
+              } else {
                 setProfile({});
               }
-            } else {
-              setProfile({});
+              setLoading(false);
             }
-            setLoading(false);
-          }
-        });
-        return () => unsubProfile();
-      } else {
-        signInAnonymously(auth).catch(() => setLoading(false));
-      }
-    });
-    return () => unsub();
+          });
+        } else {
+          signInAnonymously(auth).catch(() => setLoading(false));
+        }
+      });
+    }).catch(err => console.error("Erreur Auth Persistence:", err));
+
+    return () => {
+      if (unsubAuth) unsubAuth();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   useEffect(() => {
     if (!user || !profile?.isDriver) return;
 
     const limiteDate = new Date();
-    limiteDate.setHours(limiteDate.getHours() - 24);
+    limiteDate.setHours(limiteDate.getHours() - 12);
 
     let qOrders;
     const ordersRef = collection(db, 'artifacts', appId, 'public', 'data', 'orders');
@@ -215,6 +226,7 @@ function DriverAppInner() {
         <Suspense fallback={<div className="h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div></div>}>
           <Auth 
           type="livreur"
+          brand={brand}
           loading={loading}
           onLogin={async (phone, pin) => {
             setLoading(true);
@@ -228,6 +240,7 @@ function DriverAppInner() {
                 if (data.blocked) { showNotify("Had l-compte msouwer (Bloqué) 🚫", "error"); setLoading(false); return; }
                 if (data.isDriver && data.otp === pin) {
                   localStorage.setItem('driver_phone', cleanPhone);
+                  localStorage.setItem('pwa_mode', 'livreur');
                   await updateDoc(clientRef, { otpVerified: true, uid: user.uid });
                   await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), { ...data, isRegistered: true, isManager: false, isAdmin: false, isDriver: true, updatedAt: serverTimestamp() }, { merge: true });
                   showNotify("Mar7ba bik a Livreur! 🛵", "success");

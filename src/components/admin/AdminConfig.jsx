@@ -3,7 +3,7 @@ import {
     Edit3, Palette, Settings, Zap, ImageIcon, Type, AlignLeft, Save,
     MessageCircle, MapIcon, MousePointer2, Home, ShoppingBag, User, Trash2,
     Plus, Eye, Truck, Monitor, LayoutDashboard, History, Menu, MapPin, Printer,
-    ChevronDown, ChevronUp, Smartphone, ChefHat
+    ChevronDown, ChevronUp, Smartphone, ChefHat, CheckCircle
 } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { doc, setDoc } from 'firebase/firestore';
@@ -99,6 +99,7 @@ export default function AdminConfig({
     const [printersList, setPrintersList] = useState([]);
     const [previewApp, setPreviewApp] = useState('client'); // 'client' | 'driver' | 'pos' | 'admin'
     const [availableVoices, setAvailableVoices] = useState([]);
+    const [saveSuccessModal, setSaveSuccessModal] = useState(false);
     const [expandedSec, setExpandedSec] = useState({ app_colors: true, txt_ui: true, txt_feat: true });
     const [expandedBranches, setExpandedBranches] = useState({});
 
@@ -173,7 +174,16 @@ export default function AdminConfig({
                       <button onClick={() => setShowSimulator(!showSimulator)} className={`px-6 py-4 rounded-2xl font-black text-xs uppercase shadow-sm transition-all flex items-center gap-2 border-2 ${showSimulator ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>
                           <Smartphone size={18}/> {showSimulator ? 'Masquer App' : 'Afficher App'}
                       </button>
-                      <button onClick={async()=> { await saveSettings({...settings, menuItems: editableMenu, branches: editableBranches}); await setDoc(doc(db,'artifacts',appId,'public','data','settings','brand'), brand); showNotify("Modifications enregistrées ✅", "success"); }} className="bg-black text-white px-6 py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-gray-800 active:scale-95 transition-all flex items-center gap-2"><Save size={18}/> Enregistrer</button>
+                      <button onClick={async()=> { 
+                          try {
+                              await saveSettings({...settings, menuItems: editableMenu, branches: editableBranches}); 
+                              await setDoc(doc(db,'artifacts',appId,'public','data','settings','brand'), brand); 
+                              if(showNotify) showNotify("Modifications enregistrées ✅", "success"); 
+                              setSaveSuccessModal(true);
+                          } catch(err) {
+                              if(showNotify) showNotify("Erreur d'enregistrement", "error"); 
+                          }
+                      }} className="bg-black text-white px-6 py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-gray-800 active:scale-95 transition-all flex items-center gap-2"><Save size={18}/> Enregistrer</button>
                   </div>
               </div>
               
@@ -350,32 +360,38 @@ export default function AdminConfig({
                          <div className="divide-y divide-gray-100 animate-in slide-in-from-top-2">
                              <div className="p-6 space-y-4">
                                  <label className="block">
-                                     <span className="text-xs font-semibold text-gray-700 block mb-1.5">Lien du Logo (Remplace le texte)</span>
-                                     <input id="edit-logoUrl" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-medium outline-none transition-all ${activeEditZone === 'logoUrl' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.logoUrl || ''} onChange={e=>setBrand({...brand, logoUrl: e.target.value.trim()})} onFocus={()=>setActiveEditZone('logoUrl')} placeholder="https://..." />
+                                     <span className="text-xs font-black text-gray-900 block mb-1.5">Lien du Logo (Remplace le texte)</span>
+                                     <input id="edit-logoUrl" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-400 outline-none transition-all ${activeEditZone === 'logoUrl' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.logoUrl || ''} onChange={e=>setBrand({...brand, logoUrl: e.target.value.trim()})} onFocus={()=>setActiveEditZone('logoUrl')} placeholder="https://..." />
                                  </label>
                                  <label className="block">
-                                     <span className="text-xs font-semibold text-gray-700 block mb-1.5">Nom du Restaurant</span>
-                                     <input id="edit-brandName" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-medium outline-none transition-all ${activeEditZone === 'brandName' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.name || ''} onChange={e=>setBrand({...brand, name: e.target.value})} onFocus={()=>setActiveEditZone('brandName')} />
+                                     <span className="text-xs font-black text-gray-900 block mb-1.5">Nom du Restaurant</span>
+                                     <input id="edit-brandName" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-400 outline-none transition-all ${activeEditZone === 'brandName' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.name || ''} onChange={e=>setBrand({...brand, name: e.target.value})} onFocus={()=>setActiveEditZone('brandName')} />
                                  </label>
                                  <label className="block">
-                                     <span className="text-xs font-semibold text-gray-700 block mb-1.5">Annonce Promo (Bandeau en haut)</span>
-                                     <input id="edit-promoMsg" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-medium outline-none transition-all ${activeEditZone === 'promoMsg' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.promoMsg || ''} onChange={e=>setBrand({...brand, promoMsg: e.target.value})} onFocus={()=>setActiveEditZone('promoMsg')} />
+                                     <span className="text-xs font-black text-gray-900 block mb-1.5">Annonce Promo (Bandeau en haut)</span>
+                                     <input id="edit-promoMsg" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-400 outline-none transition-all ${activeEditZone === 'promoMsg' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.promoMsg || ''} onChange={e=>setBrand({...brand, promoMsg: e.target.value})} onFocus={()=>setActiveEditZone('promoMsg')} />
                                  </label>
                                  <label className="block">
-                                     <span className="text-xs font-semibold text-gray-700 block mb-1.5">Image de Couverture (URL)</span>
-                                     <input id="edit-coverUrl" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-medium outline-none transition-all ${activeEditZone === 'coverUrl' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.coverUrl || ''} onChange={e=>setBrand({...brand, coverUrl: e.target.value.trim()})} onFocus={()=>setActiveEditZone('coverUrl')} />
+                                     <span className="text-xs font-black text-gray-900 block mb-1.5">Image de Couverture (URL)</span>
+                                     <input id="edit-coverUrl" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-400 outline-none transition-all ${activeEditZone === 'coverUrl' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.coverUrl || ''} onChange={e=>setBrand({...brand, coverUrl: e.target.value.trim()})} onFocus={()=>setActiveEditZone('coverUrl')} />
                                  </label>
                              </div>
  
                              <div className="p-6 bg-gray-50/30">
-                                 <span className="text-sm font-bold text-gray-800 block mb-4">Images du Slider (Promo Client)</span>
+                                 <div className="flex flex-col gap-2 mb-5">
+                                     <span className="text-sm font-black text-gray-900 block">Images du Slider (Promo Client)</span>
+                                     <div className="text-[11px] font-bold text-blue-800 bg-blue-100 p-3 rounded-xl border border-blue-200">
+                                         💡 <strong>Dimensions recommandées :</strong> 800x400 pixels (Format Paysage / Rectangle).<br/>
+                                         📸 <strong>Formats acceptés :</strong> JPG, PNG, WEBP (Taille max &lt; 500 KB pour la rapidité).
+                                     </div>
+                                 </div>
                                  <div className="space-y-4">
                                  {[0, 1, 2].map((index) => (
                                          <div key={index} className="p-4 bg-white border border-gray-200 rounded-2xl shadow-sm">
-                                             <span className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3 block">Slider {index + 1}</span>
+                                             <span className="text-xs font-black text-gray-900 uppercase tracking-widest mb-3 block">Slider {index + 1}</span>
                                              <div className="space-y-3">
                                          <input 
-                                                 className="w-full bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:border-blue-500 focus:bg-white transition-colors" 
+                                                 className="w-full bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-500 outline-none focus:border-blue-500 focus:bg-white transition-colors" 
                                              value={typeof brand.sliders?.[index] === 'string' ? brand.sliders[index] : (brand.sliders?.[index]?.img || '')} 
                                              onChange={(e) => {
                                                  const newSliders = [...(brand.sliders || [brand.coverUrl, '', ''])];
@@ -386,8 +402,8 @@ export default function AdminConfig({
                                              placeholder="URL Image (https://...)" 
                                          />
                                              <div className="flex gap-3">
-                                                 <input className="flex-1 bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:border-blue-500 focus:bg-white transition-colors" placeholder="Titre (ex: Nouveau)" value={typeof brand.sliders?.[index] === 'object' ? brand.sliders[index].title || '' : ''} onChange={(e) => { const newS = [...(brand.sliders||[])]; const cur = typeof newS[index] === 'string' ? {img: newS[index]} : (newS[index] || {img:''}); newS[index] = {...cur, title: e.target.value}; setBrand({...brand, sliders: newS}); }} />
-                                                 <input className="flex-1 bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:border-blue-500 focus:bg-white transition-colors" placeholder="Badge (ex: -50%)" value={typeof brand.sliders?.[index] === 'object' ? brand.sliders[index].badge || '' : ''} onChange={(e) => { const newS = [...(brand.sliders||[])]; const cur = typeof newS[index] === 'string' ? {img: newS[index]} : (newS[index] || {img:''}); newS[index] = {...cur, badge: e.target.value}; setBrand({...brand, sliders: newS}); }} />
+                                                 <input className="flex-1 bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-500 outline-none focus:border-blue-500 focus:bg-white transition-colors" placeholder="Titre (ex: Nouveau)" value={typeof brand.sliders?.[index] === 'object' ? brand.sliders[index].title || '' : ''} onChange={(e) => { const newS = [...(brand.sliders||[])]; const cur = typeof newS[index] === 'string' ? {img: newS[index]} : (newS[index] || {img:''}); newS[index] = {...cur, title: e.target.value}; setBrand({...brand, sliders: newS}); }} />
+                                                 <input className="flex-1 bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-500 outline-none focus:border-blue-500 focus:bg-white transition-colors" placeholder="Badge (ex: -50%)" value={typeof brand.sliders?.[index] === 'object' ? brand.sliders[index].badge || '' : ''} onChange={(e) => { const newS = [...(brand.sliders||[])]; const cur = typeof newS[index] === 'string' ? {img: newS[index]} : (newS[index] || {img:''}); newS[index] = {...cur, badge: e.target.value}; setBrand({...brand, sliders: newS}); }} />
                                          </div>
                                      </div>
                                          </div>
@@ -417,7 +433,7 @@ export default function AdminConfig({
                          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in slide-in-from-top-2">
                              {currentTexts.map(t => (
                                  <label key={t.key} className="block">
-                                     <span className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">{t.label}</span>
+                                         <span className="text-[11px] font-black text-gray-900 uppercase tracking-wide block mb-1.5">{t.label}</span>
                                      <input id={`edit-${t.key}`} className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 outline-none transition-all ${activeEditZone === t.key ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.texts?.[t.key] || t.def} onChange={e=>setBrand({...brand, texts: {...brand.texts, [t.key]: e.target.value}})} onFocus={()=>setActiveEditZone(t.key)} />
                                  </label>
                              ))}
@@ -443,8 +459,8 @@ export default function AdminConfig({
                                  { id: 'msgRejected', key: 'orderRejected', label: 'Commande Annulée', def: DEFAULT_BRAND.messages.orderRejected, h: 'h-24' }
                              ].map(t => (
                                  <label key={t.key} className="block">
-                                     <span className="text-xs font-semibold text-gray-800 block mb-2">{t.label}</span>
-                                     <textarea id={`edit-${t.key}`} className={`w-full bg-gray-50 border px-4 py-3 rounded-xl text-sm font-medium text-gray-700 outline-none transition-all resize-none ${activeEditZone === t.id ? 'border-green-500 ring-2 ring-green-500/20 bg-white' : 'border-gray-200 hover:border-gray-300'} ${t.h}`} value={brand.messages?.[t.key] || t.def} onChange={e=>setBrand({...brand, messages: {...brand.messages, [t.key]: e.target.value}})} onFocus={()=>setActiveEditZone(t.id)} />
+                                         <span className="text-xs font-black text-gray-900 block mb-2">{t.label}</span>
+                                         <textarea id={`edit-${t.key}`} className={`w-full bg-gray-50 border px-4 py-3 rounded-xl text-sm font-bold text-gray-900 outline-none transition-all resize-none ${activeEditZone === t.id ? 'border-green-500 ring-2 ring-green-500/20 bg-white' : 'border-gray-200 hover:border-gray-300'} ${t.h}`} value={brand.messages?.[t.key] || t.def} onChange={e=>setBrand({...brand, messages: {...brand.messages, [t.key]: e.target.value}})} onFocus={()=>setActiveEditZone(t.id)} />
                                  </label>
                              ))}
                          </div>
@@ -565,6 +581,63 @@ export default function AdminConfig({
                                  <input type="checkbox" checked={settings?.whatsappRedirectEnabled !== false} onChange={(e) => { saveSettings({...settings, whatsappRedirectEnabled: e.target.checked}); showNotify(e.target.checked ? "Redirection WhatsApp activée ✅" : "Redirection WhatsApp désactivée ❌", "success"); }} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 accent-blue-600" />
                                  <span className="text-sm font-bold text-gray-800">Redirection WhatsApp Client</span>
                              </label>
+
+                             {/* 🔥 Suggestion / Upsell (Ex: Boissons) */}
+                             <div className="flex flex-col gap-4 p-5 rounded-2xl border-2 border-blue-100 bg-blue-50/30 md:col-span-2 shadow-sm">
+                                 <label className="flex items-center gap-3 cursor-pointer">
+                                     <input type="checkbox" checked={settings?.upsellEnabled || false} onChange={(e) => { saveSettings({...settings, upsellEnabled: e.target.checked}); showNotify(e.target.checked ? "Suggestion activée ✅" : "Suggestion désactivée ❌", "success"); }} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 accent-blue-600" />
+                                     <span className="text-sm font-black text-blue-900">Activer la suggestion Pop-up après l'ajout au panier (Upsell)</span>
+                                 </label>
+                                 
+                                 {settings?.upsellEnabled && (
+                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2 pt-4 border-t border-blue-100">
+                                         <label className="block md:col-span-2">
+                                             <span className="text-xs font-bold text-blue-800 mb-1.5 block">Texte de la suggestion</span>
+                                             <input className="w-full bg-white border border-blue-200 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 outline-none focus:border-blue-500 transition-colors" value={settings?.upsellText || ''} onChange={e => saveSettings({...settings, upsellText: e.target.value})} placeholder="Ex: Wach bghiti tzid chi boisson ? 🥤" />
+                                         </label>
+                                         <label className="block">
+                                             <span className="text-xs font-bold text-blue-800 mb-1.5 block">Catégorie cible (qui s'ouvrira)</span>
+                                             <select className="w-full bg-white border border-blue-200 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 outline-none focus:border-blue-500 transition-colors cursor-pointer" value={settings?.upsellCategory || ''} onChange={e => saveSettings({...settings, upsellCategory: e.target.value})}>
+                                                 <option value="">Sélectionner une catégorie...</option>
+                                                 {Array.from(new Set((editableMenu || []).map(i => i.category).filter(Boolean))).map(c => (
+                                                     <option key={c} value={c}>{c}</option>
+                                                 ))}
+                                             </select>
+                                         </label>
+                                         <label className="block">
+                                             <span className="text-xs font-bold text-blue-800 mb-1.5 block">Image d'illustration (Optionnel)</span>
+                                             <div className="flex items-center gap-2">
+                                                 {settings?.upsellImage && <img src={settings.upsellImage} className="w-10 h-10 rounded-lg object-cover border border-blue-200 shrink-0" alt="upsell" />}
+                                                 <input className="flex-1 min-w-0 bg-white border border-blue-200 px-3 py-2.5 rounded-xl text-xs font-bold text-gray-900 outline-none focus:border-blue-500 transition-colors" value={settings?.upsellImage || ''} onChange={e => saveSettings({...settings, upsellImage: e.target.value})} placeholder="URL ou Uploader 👉" />
+                                                 <label className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-sm active:scale-95 shrink-0">
+                                                     <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                                         const file = e.target.files[0];
+                                                         if (file) {
+                                                             const reader = new FileReader();
+                                                             reader.onloadend = () => {
+                                                                 const img = new window.Image();
+                                                                 img.onload = () => {
+                                                                     const canvas = document.createElement('canvas');
+                                                                     let width = img.width; let height = img.height;
+                                                                     const MAX = 400;
+                                                                     if (width > height) { if (width > MAX) { height *= MAX / width; width = MAX; } } 
+                                                                     else { if (height > MAX) { width *= MAX / height; height = MAX; } }
+                                                                     canvas.width = width; canvas.height = height;
+                                                                     const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                                                                     saveSettings({ ...settings, upsellImage: canvas.toDataURL('image/webp', 0.8) });
+                                                                 };
+                                                                 img.src = reader.result;
+                                                             };
+                                                             reader.readAsDataURL(file);
+                                                         }
+                                                     }} />
+                                                     📁 Uploader
+                                                 </label>
+                                             </div>
+                                         </label>
+                                     </div>
+                                 )}
+                             </div>
                              
                              <div className="flex flex-col gap-2 p-4 rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2">
                                  <span className="text-sm font-bold text-gray-800 block">Voix Audio (Lecteur KDS/Idara)</span>
@@ -686,27 +759,27 @@ export default function AdminConfig({
                                  <div className="p-6 md:p-8 border-t border-gray-100 animate-in slide-in-from-top-2">
                                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-8">
                                      <label className="block">
-                                         <span className="text-xs font-semibold text-gray-700 mb-1.5 block">Nom de l'Agence</span>
-                                         <input className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.name} onChange={e=>{const b=[...editableBranches]; b[idx].name=e.target.value; setEditableBranches(b);}} placeholder="Ex: Agence Centre" />
+                                             <span className="text-xs font-black text-gray-900 mb-1.5 block">Nom de l'Agence</span>
+                                             <input className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.name} onChange={e=>{const b=[...editableBranches]; b[idx].name=e.target.value; setEditableBranches(b);}} placeholder="Ex: Agence Centre" />
                                      </label>
                                      <label className="block">
-                                         <span className="text-xs font-semibold text-gray-700 mb-1.5 block">Téléphone</span>
-                                         <input className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium font-mono text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.phone || ''} onChange={e=>{const b=[...editableBranches]; b[idx].phone=e.target.value; setEditableBranches(b);}} placeholder="06..." />
+                                             <span className="text-xs font-black text-gray-900 mb-1.5 block">Téléphone</span>
+                                             <input className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold font-mono text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.phone || ''} onChange={e=>{const b=[...editableBranches]; b[idx].phone=e.target.value; setEditableBranches(b);}} placeholder="06..." />
                                      </label>
                                      <label className="block">
-                                         <span className="text-xs font-semibold text-gray-700 mb-1.5 block">Latitude (GPS)</span>
-                                         <input type="number" step="any" className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium font-mono text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.lat || ''} onChange={e=>{const b=[...editableBranches]; b[idx].lat=parseFloat(e.target.value); setEditableBranches(b);}} placeholder="33.xxxx" />
+                                             <span className="text-xs font-black text-gray-900 mb-1.5 block">Latitude (GPS)</span>
+                                             <input type="number" step="any" className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold font-mono text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.lat || ''} onChange={e=>{const b=[...editableBranches]; b[idx].lat=parseFloat(e.target.value); setEditableBranches(b);}} placeholder="33.xxxx" />
                                      </label>
                                      <label className="block">
-                                         <span className="text-xs font-semibold text-gray-700 mb-1.5 block">Longitude (GPS)</span>
-                                         <input type="number" step="any" className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium font-mono text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.lng || ''} onChange={e=>{const b=[...editableBranches]; b[idx].lng=parseFloat(e.target.value); setEditableBranches(b);}} placeholder="-7.xxxx" />
+                                             <span className="text-xs font-black text-gray-900 mb-1.5 block">Longitude (GPS)</span>
+                                             <input type="number" step="any" className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold font-mono text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.lng || ''} onChange={e=>{const b=[...editableBranches]; b[idx].lng=parseFloat(e.target.value); setEditableBranches(b);}} placeholder="-7.xxxx" />
                                      </label>
                                      <label className="block">
-                                         <span className="text-xs font-semibold text-gray-700 mb-1.5 block">Zone Couverture (Km)</span>
-                                         <input type="number" className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.radius || ''} onChange={e=>{const b=[...editableBranches]; b[idx].radius=Number(e.target.value); setEditableBranches(b);}} placeholder="Ex: 5" />
+                                             <span className="text-xs font-black text-gray-900 mb-1.5 block">Zone Couverture (Km)</span>
+                                             <input type="number" className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={branch.radius || ''} onChange={e=>{const b=[...editableBranches]; b[idx].radius=Number(e.target.value); setEditableBranches(b);}} placeholder="Ex: 5" />
                                      </label>
                                      <label className="block">
-                                         <span className="text-xs font-semibold text-gray-700 mb-1.5 block">Statut</span>
+                                             <span className="text-xs font-black text-gray-900 mb-1.5 block">Statut</span>
                                          <div className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl flex items-center h-[42px] shadow-sm">
                                              <label className="flex items-center gap-4 w-full cursor-pointer">
                                                  <input type="checkbox" checked={branch.isOpen !== false} onChange={e=>{const b=[...editableBranches]; b[idx].isOpen=e.target.checked; setEditableBranches(b);}} className="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-green-500 accent-green-600 cursor-pointer" />
@@ -1037,6 +1110,22 @@ export default function AdminConfig({
                )}
            </div>
         </div>
+        )}
+
+        {/* 🔥 MODAL DE CONFIRMATION D'ENREGISTREMENT */}
+        {saveSuccessModal && (
+            <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setSaveSuccessModal(false)}>
+                <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                    <div className="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                        <CheckCircle size={40} strokeWidth={3} />
+                    </div>
+                    <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-2">Enregistré !</h3>
+                    <p className="text-sm font-bold text-gray-500 mb-6">Toutes vos modifications ont été sauvegardées avec succès.</p>
+                    <button onClick={() => setSaveSuccessModal(false)} className="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest">
+                        C'est noté
+                    </button>
+                </div>
+            </div>
         )}
       </div>
     );

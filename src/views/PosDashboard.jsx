@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { generateOrderNumber, printTicket, formatSansIngredient, buildMessage, openWhatsAppDirect } from '../utils/helpers';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +13,9 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [editCartItem, setEditCartItem] = useState(null); // Jdid: Modal modifier l-quantité
     const [selectedItemForOptions, setSelectedItemForOptions] = useState(null); // Jdid: Modal dyal les options
     const [selectedChoiceForOptions, setSelectedChoiceForOptions] = useState(null);
+    const [selectedVariationForOptions, setSelectedVariationForOptions] = useState(null);
+    const [showPosSans, setShowPosSans] = useState(false);
+    const [showPosExtras, setShowPosExtras] = useState(false);
     const [heldCarts, setHeldCarts] = useState([]); // Jdid: Commandes en attente
     const [showHeldCarts, setShowHeldCarts] = useState(false);
     const [showReadyPosModal, setShowReadyPosModal] = useState(false); // Jdid: Modal Commandes Prêtes
@@ -25,6 +28,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showOnlineOrdersModal, setShowOnlineOrdersModal] = useState(false);
     const [telInfo, setTelInfo] = useState({ phone: '', deliveryFee: 0 });
     
+    const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [showXZModal, setShowXZModal] = useState(false);
     const [activeBranchId, setActiveBranchId] = useState(managerBranchId || '');
@@ -43,6 +47,66 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const dragBtnRef = useRef(null);
     const dropBtnRef = useRef(null);
 
+    // 🔥 Jdid: State pour l'imprimante Bluetooth
+    const [btCharacteristic, setBtCharacteristic] = useState(null);
+    const [isBtConnecting, setIsBtConnecting] = useState(false);
+
+    // 🔥 NOUVEAU: Mode Édition visuel avancé (Drag & Size)
+    const defaultPosUI = {
+        fontSize: 13,
+        cartWidth: 420,
+        cardWidth: 160,
+        cardHeight: 200,
+        imgHeight: 96,
+        catWidth: 120,
+        catHeight: 48,
+        actionBtnWidth: 140,
+        actionBtnHeight: 48
+    };
+
+    const [posUI, setPosUI] = useState(() => {
+        try { const saved = localStorage.getItem('posUI'); if (saved) return { ...defaultPosUI, ...JSON.parse(saved) }; } catch(e) {}
+        return defaultPosUI;
+    });
+    const [showUISettings, setShowUISettings] = useState(false);
+
+    // 🔥 NOUVEAU: Auto-reconnexion au démarrage (Web Bluetooth getDevices)
+    useEffect(() => {
+        const tryAutoConnectBT = async () => {
+            if (localStorage.getItem('use_bt_printer') === 'true' && navigator.bluetooth && navigator.bluetooth.getDevices) {
+                try {
+                    setIsBtConnecting(true);
+                    const devices = await navigator.bluetooth.getDevices();
+                    if (devices.length > 0) {
+                        // Prendre le premier appareil Bluetooth préalablement autorisé
+                        const device = devices[0];
+                        const server = await device.gatt.connect();
+                        
+                        const services = await server.getPrimaryServices();
+                        let targetCharacteristic = null;
+                        for (const service of services) {
+                            try {
+                                const characteristics = await service.getCharacteristics();
+                                targetCharacteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
+                                if (targetCharacteristic) break;
+                            } catch(e) {}
+                        }
+                        
+                        if (targetCharacteristic) {
+                            setBtCharacteristic(targetCharacteristic);
+                            showNotify("Imprimante BT Auto-Connectée ✅", "success");
+                        }
+                    }
+                } catch (err) {
+                    console.log("Erreur auto-connect BT:", err);
+                } finally {
+                    setIsBtConnecting(false);
+                }
+            }
+        };
+        tryAutoConnectBT();
+    }, []);
+
     useEffect(() => {
         if (settings?.headerBtnsOrder) {
             setHeaderBtnsOrder(settings.headerBtnsOrder);
@@ -52,6 +116,26 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const handleResetPositions = () => {
         setHeaderBtnsOrder([]);
         if (saveSettings) saveSettings({ ...settings, headerBtnsOrder: [] });
+    };
+
+    const handleGlobalOptionsClick = () => {
+        if (cart.length === 0) {
+            showNotify("Veuillez d'abord ajouter un produit au panier.", "warning");
+            return;
+        }
+        const lastItem = cart[cart.length - 1];
+        setCart(prev => {
+            const newCart = [...prev];
+            const last = { ...newCart[newCart.length - 1] };
+            if (last.qty > 1) {
+                last.qty -= 1;
+                newCart[newCart.length - 1] = last;
+            } else {
+                newCart.pop();
+            }
+            return newCart;
+        });
+        handleProductClick(lastItem, true);
     };
 
     const currentBranch = (settings?.branches || []).find(b => b.id === activeBranchId);
@@ -166,9 +250,71 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     }, []);
 
     useEffect(() => {
-        // Zoom global de l'interface (Ajusté pour être un peu plus grand)
-        document.documentElement.style.fontSize = '13px';
-    }, []);
+        localStorage.setItem('posUI', JSON.stringify(posUI));
+        document.documentElement.style.fontSize = `${posUI.fontSize}px`;
+    }, [posUI]);
+
+    // 🔥 Fonction pour connecter l'imprimante Bluetooth
+    const handleBluetoothConnect = async () => {
+        if (!navigator.bluetooth) {
+            showNotify("Bluetooth bloqué : Utilisez Chrome et vérifiez que vous êtes bien sur HTTPS ou Localhost.", "error");
+            return;
+        }
+        try {
+            setIsBtConnecting(true);
+            const device = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: [
+                    '000018f0-0000-1000-8000-00805f9b34fb', 
+                    'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+                    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                    '0000fee7-0000-1000-8000-00805f9b34fb',
+                    '0000ff00-0000-1000-8000-00805f9b34fb'
+                ]
+            });
+            
+            device.addEventListener('gattserverdisconnected', () => {
+                setBtCharacteristic(null);
+            });
+            
+            const server = await device.gatt.connect();
+            
+            const services = await server.getPrimaryServices();
+            let targetCharacteristic = null;
+            for (const service of services) {
+                try {
+                    const characteristics = await service.getCharacteristics();
+                    targetCharacteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
+                    if (targetCharacteristic) break;
+                } catch(e) {}
+            }
+            
+            if (targetCharacteristic) {
+                setBtCharacteristic(targetCharacteristic);
+                localStorage.setItem('use_bt_printer', 'true'); // 🔥 Sauvegarder le fait qu'on utilise le BT
+                showNotify("Imprimante Bluetooth Connectée ✅", "success");
+            } else {
+                showNotify("Aucun port d'écriture (Write) n'a été trouvé sur cette imprimante", "error");
+            }
+        } catch (error) {
+            console.error("Erreur BT:", error);
+            showNotify(error.message || "Erreur de connexion Bluetooth ou annulée", "error");
+        } finally {
+            setIsBtConnecting(false);
+        }
+    };
+
+    // 🔥 Fonction pour envoyer des données au Bluetooth par paquets (Chunks)
+    const sendBluetoothData = async (text) => {
+        if (!btCharacteristic) return;
+        const encoder = new TextEncoder();
+        const data = encoder.encode(text);
+        const chunkSize = 256; // 256 octets par paquet pour éviter les erreurs de taille MTU
+        for (let i = 0; i < data.length; i += chunkSize) {
+            const chunk = data.slice(i, i + chunkSize);
+            await btCharacteristic.writeValue(chunk);
+        }
+    };
 
     // Init Active Branch
     useEffect(() => {
@@ -393,35 +539,72 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         }
     };
 
-    const handleProductClick = (item) => {
-        if (item.removableIngredients || item.choices || (item.extras && item.extras.length > 0)) {
-             const ingredients = item.removableIngredients ? String(item.removableIngredients).split(',').map(i => i.trim()).filter(Boolean) : [];
-             const choices = item.choices ? String(item.choices).split(',').map(i => i.trim()).filter(Boolean) : [];
-             if (ingredients.length > 0 || choices.length > 0 || (item.extras && item.extras.length > 0)) {
-                 setSelectedItemForOptions({ ...item, ingredients, choices, selectedSans: [], selectedExtras: [] });
-                 setSelectedChoiceForOptions(null);
-                 return;
-             }
+    const handleProductClick = (item, forceOptions = false) => {
+        // Les choix w les tailles homa obligatoires, khassna dima n7ello l-modal fihom
+        const needsOptions = (item.hasVariations && item.variations?.length > 0) || (item.choices && item.choices.length > 0);
+
+        if (forceOptions || needsOptions) {
+            const ingredients = item.removableIngredients ? String(item.removableIngredients).split(',').map(i => i.trim()).filter(Boolean) : [];
+            let choicesList = [];
+            if (item.choices) {
+                const choicesStr = String(item.choices).trim();
+                if (choicesStr.toUpperCase().startsWith('CAT:')) {
+                    const catName = choicesStr.split(':')[1].trim();
+                    const matchedItems = menuItems.filter(i => i.category === catName && !i.outOfStock && !(settings?.disabledItems || []).includes(i.id));
+                    matchedItems.forEach(i => {
+                        if (i.hasVariations && i.variations?.length > 0) {
+                            i.variations.forEach(v => choicesList.push(`${i.name} (${v.name})` + (i.img ? ` | ${i.img}` : '')));
+                        } else {
+                            choicesList.push(i.name + (i.img ? ` | ${i.img}` : ''));
+                        }
+                    });
+                } else if (choicesStr.toUpperCase().startsWith('PROD:')) {
+                    const prodNames = choicesStr.substring(5).split(',').map(n => n.trim().toLowerCase());
+                    const matchedItems = menuItems.filter(i => prodNames.includes((i.name || '').trim().toLowerCase()) && !i.outOfStock && !(settings?.disabledItems || []).includes(i.id));
+                    matchedItems.forEach(i => {
+                        if (i.hasVariations && i.variations?.length > 0) {
+                            i.variations.forEach(v => choicesList.push(`${i.name} (${v.name})` + (i.img ? ` | ${i.img}` : '')));
+                        } else {
+                            choicesList.push(i.name + (i.img ? ` | ${i.img}` : ''));
+                        }
+                    });
+                } else {
+                    choicesList = choicesStr.split(',').map(i => i.trim()).filter(Boolean);
+                }
+            }
+            
+            setSelectedItemForOptions({ ...item, ingredients, choices: choicesList, selectedSans: [], selectedExtras: [] });
+            setSelectedChoiceForOptions(null);
+            setSelectedVariationForOptions(item.hasVariations && item.variations?.length > 0 ? item.variations[0] : null);
+            setShowPosSans(false);
+            setShowPosExtras(false);
+            setShowPosSans(ingredients.length > 0);
+            setShowPosExtras(item.extras && item.extras.length > 0);
+        } else {
+            addToCart(item);
         }
-        addToCart(item);
     };
 
     const confirmOptionsAndAdd = () => {
         if (!selectedItemForOptions) return;
+        if (selectedItemForOptions.hasVariations && !selectedVariationForOptions) {
+            return showNotify("Veuillez choisir une taille !", "error");
+        }
         if (selectedItemForOptions.choices?.length > 0 && !selectedChoiceForOptions) {
             return showNotify("Veuillez choisir une option (ex: Coca, Sprite...) !", "error");
         }
         let note = "";
-        let extraPrice = 0;
+        let finalPrice = selectedVariationForOptions ? Number(selectedVariationForOptions.price || 0) : Number(selectedItemForOptions.price || 0);
+        if (selectedVariationForOptions) note += ` (${selectedVariationForOptions.name})`;
         if (selectedChoiceForOptions) note += ` (${selectedChoiceForOptions})`;
         if (selectedItemForOptions.selectedExtras?.length > 0) {
             note += ` (Avec ${selectedItemForOptions.selectedExtras.map(e => e.name).join(', ')})`;
-            extraPrice = selectedItemForOptions.selectedExtras.reduce((s, e) => s + Number(e.price), 0);
+            finalPrice += selectedItemForOptions.selectedExtras.reduce((s, e) => s + Number(e.price), 0);
         }
         if (selectedItemForOptions.selectedSans.length > 0) {
             note += ` (Sans ${selectedItemForOptions.selectedSans.join(', ')})`;
         }
-        const itemToAdd = { ...selectedItemForOptions, price: Number(selectedItemForOptions.price) + extraPrice };
+        const itemToAdd = { ...selectedItemForOptions, price: finalPrice };
         addToCart(itemToAdd, note);
         setSelectedItemForOptions(null);
     };
@@ -478,7 +661,50 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     };
 
     // 🔥 Print Custom pour Pos (1 Ticket Client + 1 Ticket Cuisine)
-    const printTicketsPos = (order, brandInfo) => {
+    const printTicketsPos = async (order, brandInfo) => {
+        
+        // 🔥 Si une imprimante Bluetooth est connectée, on imprime directement via BT et on coupe !
+        if (btCharacteristic) {
+            try {
+                const dateStr = new Date().toLocaleString('fr-FR');
+                const orderTypeStr = order.orderType === 'a_emporter' ? 'A EMPORTER' : 'SUR PLACE';
+                
+                let text = "\x1B\x40"; // Initialize printer
+                text += "\x1B\x61\x01"; // Center align
+                text += `${brandInfo?.name?.toUpperCase() || 'RESTAURANT'}\n`;
+                text += `--------------------------------\n`;
+                text += `TICKET CLIENT\n`;
+                text += `${dateStr}\n`;
+                text += `COMMANDE #${order.orderNumber}\n`;
+                text += `*** ${orderTypeStr} ***\n`;
+                text += `--------------------------------\n`;
+                text += "\x1B\x61\x00"; // Left align
+                
+                order.items.forEach(item => {
+                    text += `${item.qty}x ${item.name.split(' (Sans')[0]}    ${item.price * item.qty} DH\n`;
+                    if (item.name.includes(' (Sans')) {
+                        const sansList = item.name.split(' (Sans ')[1].replace(')', '').split(', ');
+                        sansList.forEach(opt => { text += `  - Sans ${formatSansIngredient(opt)}\n`; });
+                    }
+                });
+                
+                text += `--------------------------------\n`;
+                text += `TOTAL: ${order.total} DH\n\n`;
+                text += "\x1B\x61\x01"; // Center align
+                text += `Merci de votre visite !\n\n\n\n`;
+                
+                // Code pour ouvrir le tiroir
+                text += "\x1B\x70\x00\x19\xFA";
+                // Code pour couper le papier (Cut)
+                text += "\x1D\x56\x00";
+
+                await sendBluetoothData(text);
+                return; // Sortir de la fonction pour ne pas ouvrir la fenêtre Web normale
+            } catch (err) {
+                console.error("Erreur lors de l'impression Bluetooth:", err);
+                showNotify("Erreur d'impression Bluetooth, passage en mode web...", "warning");
+            }
+        }
         
         const itemsHtml = order.items.map(item => `
             <div style="display:flex; justify-content:space-between; margin-bottom: 5px; font-weight: bold; font-size: 14px;">
@@ -623,6 +849,32 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         }
     };
 
+    // 🔥 Fonction pour ouvrir le tiroir (Bluetooth, Electron, ou Manuel)
+    const openDrawer = async () => {
+        if (btCharacteristic) {
+            try {
+                // Code ESC/POS pour ouvrir le tiroir-caisse connecté au port RJ11 de l'imprimante
+                const escPosDrawer = "\x1B\x70\x00\x19\xFA";
+                await sendBluetoothData(escPosDrawer);
+                showNotify("Tiroir ouvert b-Bluetooth 🔓", "success");
+            } catch (e) {
+                showNotify("Erreur d'ouverture du tiroir BT", "error");
+            }
+        } else if (typeof window !== 'undefined' && window.require) {
+            // 🔥 Mode EXE (Electron) : Nsifto un ticket khawi bach y-déclencher le tiroir f Windows
+            try {
+                const { ipcRenderer } = window.require('electron');
+                const emptyHtml = `<html><head><title>Tiroir</title></head><body style="margin:0;padding:0;font-size:1px;color:white;">.</body></html>`;
+                ipcRenderer.send('print-ticket', emptyHtml, brand?.selectedPrinter);
+                showNotify("Signal envoyé l-Tiroir (EXE) 🔓", "success");
+            } catch (e) {
+                showNotify("Erreur Electron pour le tiroir", "error");
+            }
+        } else {
+            showNotify("Tiroir ouvert (Simulation Web) 🔓", "success");
+        }
+    };
+
     // 🔥 Impression des Rapports X / Z
     const printReport = (type) => {
         const branch = (settings?.branches || []).find(b => b.id === activeBranchId);
@@ -679,12 +931,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             onDragOver: e => e.preventDefault(),
         } : {};
         const cursorClass = isAdmin ? 'cursor-move' : '';
-        const baseClass = `relative flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-bold transition-all text-sm sm:text-base shadow-sm ml-2 ${cursorClass}`;
+        const baseClass = `relative flex items-center justify-center gap-2 px-3 sm:px-4 rounded-xl font-bold transition-all text-xs sm:text-sm md:text-base shadow-sm shrink-0 ml-1 sm:ml-2 ${cursorClass}`;
 
         switch(btnId) {
             case 'commandes_web':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => {
+                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => {
                         if (pendingOnline.length > 0) setShowPendingModal(true);
                         else { if (setTab) setTab('active'); else window.location.href = '/idara'; }
                     }} className={`${baseClass} ${pendingOnline.length > 0 ? 'bg-red-500 text-white animate-pulse border border-red-600' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'}`}>
@@ -696,28 +948,28 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             case 'problemes':
                 if (problemOrders.length === 0) return null;
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => setShowProblemModal(true)} className={`${baseClass} bg-red-500 text-white border border-red-600 animate-pulse`}>
+                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setShowProblemModal(true)} className={`${baseClass} bg-red-500 text-white border border-red-600 animate-pulse`}>
                         <AlertTriangle size={18} /> <span className="hidden sm:inline">Problèmes</span>
                         <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{problemOrders.length}</span>
                     </button>
                 );
             case 'suivi':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => setShowOnlineOrdersModal(true)} className={`${baseClass} ${onlineOrders.length > 0 ? 'bg-purple-500 text-white hover:bg-purple-600 border-purple-600' : 'bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100'}`}>
+                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setShowOnlineOrdersModal(true)} className={`${baseClass} ${onlineOrders.length > 0 ? 'bg-purple-500 text-white hover:bg-purple-600 border-purple-600' : 'bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100'}`}>
                         <ShoppingBag size={18} /> <span className="hidden sm:inline">Suivi Web/Tél</span>
                         {onlineOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{onlineOrders.length}</span>}
                     </button>
                 );
             case 'pretes':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => setShowReadyPosModal(true)} className={`${baseClass} ${readyPosOrders.length > 0 ? 'bg-green-500 text-white animate-pulse border border-green-600' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'}`}>
+                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setShowReadyPosModal(true)} className={`${baseClass} ${readyPosOrders.length > 0 ? 'bg-green-500 text-white animate-pulse border border-green-600' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100'}`}>
                         <CheckCircle size={18} /> <span className="hidden sm:inline">Prêtes (Servir)</span>
                         {readyPosOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{readyPosOrders.length}</span>}
                     </button>
                 );
             case 'tv':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => {
+                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => {
                         const route = '/tv';
                         window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
                     }} className={`${baseClass} bg-blue-600 hover:bg-blue-700 text-white border border-blue-700`}>
@@ -726,13 +978,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'standard':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => setShowStandardModal(true)} className={`${baseClass} bg-orange-500 hover:bg-orange-600 text-white border border-orange-600`}>
+                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setShowStandardModal(true)} className={`${baseClass} bg-orange-500 hover:bg-orange-600 text-white border border-orange-600`}>
                         📞 <span className="hidden sm:inline">Standard Tél</span>
                     </button>
                 );
             case 'kds':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => {
+                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => {
                         const route = '/kds';
                         window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
                     }} className={`${baseClass} bg-neutral-900 hover:bg-black text-white border border-neutral-800`}>
@@ -741,7 +993,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'quitter':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => setTab ? setTab('active') : (onQuit ? onQuit() : window.location.href = '/idara')} className={`${baseClass} bg-white border border-gray-200 hover:bg-gray-50 text-gray-700`}>
+                    <button key={btnId} {...dragProps} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }} onClick={() => setTab ? setTab('active') : (onQuit ? onQuit() : window.location.href = '/idara')} className={`${baseClass} bg-white border border-gray-200 hover:bg-gray-50 text-gray-700`}>
                         <ArrowLeft size={18}/> <span className="hidden sm:inline">Quitter</span>
                     </button>
                 );
@@ -752,26 +1004,28 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     return (
         <div 
-            className="flex flex-col h-full w-full md:flex-row overflow-hidden relative font-sans" 
+            className="flex flex-col h-[100dvh] md:h-full w-full md:flex-row overflow-hidden relative font-sans" 
             style={{ fontFamily: brand?.fontFamily || "'Plus Jakarta Sans', sans-serif", backgroundColor: brand?.posBgColor || brand?.bgColor || '#f8fafc', color: brand?.posTextColor || brand?.textColor || '#0f172a' }}
         >
-            
+
             {/* MAIN CONTENT (LEFT) */}
             <div className="flex-1 flex flex-col h-full w-full overflow-hidden relative">
-                <header className="p-3 sm:p-4 shadow-sm font-black text-xl sm:text-2xl flex items-center gap-2 z-10" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff', color: brand?.posColor || brand?.color || '#4f46e5' }}>
-                    <ShoppingCart size={28}/> <span className="truncate pr-20 sm:pr-0">{brand?.texts?.posAppTitle || brand?.name || 'Caisse POS'}</span>
+                <header className="p-3 sm:p-4 shadow-sm font-black text-lg sm:text-2xl flex items-center gap-2 z-10 overflow-x-auto no-scrollbar shrink-0 w-full" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff', color: brand?.posColor || brand?.color || '#4f46e5' }}>
+                    <div className="flex items-center gap-2 shrink-0 mr-2">
+                        <ShoppingCart size={24} className="sm:w-7 sm:h-7"/> <span className="truncate max-w-[120px] sm:max-w-none">{brand?.texts?.posAppTitle || brand?.name || 'Caisse POS'}</span>
+                    </div>
                     
                     {/* BUTTONS IN HEADER */}
                     {displayedButtons.map((btnId, idx) => renderHeaderButton(btnId, idx))}
 
                     {/* BOUTON RESET POSITIONS (Si l'ordre a été modifié) */}
                     {isAdmin && headerBtnsOrder.length > 0 && (
-                        <button onClick={handleResetPositions} className="ml-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-500 rounded-xl text-xs font-bold transition-all shadow-sm">
+                        <button onClick={handleResetPositions} className="ml-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-500 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0">
                             ↺ Réinitialiser
                         </button>
                     )}
 
-                <div className="ml-auto mr-28 sm:mr-0 flex items-center gap-2">
+                <div className="ml-auto flex items-center gap-2 shrink-0 pl-2">
                     {!isNetOnline ? (
                         <div className="flex items-center gap-1.5 bg-red-100 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm border border-red-200">
                             <span className="relative flex h-2.5 w-2.5">
@@ -785,11 +1039,22 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             <History size={14} /> Sync ({offlineQueue.length})
                         </button>
                     ) : null}
+                    <button onClick={() => setShowUISettings(true)} className="ml-2 px-3 py-1.5 sm:py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors shadow-md flex items-center gap-1.5 text-[10px] sm:text-xs font-bold shrink-0">
+                        <Monitor size={16}/> <span className="hidden sm:inline">Affichage / Zoom</span>
+                    </button>
                 </div>
                 </header>
                 
-                <div className="border-b border-gray-100 p-3 sm:p-4 overflow-x-auto no-scrollbar shrink-0" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff' }}>
-                    <div className="flex gap-2">
+                <div className="border-b border-gray-100 p-2 sm:p-4 overflow-x-auto no-scrollbar shrink-0 w-full" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff' }}>
+                    <div className="flex gap-2 w-max items-center">
+                        <button 
+                            onClick={handleGlobalOptionsClick} 
+                            className="px-4 sm:px-6 rounded-full sm:rounded-2xl font-black bg-gray-800 text-white shadow-md active:scale-95 flex items-center justify-center gap-2 text-xs sm:text-base mr-2"
+                            style={{ minWidth: `${posUI.catWidth}px`, height: `${posUI.catHeight}px` }}
+                        >
+                            ⚙️ Options / Sans
+                        </button>
+                        <div className="w-px h-8 bg-gray-200 mx-1"></div>
                         {categories.map((cat, idx) => (
                             <button 
                                 key={cat} 
@@ -799,8 +1064,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 onDragEnd={handleCatDragEnd}
                                 onDragOver={e => e.preventDefault()}
                                 onClick={() => setSelectedCategory(cat)} 
-                                className={`px-4 sm:px-6 py-2 sm:py-3 rounded-full sm:rounded-2xl font-bold sm:font-black transition-all whitespace-nowrap text-sm sm:text-base ${displayCategory === cat ? 'text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'} ${isAdmin ? 'cursor-move' : ''}`} 
-                                style={displayCategory === cat ? { backgroundColor: brand?.posColor || brand?.color || '#4f46e5' } : {}}
+                                className={`px-4 sm:px-6 rounded-full sm:rounded-2xl font-bold sm:font-black transition-all whitespace-nowrap text-xs sm:text-base flex items-center justify-center ${displayCategory === cat ? 'text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'} ${isAdmin ? 'cursor-move' : ''}`} 
+                                style={{ minWidth: `${posUI.catWidth}px`, height: `${posUI.catHeight}px`, backgroundColor: displayCategory === cat ? (brand?.posColor || brand?.color || '#4f46e5') : undefined }}
                             >
                                 {cat}
                             </button>
@@ -808,8 +1073,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </div>
                 </div>
 
-            <main className="flex-1 p-4 sm:p-8 overflow-y-auto w-full">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 pb-6">
+            <main className="flex-1 p-3 sm:p-4 md:p-8 overflow-y-auto w-full">
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${posUI.cardWidth}px, 1fr))`, gap: '16px', paddingBottom: '24px' }}>
                         {filteredMenu.map((item, idx) => (
                         <div 
                             key={item.id} 
@@ -823,11 +1088,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                     showNotify("Rupture de stock validé man kds li daro repture", "error");
                                     return;
                                 }
-                                handleProductClick(item);
+                                handleProductClick(item, false);
                             }} 
-                            className={`relative bg-white rounded-[2rem] p-4 flex flex-col items-center justify-between gap-4 shadow-sm border border-gray-100 overflow-hidden transition-colors min-h-[220px] sm:min-h-[260px] ${item.outOfStock ? 'opacity-60 grayscale cursor-not-allowed border-red-200' : 'cursor-pointer hover:bg-gray-50'} ${isAdmin ? 'cursor-move' : ''}`}
+                            className={`relative bg-white rounded-2xl sm:rounded-[2rem] p-3 sm:p-4 flex flex-col items-center justify-between gap-3 sm:gap-4 shadow-sm border overflow-hidden transition-colors ${item.outOfStock ? 'opacity-60 grayscale cursor-not-allowed border-red-200' : 'cursor-pointer hover:bg-gray-50 border-gray-100'} ${isAdmin ? 'cursor-move' : ''}`}
+                            style={{ minHeight: `${posUI.cardHeight}px` }}
                         >
-                            <div className="w-full h-32 sm:h-40 flex items-center justify-center bg-gray-50/50 rounded-2xl overflow-hidden relative">
+                            <div className="w-full flex items-center justify-center bg-gray-50/50 rounded-xl sm:rounded-2xl overflow-hidden relative" style={{ height: `${posUI.imgHeight}px` }}>
                                 {item.outOfStock && (
                                     <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-20">
                                         <span className="bg-red-500 text-white font-black text-xs sm:text-sm px-3 py-1.5 rounded-full shadow-lg transform -rotate-12 border-2 border-white">RUPTURE</span>
@@ -840,8 +1106,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 )}
                             </div>
                             <div className="w-full text-left space-y-1 px-1">
-                                <h3 className="font-black text-gray-800 text-base sm:text-lg leading-tight line-clamp-2">{item.name}</h3>
-                                <p className="font-black text-xl sm:text-2xl tracking-tighter" style={{ color: item.outOfStock ? '#9ca3af' : (brand?.posColor || brand?.color || '#f59e0b') }}>
+                                <h3 className="font-black text-gray-800 text-sm sm:text-lg leading-tight line-clamp-2">{item.name}</h3>
+                                <p className="font-black text-lg sm:text-2xl tracking-tighter" style={{ color: item.outOfStock ? '#9ca3af' : (brand?.posColor || brand?.color || '#f59e0b') }}>
                                     {item.price} <span className="text-[10px] sm:text-xs text-gray-400 font-bold uppercase tracking-widest">DH</span>
                                 </p>
                             </div>
@@ -851,14 +1117,37 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 </main>
             </div>
 
+            {/* BOUTON FLOTTANT MOBILE POUR OUVRIR LE PANIER */}
+            {!isMobileCartOpen && (
+                <button
+                    onClick={() => setIsMobileCartOpen(true)}
+                    className="md:hidden fixed bottom-6 right-6 z-40 text-white p-4 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center gap-3 font-black text-lg active:scale-95 transition-transform border-2 border-white"
+                    style={{ backgroundColor: brand?.posColor || brand?.color || '#4f46e5' }}
+                >
+                    <div className="relative">
+                        <ShoppingBag size={28} />
+                        {cart.length > 0 && (
+                            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-black border-2 border-white shadow-sm">
+                                {cart.reduce((s,i)=>s+i.qty,0)}
+                            </span>
+                        )}
+                    </div>
+                    {cart.length > 0 && <span>{total} DH</span>}
+                </button>
+            )}
+
             {/* CART SIDEBAR (RIGHT) */}
-            <aside className="hidden md:flex w-[420px] bg-white/80 backdrop-blur-2xl shadow-[-10px_0_40px_rgba(0,0,0,0.03)] flex-col h-full z-20 border-l border-white/60 shrink-0">
-                <div className="p-6 sm:p-8 flex justify-between items-center border-b border-gray-100/50 sticky top-0 z-10">
-                    <div className="font-black text-2xl flex items-center gap-3 text-gray-900 tracking-tight">
+            <aside className={`${isMobileCartOpen ? 'fixed inset-0 z-[100] flex bg-white/95 w-full' : 'hidden md:flex'} bg-white/80 md:backdrop-blur-2xl shadow-[-10px_0_40px_rgba(0,0,0,0.03)] flex-col h-full md:z-20 border-l border-white/60 shrink-0`} style={{ width: isMobileCartOpen ? '100%' : `${posUI.cartWidth}px` }}>
+                <div className="p-4 sm:p-6 md:p-8 flex justify-between items-center border-b border-gray-100/50 sticky top-0 z-10 bg-white/50 backdrop-blur-md">
+                    <div className="font-black text-xl sm:text-2xl flex items-center gap-3 text-gray-900 tracking-tight">
                         <ShoppingBag size={28} style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}/> 
                         {brand?.texts?.posTabOrder || 'Commande'}
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* Bouton fermer sur Mobile */}
+                        <button onClick={() => setIsMobileCartOpen(false)} className="md:hidden p-2.5 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors mr-1">
+                            <X size={20}/>
+                        </button>
                         {heldCarts.length > 0 && (
                             <button onClick={() => setShowHeldCarts(true)} className="p-2.5 bg-orange-50/80 text-orange-500 rounded-full hover:bg-orange-100 transition-colors relative" title="Commandes en attente">
                                 <Clock size={20}/>
@@ -869,7 +1158,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-4 no-scrollbar">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 no-scrollbar" style={{ zoom: cart.length > 4 ? Math.max(0.55, 1 - (cart.length - 4) * 0.08) : 1 }}>
                     <AnimatePresence>
                         {cart.length === 0 ? (
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 flex flex-col items-center justify-center text-gray-300 h-full mt-20 gap-4">
@@ -926,16 +1215,22 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         </motion.button>
                     </div>
 
-                <div className="flex gap-3">
-                    {(!hasAccess || hasAccess('pos_drawer')) && (
-                        <button onClick={() => showNotify("Tiroir ouvert 🔓", "success")} className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><Unlock size={18} className="text-green-500"/><span>Tiroir</span></button>
-                    )}
-                    {(!hasAccess || hasAccess('pos_history')) && (
-                        <button onClick={() => setShowHistoryModal(true)} className="flex-1 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><History size={18}/><span>Historique</span></button>
-                    )}
-                    {(!hasAccess || hasAccess('pos_reports')) && (
-                        <button onClick={() => setShowXZModal(true)} className="flex-1 py-3 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><ClipboardList size={18}/><span>Rapports</span></button>
-                    )}
+                    <div className="flex gap-3">
+                        {(!hasAccess || hasAccess('pos_drawer')) && (
+                            <button onClick={openDrawer} className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><Unlock size={18} className="text-green-500"/><span>Tiroir</span></button>
+                        )}
+                        {(!hasAccess || hasAccess('pos_history')) && (
+                            <button onClick={() => setShowHistoryModal(true)} className="flex-1 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><History size={18}/><span>Historique</span></button>
+                        )}
+                        {(!hasAccess || hasAccess('pos_reports')) && (
+                            <button onClick={() => setShowXZModal(true)} className="flex-1 py-3 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><ClipboardList size={18}/><span>Rapports</span></button>
+                        )}
+                    </div>
+                    <div className="flex gap-3 mt-3">
+                        <button onClick={handleBluetoothConnect} disabled={isBtConnecting} className={`flex-1 py-3 border rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors ${btCharacteristic ? 'bg-green-50 hover:bg-green-100 border-green-200 text-green-700' : (isBtConnecting ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700')}`}>
+                            <Bluetooth size={18} className={`${btCharacteristic ? "text-green-500" : "text-blue-500"} ${isBtConnecting ? "animate-pulse" : ""}`}/>
+                            <span>{isBtConnecting ? "Connexion en cours..." : (btCharacteristic ? "Imprimante BT Connectée" : "Connecter Imprimante BT")}</span>
+                        </button>
                     </div>
                 </div>
             </aside>
@@ -968,29 +1263,77 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         <div className="p-5 border-b border-gray-100">
                             <h2 className="text-xl font-black text-gray-900 mb-1">{selectedItemForOptions.name}</h2>
                             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Options du produit</p>
+
+                            {/* 🔥 BOUTONS TOGGLES POUR SANS ET EXTRAS (POUR NE PAS DÉRANGER LE CAISSIER) */}
+                            {((selectedItemForOptions.ingredients?.length > 0) || (selectedItemForOptions.extras?.length > 0)) && (
+                                <div className="flex gap-2 mt-4">
+                                    {selectedItemForOptions.ingredients?.length > 0 && (
+                                        <button onClick={() => setShowPosSans(!showPosSans)} className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border shadow-sm ${showPosSans ? 'bg-red-500 text-white border-red-600' : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'}`}>
+                                            Sans Ingrédients
+                                        </button>
+                                    )}
+                                    {selectedItemForOptions.extras?.length > 0 && (
+                                        <button onClick={() => setShowPosExtras(!showPosExtras)} className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border shadow-sm ${showPosExtras ? 'bg-green-500 text-white border-green-600' : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'}`}>
+                                            Extras & Boissons
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         
-                        {selectedItemForOptions.choices?.length > 0 && (
-                            <div className="p-5 bg-gray-50 border-b border-gray-200">
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Choix (Obligatoire) <span className="text-red-500">*</span></p>
+                        <div className="flex-1 overflow-y-auto max-h-[60vh] bg-gray-50">
+
+                        {selectedItemForOptions.hasVariations && selectedItemForOptions.variations?.length > 0 && (
+                            <div className="p-5 border-b border-gray-200">
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Taille / Variante <span className="text-red-500">*</span></p>
                                 <div className="space-y-2">
-                                    {selectedItemForOptions.choices.map(c => (
-                                        <label key={c} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedChoiceForOptions === c ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
-                                            <input 
-                                                type="radio" 
-                                                name="pos_choice"
-                                                className="w-5 h-5 accent-blue-600 cursor-pointer"
-                                                checked={selectedChoiceForOptions === c}
-                                                onChange={() => setSelectedChoiceForOptions(c)}
-                                            />
-                                            <span className={`text-sm font-black uppercase ${selectedChoiceForOptions === c ? 'text-blue-700' : 'text-gray-700'}`}>{c}</span>
+                                    {selectedItemForOptions.variations.map((v, idx) => (
+                                        <label key={idx} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedVariationForOptions?.name === v.name ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedVariationForOptions?.name === v.name ? 'border-blue-500' : 'border-gray-300'}`}>{selectedVariationForOptions?.name === v.name && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}</div>
+                                                <span className={`text-sm font-black uppercase leading-tight ${selectedVariationForOptions?.name === v.name ? 'text-blue-700' : 'text-gray-700'}`}>{v.name}</span>
+                                            </div>
+                                            <span className="font-black text-blue-600">{v.price} DH</span>
+                                            <input type="radio" className="hidden" name="pos_variation" checked={selectedVariationForOptions?.name === v.name} onChange={() => setSelectedVariationForOptions(v)} />
                                         </label>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {selectedItemForOptions.extras?.length > 0 && (
+                        {selectedItemForOptions.choices?.length > 0 && (
+                            <div className="p-5 border-b border-gray-200">
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Choix (Obligatoire) <span className="text-red-500">*</span></p>
+                                <div className={`${selectedItemForOptions.choices.some(c => c.includes('|')) ? 'grid grid-cols-2 gap-3' : 'space-y-2'}`}>
+                                    {selectedItemForOptions.choices.map(c => {
+                                        const parts = c.trim().split('|');
+                                        const choiceName = parts[0].trim();
+                                        const img = parts.length > 1 ? parts[1].trim() : null;
+                                        return (
+                                        <label key={choiceName} className={`flex ${img ? 'flex-col items-center text-center' : 'items-center gap-3'} p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedChoiceForOptions === choiceName ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
+                                            {img && (
+                                                <div className="w-16 h-16 mb-2 rounded-lg overflow-hidden flex items-center justify-center bg-transparent">
+                                                    {img.startsWith('http') || img.startsWith('data:image') ? <img src={img} className="w-full h-full object-contain" alt={choiceName} /> : <span className="text-4xl">{img}</span>}
+                                                </div>
+                                            )}
+                                            <div className={`flex items-center gap-3 ${img ? 'w-full justify-center' : ''}`}>
+                                            <input 
+                                                type="radio" 
+                                                name="pos_choice"
+                                                className="w-5 h-5 accent-blue-600 cursor-pointer shrink-0"
+                                                checked={selectedChoiceForOptions === choiceName}
+                                                onChange={() => setSelectedChoiceForOptions(choiceName)}
+                                            />
+                                            <span className={`text-sm font-black uppercase leading-tight ${selectedChoiceForOptions === choiceName ? 'text-blue-700' : 'text-gray-700'}`}>{choiceName}</span>
+                                            </div>
+                                        </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {showPosExtras && selectedItemForOptions.extras?.length > 0 && (
                             (() => {
                                 const drinkNames = new Set(PREDEFINED_DRINKS.map(d => d.name));
                                 const pureExtras = (selectedItemForOptions.extras || []).filter(e => !drinkNames.has(e.name));
@@ -999,7 +1342,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 return (
                                     <>
                                         {pureExtras.length > 0 && (
-                                            <div className="p-5 bg-gray-50 border-b border-gray-200">
+                                            <div className="p-5 border-b border-gray-200">
                                                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">➕ Extras & Suppléments</p>
                                                 <div className="space-y-2">
                                                     {pureExtras.map(ext => {
@@ -1015,7 +1358,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                             </div>
                                         )}
                                         {pureDrinks.length > 0 && (
-                                            <div className="p-5 bg-gray-50 border-b border-gray-200">
+                                            <div className="p-5 border-b border-gray-200">
                                                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">🥤 Boissons</p>
                                                 <div className="space-y-2">
                                                     {pureDrinks.map(ext => {
@@ -1035,8 +1378,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             })()
                         )}
 
-                        {selectedItemForOptions.ingredients?.length > 0 && (
-                            <div className="p-5 bg-gray-50 space-y-3 max-h-[40dvh] overflow-y-auto">
+                        {showPosSans && selectedItemForOptions.ingredients?.length > 0 && (
+                            <div className="p-5 space-y-3">
                                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Options Sans (Khtar chno t7eyed)</p>
                                 {selectedItemForOptions.ingredients.map(opt => {
                                     const isSelected = selectedItemForOptions.selectedSans.includes(opt);
@@ -1049,10 +1392,43 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 })}
                             </div>
                         )}
+                        </div>
                         
                         <div className="p-4 bg-white border-t border-gray-100 flex gap-3">
                             <button onClick={() => setSelectedItemForOptions(null)} className="flex-1 py-4 font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Annuler</button>
                             <button onClick={confirmOptionsAndAdd} className="flex-[2] py-4 font-black text-white rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2" style={{backgroundColor: brand?.posColor || brand?.color || '#4f46e5'}}><CheckCircle size={20}/> Valider l'ajout</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL REGLAGES D'AFFICHAGE SIMPLIFIÉ */}
+            {showUISettings && (
+                <div className="fixed inset-0 z-[5000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowUISettings(false)}>
+                    <div className="bg-white rounded-3xl w-full max-w-sm flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h2 className="text-lg font-black text-gray-900 flex items-center gap-2"><Settings size={20}/> Affichage Caisse</h2>
+                            <button onClick={() => setShowUISettings(false)} className="p-2 bg-white rounded-full hover:bg-gray-200"><X size={20}/></button>
+                        </div>
+                        <div className="p-6 bg-white space-y-6">
+                            <div>
+                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur du Panier</span><span className="text-blue-600">{posUI.cartWidth}px</span></label>
+                                <input type="range" min="300" max="800" step="10" value={posUI.cartWidth} onChange={e => setPosUI({...posUI, cartWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                            </div>
+                            <div>
+                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur des Produits</span><span className="text-blue-600">{posUI.cardWidth}px</span></label>
+                                <input type="range" min="100" max="400" step="5" value={posUI.cardWidth} onChange={e => setPosUI({...posUI, cardWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                            </div>
+                            <div>
+                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Hauteur des Produits</span><span className="text-blue-600">{posUI.cardHeight}px</span></label>
+                                <input type="range" min="100" max="500" step="5" value={posUI.cardHeight} onChange={e => setPosUI({...posUI, cardHeight: Number(e.target.value)})} className="w-full accent-blue-600" />
+                            </div>
+                            <div>
+                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Taille du Texte (Global)</span><span className="text-blue-600">{posUI.fontSize}px</span></label>
+                                <input type="range" min="10" max="24" step="1" value={posUI.fontSize} onChange={e => setPosUI({...posUI, fontSize: Number(e.target.value)})} className="w-full accent-blue-600" />
+                            </div>
+                            <button onClick={() => setPosUI(defaultPosUI)} className="w-full py-3 mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs uppercase transition-colors">Réinitialiser par défaut</button>
+                            <button onClick={() => setShowUISettings(false)} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm transition-colors shadow-md">Valider</button>
                         </div>
                     </div>
                 </div>
@@ -1398,7 +1774,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                     readOnly
                                     onClick={() => setShowTelNumpad(true)}
                                     placeholder="06XXXXXXXX ou 07XXXXXXXX"
-                                    className="w-full bg-white border border-gray-300 p-3 rounded-xl text-lg tracking-widest text-center font-bold outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-sm cursor-pointer"
+                                    className="w-full bg-white border border-gray-300 p-3 rounded-xl text-lg tracking-widest text-center font-bold text-gray-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-sm cursor-pointer"
                                     value={telInfo.phone}
                                     onChange={(e) => setTelInfo({ ...telInfo, phone: e.target.value.replace(/[^\d]/g, "").slice(0, 10) })}
                                 />

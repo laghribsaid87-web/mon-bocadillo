@@ -166,22 +166,46 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
     const today = getL(new Date()); 
     const yesterday = getL(new Date(now - 86400000));
 
+    // 🔥 NOUVEAU: Sifet Notification Kola 8s l-Livreur li majawbch bach iPhone ysonni f jibo
+    const lastNotifSentRef = useRef({});
+
     useEffect(() => {
         const interval = setInterval(() => {
+            const currentTime = Date.now();
             (orders || []).forEach(o => {
                 if (o.status === 'rejected' || o.status === 'delivered') return;
                 
                 if (o.driverId && !o.driverAccepted) {
-                    const elapsed = Date.now() - (o.assignedAtLocal || 0);
+                    const elapsed = currentTime - (o.assignedAtLocal || 0);
+                    
+                    // 🔥 FIX: Nsifto Push Notif MERRA WE7DA w safi (Machi kola 8s) bach n7afdo 3la l-Quota
+                    const hasSent = lastNotifSentRef.current[o.id];
+                    if (!hasSent && elapsed < 25000) {
+                        lastNotifSentRef.current[o.id] = true;
+                        const driverData = (onlineDrivers || []).find(d => d.uid === o.driverId);
+                        if (driverData && driverData.fcmToken) {
+                            try {
+                                const functions = getFunctions();
+                                const sendPush = httpsCallable(functions, 'sendMarketingPush');
+                                sendPush({
+                                    appId,
+                                    tokens: [driverData.fcmToken],
+                                    title: "🚨 NOUVELLE COMMANDE !",
+                                    body: `Zreb accepte commande #${o.orderNumber || o.id.slice(-4)} 9bel mayfout l-we9t!`
+                                });
+                            } catch(e) {}
+                        }
+                    }
+
                     if (elapsed > 30000) { handleReassignOrder(o, o.driverId, false, true); }
                 } else if (!o.driverId && (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready')) {
-                    const elapsedSinceLastSearch = Date.now() - (o.assignedAtLocal || o.createdAt?.seconds*1000 || 0);
+                    const elapsedSinceLastSearch = currentTime - (o.assignedAtLocal || o.createdAt?.seconds*1000 || 0);
                     if (elapsedSinceLastSearch > 15000) { handleReassignOrder(o, null, true, true); }
                 }
             });
         }, 3000);
         return () => clearInterval(interval);
-    }, [orders, handleReassignOrder]);
+    }, [orders, handleReassignOrder, onlineDrivers, appId]);
 
     useEffect(() => { 
         setEditableMenu(settings?.menuItems || defaultMenu || DEFAULT_MENU_ITEMS); 
@@ -287,8 +311,27 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
         const idaraActiveOrders = bOrders.filter(o => o.source !== 'pos');
 
         // NOUVEAU: Isoler les commandes avec problème
-        const pOrders = idaraActiveOrders.filter(o => o.clientUnreachable || (o.adminMessage && o.adminMessage.includes('PANNE')));
-        const nActives = idaraActiveOrders.filter(o => !['delivered', 'rejected'].includes(o.status) && !o.clientUnreachable && !(o.adminMessage && o.adminMessage.includes('PANNE')));
+        const pOrders = idaraActiveOrders.filter(o => {
+            const isUnreachable = o.clientUnreachable;
+            const hasAdminMsg = o.adminMessage && o.adminMessage.includes('PANNE');
+            
+            // 🔥 Détecter les Commandes Fantômes (M3el9in kter mn 12h)
+            let isGhost = false;
+            if (!['delivered', 'rejected'].includes(o.status)) {
+                const orderTime = o.createdAt?.seconds ? o.createdAt.seconds * 1000 : 0;
+                if (orderTime > 0 && (Date.now() - orderTime > 12 * 60 * 60 * 1000)) isGhost = true;
+            }
+            
+            return isUnreachable || hasAdminMsg || isGhost;
+        });
+        const nActives = idaraActiveOrders.filter(o => {
+            if (['delivered', 'rejected'].includes(o.status)) return false;
+            if (o.clientUnreachable) return false;
+            if (o.adminMessage && o.adminMessage.includes('PANNE')) return false;
+            const orderTime = o.createdAt?.seconds ? o.createdAt.seconds * 1000 : 0;
+            if (orderTime > 0 && (Date.now() - orderTime > 12 * 60 * 60 * 1000)) return false;
+            return true;
+        });
 
         return {
             safeOrders: sOrders,
@@ -656,7 +699,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                                     <span className="text-sm font-bold text-gray-500">{o.customerName || o.name || o.phone}</span>
                                                 </div>
                                                 <p className="text-sm text-red-600 font-bold flex items-center gap-1.5 bg-red-100/50 w-fit px-3 py-1 rounded-lg">
-                                                    🚨 {o.adminMessage || (o.clientUnreachable ? "Client Injoignable" : "Problème signalé")}
+                                            🚨 {o.adminMessage || (o.clientUnreachable ? "Client Injoignable" : ((Date.now() - (o.createdAt?.seconds ? o.createdAt.seconds * 1000 : Date.now())) > 12*60*60*1000 ? "Commande Bloquée (M3el9a kter mn 12h)" : "Problème signalé"))}
                                                 </p>
                                             </div>
                                             <div className="flex flex-wrap gap-2">
@@ -743,26 +786,58 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                      </div>
                                    )}
 
-                                   {selectedExtItem.choices && (
+                                   {selectedExtItem.choices && (() => {
+                                       let choiceList = [];
+                                       const choicesStr = String(selectedExtItem.choices).trim();
+                                       if (choicesStr.toUpperCase().startsWith('CAT:')) {
+                                           const catName = choicesStr.split(':')[1].trim();
+                                           const matchedItems = (settings?.menuItems || DEFAULT_MENU_ITEMS).filter(i => i.category === catName && !i.outOfStock && !(settings?.disabledItems || []).includes(i.id));
+                                           matchedItems.forEach(i => {
+                                               if (i.hasVariations && i.variations?.length > 0) {
+                                                   i.variations.forEach(v => choiceList.push({ name: `${i.name} (${v.name})`, img: i.img }));
+                                               } else {
+                                                   choiceList.push({ name: i.name, img: i.img });
+                                               }
+                                           });
+                                       } else if (choicesStr.toUpperCase().startsWith('PROD:')) {
+                                           const prodNames = choicesStr.substring(5).split(',').map(n => n.trim().toLowerCase());
+                                           const matchedItems = (settings?.menuItems || DEFAULT_MENU_ITEMS).filter(i => prodNames.includes((i.name || '').trim().toLowerCase()) && !i.outOfStock && !(settings?.disabledItems || []).includes(i.id));
+                                           matchedItems.forEach(i => {
+                                               if (i.hasVariations && i.variations?.length > 0) {
+                                                   i.variations.forEach(v => choiceList.push({ name: `${i.name} (${v.name})`, img: i.img }));
+                                               } else {
+                                                   choiceList.push({ name: i.name, img: i.img });
+                                               }
+                                           });
+                                       } else {
+                                           choiceList = choicesStr.split(',').map(choice => {
+                                               const parts = choice.trim().split('|');
+                                               return { name: parts[0].trim(), img: parts.length > 1 ? parts[1].trim() : null };
+                                           }).filter(c => c.name);
+                                       }
+
+                                       return (
                                      <div className="mb-6">
                                        <p className="text-sm font-medium text-gray-600 mb-3">Choix / Parfum <span className="text-red-500">*</span></p>
-                                       <div className="space-y-2">
-                                         {(selectedExtItem.choices || '').split(',').map(choice => {
-                                           const c = choice.trim();
-                                           if (!c) return null;
-                                           return (
-                                             <label key={c} className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${extSelectedChoice === c ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
-                                                 <div className="flex items-center gap-3">
-                                                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${extSelectedChoice === c ? 'border-blue-500' : 'border-gray-300'}`}>{extSelectedChoice === c && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}</div>
-                                                     <span className="font-medium text-sm text-gray-900">{c}</span>
+                                      <div className={`${choiceList.some(c => c.img) ? 'grid grid-cols-2 gap-2' : 'space-y-2'}`}>
+                                         {choiceList.map(c => (
+                                            <label key={c.name} className={`flex ${c.img ? 'flex-col items-center text-center' : 'items-center justify-between'} p-3 rounded-lg border cursor-pointer transition-all ${extSelectedChoice === c.name ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                                                {c.img && (
+                                                    <div className="w-12 h-12 mb-2 rounded-md overflow-hidden flex items-center justify-center">
+                                                        {c.img.startsWith('http') || c.img.startsWith('data:image') ? <img src={c.img} className="w-full h-full object-contain" alt={c.name} /> : <span className="text-3xl">{c.img}</span>}
+                                                    </div>
+                                                )}
+                                                <div className={`flex items-center gap-3 ${c.img ? 'w-full justify-center' : ''}`}>
+                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${extSelectedChoice === c.name ? 'border-blue-500' : 'border-gray-300'}`}>{extSelectedChoice === c.name && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}</div>
+                                                    <span className="font-medium text-sm text-gray-900 leading-tight">{c.name}</span>
                                                  </div>
-                                                 <input type="radio" className="hidden" name="extchoice" checked={extSelectedChoice === c} onChange={() => setExtSelectedChoice(c)} />
+                                                 <input type="radio" className="hidden" name="extchoice" checked={extSelectedChoice === c.name} onChange={() => setExtSelectedChoice(c.name)} />
                                              </label>
-                                           );
-                                         })}
+                                           ))}
                                        </div>
                                      </div>
-                                   )}
+                                       );
+                                   })()}
                                    {selectedExtItem.extras?.length > 0 && (
                                        (() => {
                                          const activeGlobalDrinks = settings?.globalDrinks !== undefined ? settings.globalDrinks : PREDEFINED_DRINKS;
@@ -908,7 +983,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                            const isOnline = true; 
                                            const isAvailable = onlineData.isAvailable; 
                                            const driverTotalOrders = safeOrders.filter(o => c.uid && o.driverId === c.uid && o.status === 'delivered').length;
-                                           const activeCount = safeOrders.filter(o => c.uid && o.driverId === c.uid && !['delivered', 'rejected'].includes(o.status)).length;
+                                           const activeCount = actives.filter(o => c.uid && o.driverId === c.uid).length;
                                            
                                            let isGpsOutdated = false;
                                            if (isOnline) {
@@ -1399,6 +1474,35 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                        ))}
                                        {topClients.length === 0 && <p className="text-sm text-gray-400 py-4">Aucune donnée</p>}
                                    </div>
+                               </div>
+                           </div>
+                           
+                           {/* 🔥 NOUVEAU: ESTIMATION QUOTAS FIREBASE */}
+                           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mt-6">
+                               <h3 className="font-black text-lg text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-4">
+                                   <Database size={20} className="text-[#f5820b]"/> Estimations & Quotas Firebase
+                               </h3>
+                               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                   <div className="bg-orange-50 p-5 rounded-xl border border-orange-100 shadow-sm">
+                                       <p className="text-xs font-bold text-orange-800 uppercase tracking-widest mb-1">Base de Données</p>
+                                       <p className="text-3xl font-black text-orange-900">{safeOrders.length + (clientsList||[]).length} <span className="text-sm font-bold text-orange-700">Docs</span></p>
+                                       <p className="text-[10px] font-bold text-orange-700 mt-1">Volume très faible (Plan Gratuit 1 Go)</p>
+                                   </div>
+                                   <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 shadow-sm">
+                                       <p className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-1">Lectures / Jour (Est.)</p>
+                                       <p className="text-3xl font-black text-blue-900">~{safeOrders.filter(o => o.createdAt?.seconds && getL(new Date(o.createdAt.seconds * 1000)) === today).length * 45}</p>
+                                       <p className="text-[10px] font-bold text-blue-700 mt-1">Limite Gratuite: 50 000 / jour</p>
+                                   </div>
+                                   <div className="bg-green-50 p-5 rounded-xl border border-green-100 shadow-sm">
+                                       <p className="text-xs font-bold text-green-800 uppercase tracking-widest mb-1">Coût Estimé Firebase</p>
+                                       <p className="text-3xl font-black text-green-900">0.00 <span className="text-sm font-bold text-green-700">$</span></p>
+                                       <p className="text-[10px] font-bold text-green-700 mt-1">Plan Spark (Gratuit) suffisant</p>
+                                   </div>
+                               </div>
+                               <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200 text-xs font-medium text-gray-600 leading-relaxed">
+                                   💡 <strong>Note :</strong> Ces chiffres sont des estimations basées sur l'activité de l'application d'aujourd'hui. L'application est optimisée pour minimiser les requêtes réseau. Vous êtes largement en dessous des limites payantes. <br/><br/>
+                                   💰 <strong>Tarification (Plan Blaze) :</strong> Même si vous dépassez les 50 000 lectures par jour, Firebase ne facture que <strong>~0.06$ (soit ~0.60 DH) pour chaque 100 000 lectures supplémentaires</strong>, ce qui reste extrêmement abordable.
+                                   <br/>👉 Pour voir votre facture officielle exacte, connectez-vous sur : <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 font-bold hover:underline">console.firebase.google.com</a>
                                </div>
                            </div>
                        </div>

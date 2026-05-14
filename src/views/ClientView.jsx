@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingBag, User, Plus, ChevronRight, Lock, MapPin, Navigation, MessageCircle, Star, X, Home, Clock, Check, Phone, Utensils, Trash2, FileText, ClipboardList, BellRing } from 'lucide-react';
-import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, updateDoc, increment, onSnapshot } from 'firebase/firestore';
 import { getMessaging, onMessage, getToken } from 'firebase/messaging';
 import { getClosestBranch, getDeliveryFee, getWhatsAppFormat, generateOrderNumber, buildMessage, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
 import ClientTrackingMap from '../components/ClientTrackingMap';
@@ -71,11 +71,13 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
     const [customizationStep, setCustomizationStep] = useState(0);
     const [orderNote, setOrderNote] = useState('');
     const [detailOrder, setDetailOrder] = useState(null);
+    const [showUpsellModal, setShowUpsellModal] = useState(false);
     const [deferredPrompt, setDeferredPrompt] = useState(null); // Jdid: PWA Install Prompt
     const [showInstallBtn, setShowInstallBtn] = useState(false);
     const [notifPerm, setNotifPerm] = useState(typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'denied');
     const [editPhoneMode, setEditPhoneMode] = useState(false);
     const [newPhone, setNewPhone] = useState('');
+    const [trackDrivers, setTrackDrivers] = useState([]); // 🔥 Jdid: Suivi dyal livreur direct l-client
     
     const activeBranches = settings.branches || DEFAULT_BRANCHES;
     const txtMenu = brand.texts?.navMenu || 'VOIR MENU'; 
@@ -113,12 +115,15 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                         navigator.geolocation.getCurrentPosition(pos => {
                             const closest = getClosestBranch(pos.coords.latitude, pos.coords.longitude, activeBranches); 
                             if(closest) {
-                                setInfo(p => ({ ...p, lat: pos.coords.latitude, lng: pos.coords.longitude, nearestBranch: closest }));
-                                updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), {
-                                    lat: pos.coords.latitude,
-                                    lng: pos.coords.longitude,
-                                    nearestBranch: closest
-                                }).catch(()=>{});
+                                setInfo(p => {
+                                    if (p.lat === pos.coords.latitude && p.lng === pos.coords.longitude) return p;
+                                    updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), {
+                                        lat: pos.coords.latitude,
+                                        lng: pos.coords.longitude,
+                                        nearestBranch: closest
+                                    }).catch(()=>{});
+                                    return { ...p, lat: pos.coords.latitude, lng: pos.coords.longitude, nearestBranch: closest };
+                                });
                             }
                         }, () => {}, { enableHighAccuracy: true, maximumAge: 0 });
                     }
@@ -134,12 +139,15 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
             navigator.geolocation.getCurrentPosition(pos => { 
                 const closest = getClosestBranch(pos.coords.latitude, pos.coords.longitude, activeBranches); 
                 if(closest) {
-                    setInfo(p => ({ ...p, lat: pos.coords.latitude, lng: pos.coords.longitude, nearestBranch: closest }));
-                    updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), {
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude,
-                        nearestBranch: closest
-                    }).catch(()=>{});
+                    setInfo(p => {
+                        if (p.lat === pos.coords.latitude && p.lng === pos.coords.longitude) return p;
+                        updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), {
+                            lat: pos.coords.latitude,
+                            lng: pos.coords.longitude,
+                            nearestBranch: closest
+                        }).catch(()=>{});
+                        return { ...p, lat: pos.coords.latitude, lng: pos.coords.longitude, nearestBranch: closest };
+                    });
                 }
             }, () => {}, { enableHighAccuracy: true, maximumAge: 0 }); 
         } 
@@ -272,6 +280,29 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
         };
     }, [orders, info.phone, user, info.manualPoints]);
     
+    // 🔥 NOUVEAU (FIX): N-trackiw l'GPS dyal l-livreur f l-app Client (Ghir mli katkon "out_for_delivery")
+    useEffect(() => {
+        const activeDriverIds = [...new Set(clientOrders.filter(o => o.status === 'out_for_delivery' && o.driverId).map(o => o.driverId))];
+        
+        if (activeDriverIds.length === 0) {
+            setTrackDrivers([]);
+            return;
+        }
+        
+        const unsubs = activeDriverIds.map(dId => {
+            return onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', dId), (docSnap) => {
+                if (docSnap.exists()) {
+                    setTrackDrivers(prev => {
+                        const newDrivers = prev.filter(d => d.uid !== dId);
+                        newDrivers.push({ uid: docSnap.id, ...docSnap.data() });
+                        return newDrivers;
+                    });
+                }
+            });
+        });
+        return () => unsubs.forEach(unsub => unsub());
+    }, [clientOrders, db, appId]);
+
     // 🔥 OPTIMISATION: Cacher les calculs du panier
     const { subtotal, deliveryFee, discountAmt, pointsDiscount, totalDiscount, total } = useMemo(() => {
         const sub = cart.reduce((s,i)=>s+i.price*i.qty,0); 
@@ -361,6 +392,10 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
 
     const activeMenu = useMemo(() => settings.menuItems || defaultMenu, [settings.menuItems, defaultMenu]); 
     const categories = useMemo(() => ['All', ...new Set(activeMenu.map(i => i.category))], [activeMenu]); 
+    const upsellItems = useMemo(() => {
+        if (!settings?.upsellEnabled || !settings?.upsellCategory) return [];
+        return activeMenu.filter(i => i.category === settings.upsellCategory && !settings.disabledItems?.includes(i.id));
+    }, [activeMenu, settings?.upsellEnabled, settings?.upsellCategory, settings?.disabledItems]);
     const menu = activeMenu.filter(i => (activeCat === 'All' || i.category === activeCat) && !settings.disabledItems?.includes(i.id));
     const btnRadius = brand.buttonStyle === 'square' ? 'rounded-md' : (brand.buttonStyle === 'rounded' ? 'rounded-xl' : 'rounded-full');
     const anims = brand.animations || { photoZoom: true, priceBounce: true, titleFloat: true, categoryFloat: true, boutiqueFloat: true, plusPulse: true, promoMarquee: false };
@@ -452,6 +487,23 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                  </div>
                ))}
                <div className="pt-2 border-t border-black/5 mt-2 space-y-1"><div className="flex justify-between font-bold text-sm opacity-60"><span>Sous-total</span><span>{subtotal} DH</span></div><div className="flex justify-between font-bold text-sm opacity-60"><span>Livraison</span><span>{deliveryFee} DH</span></div>{promoApplied && <div className="flex justify-between font-bold text-sm text-green-600"><span>Promo ({promoApplied.code})</span><span>-{discountAmt} DH</span></div>}{usePoints && <div className="flex justify-between font-bold text-sm text-yellow-600"><span>Fidélité</span><span>-{pointsDiscount} DH</span></div>}<div className="flex justify-between font-black text-2xl pt-2 mt-2 border-t border-dashed"><span>Total</span><span style={{color: brand.color}}>{total} DH</span></div></div></div>
+               
+               {/* 🔥 UPSELL DYNAMIQUE 🔥 */}
+               {settings?.upsellEnabled && upsellItems.length > 0 && (
+                   <div className={`bg-white p-4 ${btnRadius} shadow-sm border border-black/5 flex items-center justify-between gap-4 cursor-pointer hover:bg-gray-50 transition-colors active:scale-95`} onClick={() => setShowUpsellModal(true)}>
+                       {settings?.upsellImage && (
+                           <div className="w-16 h-16 shrink-0 rounded-2xl overflow-hidden shadow-inner bg-gray-50 border border-gray-100">
+                               <img src={settings.upsellImage} className="w-full h-full object-cover" alt="upsell" />
+                           </div>
+                       )}
+                       <div className="flex-1">
+                           <h3 className="font-black text-sm text-gray-900 uppercase leading-tight mb-1">{settings?.upsellText || 'Ajouter une boisson ?'}</h3>
+                           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1"><Plus size={12}/> Voir les choix</p>
+                       </div>
+                       <button className={`w-10 h-10 rounded-full flex items-center justify-center text-black font-black text-xl shadow-md shrink-0`} style={{backgroundColor: brand.color}}><Plus size={20}/></button>
+                   </div>
+               )}
+
                {(settings?.promoEnabled !== false || (settings?.loyaltyEnabled !== false && availablePoints > 0)) && (
                  <div className={`bg-white p-5 ${btnRadius} shadow-sm border border-black/5 text-left space-y-4`}>
                    <h3 className="font-black text-[11px] uppercase tracking-widest border-b border-gray-50 pb-2 opacity-50">Avantages & Réductions</h3>
@@ -482,7 +534,16 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                <h2 className="text-3xl font-black uppercase italic" style={{color: brand.color}}>Profil</h2>
                <div className={`bg-white p-6 ${btnRadius} space-y-5 shadow-sm border border-black/5`}>
                   <div className="bg-yellow-50 p-4 rounded-2xl flex justify-between items-center border border-yellow-200"><div className="flex items-center gap-3"><Star className="text-yellow-600"/><div><p className="font-black text-yellow-800 text-sm">Fidélité</p><p className="text-[10px] text-yellow-600 uppercase font-bold tracking-widest">{pointsEarned} points cumulés</p></div></div><p className="text-2xl font-black text-yellow-600 font-mono">{availablePoints}</p></div>
-                  <label className="block text-left"><span className="text-[10px] font-black uppercase ml-2 opacity-50">Téléphone (Identifiant Unique)</span><input className={`w-full bg-gray-50 border-2 p-4 ${btnRadius} font-mono mt-1 outline-none focus:border-black tracking-widest`} value={info.phone} onChange={e=>setInfo({...info, phone:e.target.value.replace(/[^\d]/g, '').slice(0, 10)})} placeholder="06XXXXXXXX ou 07XXXXXXXX" /></label>
+                  <label className="block text-left">
+                      <span className="text-[10px] font-black uppercase ml-2 opacity-50">Téléphone (Identifiant Unique)</span>
+                      <div className={`relative flex items-center w-full bg-gray-50/80 hover:bg-gray-50 border-2 border-gray-100 ${btnRadius} mt-1 overflow-hidden focus-within:bg-white focus-within:border-black focus-within:ring-4 focus-within:ring-black/5 transition-all shadow-inner group`}>
+                          <div className="pl-4 pr-3 py-4 flex items-center gap-2 border-r-2 border-gray-200/80 bg-gray-100/30">
+                              <span className="text-2xl leading-none drop-shadow-sm">🇲🇦</span>
+                              <span className="text-gray-500 font-black text-lg tracking-wider group-focus-within:text-black transition-colors">+212</span>
+                          </div>
+                          <input className="flex-1 bg-transparent pl-4 pr-4 py-4 font-black outline-none text-xl tracking-widest text-gray-900 placeholder:text-gray-300 placeholder:font-medium w-full" value={info.phone} onChange={e=>setInfo({...info, phone:e.target.value.replace(/[^\d]/g, '').slice(0, 10)})} placeholder="06XXXXXXXX" type="tel" />
+                      </div>
+                  </label>
                   <label className="block text-left"><span className="text-[10px] font-black uppercase ml-2 opacity-50">Nom Complet</span><input className={`w-full bg-gray-50 border-2 p-4 ${btnRadius} font-bold mt-1 outline-none focus:border-black`} value={info.name} onChange={e=>setInfo({...info, name:e.target.value})} /></label>
                   <label className="block text-left"><span className="text-[10px] font-black uppercase ml-2 opacity-50">Adresse Livraison</span><textarea className={`w-full bg-gray-50 border-2 p-4 ${btnRadius} font-bold mt-1 min-h-[80px] outline-none focus:border-black`} value={info.address} onChange={e=>setInfo({...info, address:e.target.value})} placeholder="Zan9a, R9m dar..." /></label>
                   <div className={`w-full border-2 p-4 rounded-2xl flex flex-col gap-3 shadow-sm transition-all ${info.lat ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}><div className="flex items-center justify-between"><div className="text-left flex-1"><p className="font-black text-gray-800 text-sm flex items-center gap-1"><Navigation size={14}/> Localisation Exacte <span className="text-red-500">*</span></p><p className={`text-[10px] font-bold mt-1 ${info.lat ? 'text-green-700' : 'text-red-500'}`}>{info.lat ? `✅ GPS: ${Number(info.lat).toFixed(5)}, ${Number(info.lng).toFixed(5)}` : "❌ Darouri t7ded blastek"}</p></div><button onClick={handleGps} disabled={isG} className={`p-3 rounded-xl font-black text-xs transition-all flex items-center gap-2 ${info.lat ? 'bg-green-200 text-green-800' : 'bg-black text-white active:scale-95 shadow-md'}`}>{isG ? 'Kantsnaw...' : info.lat ? 'Mbedel' : '📍 7ded GPS'}</button></div></div>
@@ -539,10 +600,18 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                {clientOrders.filter(o=>!['delivered', 'rejected'].includes(o.status)).length > 0 && (
                    <div className="px-4 mt-2 mb-4 md:max-w-md lg:max-w-xl mx-auto">
                       {editPhoneMode ? (
-                          <div className="flex gap-2 animate-in slide-in-from-top-2">
-                             <input className="flex-1 bg-white border-2 border-orange-400 p-3 rounded-xl text-sm font-bold outline-none text-center tracking-widest shadow-inner" value={newPhone} onChange={e => setNewPhone(e.target.value.replace(/[^\d]/g, '').slice(0, 10))} placeholder="06XXXXXXXX" type="tel" autoFocus />
-                             <button onClick={handleUpdatePhoneTracking} className="bg-orange-500 hover:bg-orange-600 text-white px-4 rounded-xl text-xs font-black uppercase shadow-md active:scale-95 transition-all">Valider</button>
-                             <button onClick={() => setEditPhoneMode(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 rounded-xl text-xs font-black uppercase shadow-sm active:scale-95 transition-all">Annuler</button>
+                          <div className="flex flex-col gap-2 animate-in slide-in-from-top-2">
+                              <div className="relative flex items-center w-full bg-white border-2 border-orange-400 rounded-xl overflow-hidden focus-within:border-orange-500 focus-within:ring-4 focus-within:ring-orange-500/20 transition-all shadow-inner group">
+                                  <div className="pl-3 pr-2 py-3 flex items-center gap-1.5 border-r-2 border-orange-100 bg-orange-50/50">
+                                      <span className="text-xl leading-none drop-shadow-sm">🇲🇦</span>
+                                      <span className="text-gray-500 font-black text-sm tracking-wider group-focus-within:text-black transition-colors">+212</span>
+                                  </div>
+                                  <input className="flex-1 bg-transparent pl-3 pr-3 py-3 font-black outline-none text-lg tracking-widest text-gray-900 placeholder:text-gray-300 placeholder:font-medium w-full" value={newPhone} onChange={e => setNewPhone(e.target.value.replace(/[^\d]/g, '').slice(0, 10))} placeholder="06XXXXXXXX" type="tel" autoFocus />
+                              </div>
+                              <div className="flex gap-2">
+                                  <button onClick={handleUpdatePhoneTracking} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase shadow-md active:scale-95 transition-all">Valider</button>
+                                  <button onClick={() => setEditPhoneMode(false)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2.5 rounded-xl text-xs font-black uppercase shadow-sm active:scale-95 transition-all">Annuler</button>
+                              </div>
                           </div>
                       ) : (
                           <div className="bg-orange-50 border-2 border-orange-200 p-3 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden">
@@ -568,7 +637,7 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                    </div>
                ) : (
                    clientOrders.filter(o=>!['delivered', 'rejected'].includes(o.status)).map(o => {
-                     const dInfo = onlineDrivers?.find(d => d.uid === o.driverId); 
+                     const dInfo = trackDrivers.find(d => d.uid === o.driverId) || onlineDrivers?.find(d => d.uid === o.driverId); 
                      const dName = o.driverName || dInfo?.name || 'Livreur'; 
                      const step = getStep(o.status);
                      return (
@@ -758,28 +827,60 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                                 </div>
                             )}
 
-                            {currentStepId === 'choices' && selectedItem.choices && (
+                            {currentStepId === 'choices' && selectedItem.choices && (() => {
+                                let choiceList = [];
+                                const choicesStr = String(selectedItem.choices).trim();
+                                if (choicesStr.toUpperCase().startsWith('CAT:')) {
+                                    const catName = choicesStr.split(':')[1].trim();
+                                    const matchedItems = activeMenu.filter(i => i.category === catName && !i.outOfStock && !settings.disabledItems?.includes(i.id));
+                                    matchedItems.forEach(i => {
+                                        if (i.hasVariations && i.variations?.length > 0) {
+                                            i.variations.forEach(v => choiceList.push({ name: `${i.name} (${v.name})`, img: i.img }));
+                                        } else {
+                                            choiceList.push({ name: i.name, img: i.img });
+                                        }
+                                    });
+                                } else if (choicesStr.toUpperCase().startsWith('PROD:')) {
+                                    const prodNames = choicesStr.substring(5).split(',').map(n => n.trim().toLowerCase());
+                                    const matchedItems = activeMenu.filter(i => prodNames.includes((i.name || '').trim().toLowerCase()) && !i.outOfStock && !settings.disabledItems?.includes(i.id));
+                                    matchedItems.forEach(i => {
+                                        if (i.hasVariations && i.variations?.length > 0) {
+                                            i.variations.forEach(v => choiceList.push({ name: `${i.name} (${v.name})`, img: i.img }));
+                                        } else {
+                                            choiceList.push({ name: i.name, img: i.img });
+                                        }
+                                    });
+                                } else {
+                                    choiceList = choicesStr.split(',').map(choice => {
+                                        const parts = choice.trim().split('|');
+                                        return { name: parts[0].trim(), img: parts.length > 1 ? parts[1].trim() : null };
+                                    }).filter(c => c.name);
+                                }
+
+                                return (
                                 <div className="animate-in slide-in-from-right-5 mb-6">
                                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Choix / Parfum <span className="text-red-500">*</span></p>
-                                    <div className="space-y-2">
-                                        {(selectedItem.choices || '').split(',').map(choice => {
-                                        const c = choice.trim();
-                                        if (!c) return null;
-                                        return (
-                                            <label key={c} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedChoice === c ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedChoice === c ? 'border-blue-500' : 'border-gray-300'}`}>
-                                                        {selectedChoice === c && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}
+                                    <div className={`${choiceList.some(c => c.img) ? 'grid grid-cols-2 gap-3' : 'space-y-2'}`}>
+                                        {choiceList.map(c => (
+                                            <label key={c.name} className={`flex ${c.img ? 'flex-col items-center text-center' : 'items-center justify-between'} p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedChoice === c.name ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
+                                                {c.img && (
+                                                    <div className="w-16 h-16 mb-2 rounded-lg overflow-hidden flex items-center justify-center bg-transparent drop-shadow-sm">
+                                                        {c.img.startsWith('http') || c.img.startsWith('data:image') ? <img src={c.img} className="w-full h-full object-contain" alt={c.name} /> : <span className="text-4xl">{c.img}</span>}
                                                     </div>
-                                                    <span className="font-bold text-sm text-gray-900">{c}</span>
+                                                )}
+                                                <div className={`flex items-center gap-3 ${c.img ? 'w-full justify-center' : ''}`}>
+                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedChoice === c.name ? 'border-blue-500' : 'border-gray-300'}`}>
+                                                        {selectedChoice === c.name && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}
+                                                    </div>
+                                                    <span className="font-bold text-sm text-gray-900 leading-tight">{c.name}</span>
                                                 </div>
-                                                <input type="radio" className="hidden" name="choice" checked={selectedChoice === c} onChange={() => setSelectedChoice(c)} />
+                                                <input type="radio" className="hidden" name="choice" checked={selectedChoice === c.name} onChange={() => setSelectedChoice(c.name)} />
                                             </label>
-                                        );
-                                        })}
+                                        ))}
                                     </div>
                                 </div>
-                            )}
+                                );
+                            })()}
 
                             {currentStepId === 'ingredients' && selectedItem.removableIngredients && (
                                 <div className="animate-in slide-in-from-right-5">
@@ -972,6 +1073,66 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                       </div>
                   );
               })()}
+            </div>
+          </div>
+        )}
+
+        {showUpsellModal && (
+          <div className="fixed inset-0 bg-black/60 z-[300] flex items-end md:items-center justify-center animate-in fade-in" onClick={() => setShowUpsellModal(false)}>
+            <div className="bg-white w-full md:w-[400px] rounded-t-[2rem] md:rounded-3xl p-6 flex flex-col max-h-[85dvh] animate-in slide-in-from-bottom-10 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-black text-xl uppercase italic text-gray-900">{settings?.upsellText || 'Faites votre choix'}</h3>
+                <button onClick={() => setShowUpsellModal(false)} className="p-2 bg-gray-100 rounded-full text-gray-500 hover:text-black"><X size={20}/></button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-4">
+                 {upsellItems.map(drink => {
+                     const inCart = cart.find(c => c.id === drink.id);
+                     const totalQty = cart.filter(c => c.id === drink.id).reduce((sum, c) => sum + c.qty, 0);
+                     return (
+                         <div key={drink.id} className="flex items-center gap-4 bg-gray-50 p-3 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+                             <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-3xl shadow-inner border border-gray-100 overflow-hidden shrink-0">
+                                 {drink.img?.startsWith('http') || drink.img?.startsWith('data:image') ? <img src={drink.img} className="w-full h-full object-contain p-1" /> : drink.img || '🍔'}
+                             </div>
+                             <div className="flex flex-col flex-1 justify-center">
+                                 <span className="font-black text-sm text-gray-900 leading-tight">{drink.name}</span>
+                                 <span className="font-black text-sm mt-1" style={{color: brand.color}}>{drink.price} DH</span>
+                             </div>
+                             <div className="shrink-0 w-24">
+                                 {!inCart ? (
+                                     <button onClick={() => {
+                                         if (drink.removableIngredients || drink.hasVariations || drink.choices || (drink.extras && drink.extras.length > 0)) {
+                                             setShowUpsellModal(false);
+                                             setSelectedItem(drink); setItemOptions([]); setSelectedVariation(drink.hasVariations && drink.variations?.length > 0 ? drink.variations[0] : null); setSelectedChoice(null); setSelectedExtras([]); setCustomizationStep(0);
+                                         } else {
+                                             setCart([...cart, {...drink, qty: 1, cartItemId: drink.id + '_default'}]);
+                                         }
+                                     }} className="bg-black text-white text-xs font-black uppercase px-4 py-2.5 rounded-xl w-full active:scale-95 transition-all shadow-md">Ajouter</button>
+                                 ) : (
+                                     <div className="flex items-center justify-between w-full bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+                                          <button onClick={() => {
+                                              const lastItem = cart.filter(c => c.id === drink.id).pop();
+                                              if (lastItem) setCart(cart.map(x=>x.cartItemId===lastItem.cartItemId?{...x,qty:x.qty-1}:x).filter(x=>x.qty>0));
+                                          }} className="w-7 h-7 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 font-bold flex items-center justify-center">-</button>
+                                          <span className="font-black text-xs">{totalQty}</span>
+                                          <button onClick={() => {
+                                              if (drink.removableIngredients || drink.hasVariations || drink.choices || (drink.extras && drink.extras.length > 0)) {
+                                                  setShowUpsellModal(false);
+                                                  setSelectedItem(drink); setItemOptions([]); setSelectedVariation(drink.hasVariations && drink.variations?.length > 0 ? drink.variations[0] : null); setSelectedChoice(null); setSelectedExtras([]); setCustomizationStep(0);
+                                              } else {
+                                                  const lastItem = cart.filter(c => c.id === drink.id).pop();
+                                                  if (lastItem) setCart(cart.map(x=>x.cartItemId===lastItem.cartItemId?{...x,qty:x.qty+1}:x));
+                                                  else setCart([...cart, {...drink, qty: 1, cartItemId: drink.id + '_default'}]);
+                                              }
+                                          }} className="w-7 h-7 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 font-bold flex items-center justify-center">+</button>
+                                     </div>
+                                 )}
+                             </div>
+                         </div>
+                     );
+                 })}
+              </div>
+              <button onClick={() => setShowUpsellModal(false)} className="w-full py-4 mt-2 rounded-xl font-black text-lg uppercase shadow-lg text-black active:scale-95 transition-all" style={{backgroundColor: brand.color}}>Terminer</button>
             </div>
           </div>
         )}

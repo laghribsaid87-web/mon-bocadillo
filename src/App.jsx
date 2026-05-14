@@ -175,9 +175,43 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center space-y-4" style={{backgroundColor: brand?.bgColor || '#f8f9fa'}}>
-        <div className="w-16 h-16 rounded-full border-4 border-gray-200 border-t-[#ffbc0d] animate-spin" style={{borderTopColor: brand?.color || '#ffbc0d'}}></div>
-        <p className="text-xs font-black uppercase text-gray-400 tracking-widest">Chargement...</p>
+      <div className="h-[100dvh] w-full flex flex-col items-center justify-center relative overflow-hidden" style={{ backgroundColor: brand?.bgColor || '#f8f9fa', fontFamily: brand?.fontFamily || "'Poppins', sans-serif" }}>
+        {/* Effets de lumière en arrière-plan */}
+        <div className="absolute top-0 left-0 w-full h-1/3 bg-gradient-to-b from-black/5 to-transparent"></div>
+        <div className="absolute bottom-0 right-0 w-72 h-72 rounded-full blur-3xl translate-x-1/3 translate-y-1/3 opacity-40" style={{ backgroundColor: brand?.color || '#ffbc0d' }}></div>
+        <div className="absolute top-1/4 left-0 w-48 h-48 rounded-full blur-3xl -translate-x-1/2 opacity-30" style={{ backgroundColor: brand?.color || '#ffbc0d' }}></div>
+
+        {/* Contenu Principal */}
+        <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in duration-1000">
+          
+          <div className="relative w-28 h-28 flex items-center justify-center mb-8">
+            {/* Cercle tournant externe */}
+            <div className="absolute inset-0 rounded-full border-[3px] border-gray-200 opacity-50"></div>
+            <div className="absolute inset-0 rounded-full border-[3px] border-t-transparent border-l-transparent animate-spin" style={{ borderColor: brand?.color || '#ffbc0d', borderTopColor: 'transparent', borderLeftColor: 'transparent', animationDuration: '1.5s' }}></div>
+            
+            {/* Logo / Icône central avec effet pulse */}
+            <div className="w-20 h-20 bg-white rounded-full shadow-2xl flex items-center justify-center animate-pulse overflow-hidden border border-gray-50">
+              {brand?.logo ? (
+                 <img src={brand?.logo} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                 <span className="text-4xl font-black" style={{ color: brand?.color || '#ffbc0d' }}>{brand?.name ? brand.name.charAt(0).toUpperCase() : 'B'}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Texte de Bienvenue */}
+          <h1 className="text-2xl md:text-3xl font-black uppercase tracking-[0.2em] text-gray-900 mb-4 drop-shadow-sm text-center px-4">
+            {brand?.name || 'Mon Bocadillo'}
+          </h1>
+          
+          {/* Indicateur de progression élégant */}
+          <div className="flex items-center justify-center gap-1.5 bg-white/50 backdrop-blur-sm py-2 px-4 rounded-full border border-white/40 shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ backgroundColor: brand?.color || '#ffbc0d', animationDelay: '0ms' }}></span>
+            <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ backgroundColor: brand?.color || '#ffbc0d', animationDelay: '150ms' }}></span>
+            <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ backgroundColor: brand?.color || '#ffbc0d', animationDelay: '300ms' }}></span>
+            <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-2 leading-none mt-0.5">Démarrage</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -229,7 +263,11 @@ export default function App() {
             </div>
             <h2 className="text-2xl font-black uppercase tracking-widest text-blue-800 mb-2">Espace Livreur</h2>
             <p className="text-sm font-bold text-gray-500 mb-8">Votre numéro est enregistré comme livreur. Vous ne pouvez pas utiliser l'application client.</p>
-            <button onClick={() => window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#/livreur' : '/livreur'} className="w-full bg-blue-600 text-white font-black uppercase py-4 rounded-xl shadow-lg active:scale-95 transition-all mb-3">
+            <button onClick={() => {
+                localStorage.setItem('pwa_mode', 'livreur');
+                const route = `/livreur?phone=${profile?.phone || ''}`;
+                window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#' + route : route;
+            }} className="w-full bg-blue-600 text-white font-black uppercase py-4 rounded-xl shadow-lg active:scale-95 transition-all mb-3">
               Aller à l'App Livreur
             </button>
             <button onClick={handleLogout} className="w-full bg-gray-100 text-gray-600 font-bold uppercase py-3 rounded-xl shadow-sm active:scale-95 transition-all border border-gray-200">
@@ -259,8 +297,10 @@ export default function App() {
               const c = snap.data();
               if (c.blocked) { showNotify("Had l-compte msouwer (Bloqué) 🚫", "error"); return; }
               if (c.isDriver) { 
+                  localStorage.setItem('pwa_mode', 'livreur');
                   showNotify("Nta livreur! Dkhol mn l-lien dyal livreur.", "error"); 
-                  window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#/livreur' : '/livreur'; 
+                  const route = `/livreur?phone=${data.phone}`;
+                  window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#' + route : route; 
                   return; 
               }
               await updateDoc(clientRef, { uid: user.uid });

@@ -73,9 +73,14 @@ export const formatSansIngredient = (ingredient) => {
 };
 
 // 5. 🔥 FIX N-NIHAYI: 7yedna l-weqt w l-magana 100%!
-// Daba l-Idara maghadich t-7seb 2026, ghat-chouf ghir wach l-Boutona mch3oula awla la.
+// ZEDNA L-WE9T: Bach n7iydou les livreurs fantômes li mchaw w b9aw laze9in (15 minutes d'inactivité = Hors ligne)
 export const isDriverOnline = (drv) => { 
-    return drv && drv.isOnline === true; 
+    if (!drv || drv.isOnline !== true) return false;
+    const now = Date.now();
+    const lastUpdate = drv.updatedAt?.seconds ? drv.updatedAt.seconds * 1000 : 0;
+    // Ila dazet 15 d9i9a w l-GPS awla l-appli masiftat hta update, kan-3tbroh hors ligne (Fantôme)
+    const minutesSinceLastUpdate = (now - lastUpdate) / (1000 * 60);
+    return minutesSinceLastUpdate <= 15;
 };
 
 // 6. Fonction bach t2ked wach wa7ed t-tarikh howa lyoum

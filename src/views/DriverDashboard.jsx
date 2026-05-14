@@ -9,6 +9,36 @@ import { VAPID_KEY } from '../config/firebase';
 
 const APP_VERSION = "1.0.0"; // 🔥 Version dyal l'application l-7aliya
 
+// 🔥 NOUVEAU: Composant dyal l-Chrono 30s
+const AcceptTimer = ({ assignedAt }) => {
+    const [timeLeft, setTimeLeft] = useState(30);
+
+    useEffect(() => {
+        const updateTimer = () => {
+            const elapsed = Math.floor((Date.now() - assignedAt) / 1000);
+            const remaining = Math.max(0, 30 - elapsed);
+            setTimeLeft(remaining);
+        };
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [assignedAt]);
+
+    const progress = (timeLeft / 30) * 100;
+
+    return (
+        <div className="w-full flex flex-col gap-1.5 mt-3 bg-red-50 p-3 rounded-xl border border-red-100 shadow-inner">
+            <div className="flex justify-between text-[11px] font-black text-red-600 uppercase tracking-widest">
+                <span className="flex items-center gap-1.5"><Clock size={14} className="animate-pulse"/> Zreb Accepte!</span>
+                <span className="text-red-700 bg-red-200 px-2 py-0.5 rounded-md shadow-sm">{timeLeft}s</span>
+            </div>
+            <div className="w-full h-2.5 bg-red-200 rounded-full overflow-hidden shadow-inner">
+                <div className="h-full bg-red-500 transition-all duration-1000 ease-linear" style={{ width: `${progress}%` }}></div>
+            </div>
+        </div>
+    );
+};
+
 const ClientTrackingMap = lazy(() => import('../components/ClientTrackingMap'));
 
 export default function DriverDashboard({ orders, user, profile, brand, updateStatus, db, showNotify, onLogout, handleReassignOrder, settings, appId, loadMoreOrders }) {
@@ -159,7 +189,8 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         let wakeLock = null;
         const requestWakeLock = async () => {
             try {
-                if ('wakeLock' in navigator && isOnline) {
+                // 🔥 Optimisation Batterie : L'écran reste forcé allumé UNIQUEMENT s'il y a une commande
+                if ('wakeLock' in navigator && isOnline && activeOrders.length > 0 && document.visibilityState === 'visible') {
                     wakeLock = await navigator.wakeLock.request('screen');
                 }
             } catch (err) {}
@@ -170,7 +201,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             document.removeEventListener('visibilitychange', requestWakeLock); 
             if (wakeLock) wakeLock.release(); 
         };
-    }, [isOnline]);
+    }, [isOnline, activeOrders.length]);
 
     const enableSound = () => {
         setIsSoundEnabled(true);
@@ -255,6 +286,16 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                         
                         setGpsTimeoutId(id);
                     }
+
+                    // 🔥 L3eb s-sot ila jat notification w l'app m7loula f wjeh l-livreur
+                    if (payload.notification) {
+                        try {
+                            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
+                            audio.play().catch(e => {});
+                            if (navigator.vibrate) navigator.vibrate([800, 400, 800]);
+                            setIsScreenFlashing(true); setTimeout(() => setIsScreenFlashing(false), 500);
+                        } catch(e) {}
+                    }
                 });
                 return () => unsubscribe();
             } catch(e) {
@@ -295,7 +336,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             lastGpsUpdateRef.current = now;
 
             const driverRef = doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user?.uid);
-            await setDoc(driverRef, { uid: user?.uid, phone: profile?.phone || '', name: profile?.name || '', lat, lng, isOnline: true, isAvailable: activeOrders.length === 0, updatedAt: serverTimestamp() }, {merge: true});
+            await setDoc(driverRef, { uid: user?.uid, phone: profile?.phone || '', name: profile?.name || '', lat, lng, isOnline: true, isAvailable: activeOrders.length === 0, updatedAt: serverTimestamp() }, {merge: true}).catch(() => {});
         };
 
         const handleError = (err) => {
@@ -307,14 +348,34 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             }
         };
 
-        // 1. Push immédiat sans attendre le watch
-        navigator.geolocation.getCurrentPosition(pushLocation, handleError, { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 });
+        const requestLocation = () => {
+            // 🔥 Optimisation Batterie: Précision standard en attente, Haute précision si commande en cours
+            const isHighAccuracy = activeOrders.length > 0;
+            navigator.geolocation.getCurrentPosition(pushLocation, handleError, { enableHighAccuracy: isHighAccuracy, timeout: 15000, maximumAge: 10000 });
+        };
 
-        // 2. Lancement du watch pour les déplacements
-        watchId = navigator.geolocation.watchPosition(pushLocation, handleError, { enableHighAccuracy: true, timeout: 30000, maximumAge: 15000 });
+        // 1. Push immédiat sans attendre le watch
+        requestLocation();
+
+        // 2. Lancement du watch pour les déplacements (SANS timeout strict pour éviter l'arrêt sur navigateur mobile)
+        const isHighAccuracy = activeOrders.length > 0;
+        watchId = navigator.geolocation.watchPosition(pushLocation, handleError, { enableHighAccuracy: isHighAccuracy, maximumAge: 15000 });
+        
+        // 3. Relance automatique quand l'application revient au premier plan
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') requestLocation();
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // 4. Intervalle de sécurité (Toutes les 2 min) au cas où le navigateur endort le watcher
+        const safetyInterval = setInterval(() => {
+            requestLocation();
+        }, activeOrders.length > 0 ? 120000 : 300000); // 2 min si commande, 5 min si en attente (Batterie)
         
         return () => {
             if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            clearInterval(safetyInterval);
         };
     }, [isOnline, gpsActive, user?.uid, profile?.name, profile?.phone, db, appId, activeOrders.length, showSetupModal]);
 
@@ -349,7 +410,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     phone: profile?.phone || '', 
                     name: profile?.name || '', 
                     isOnline: isOnline, 
-                    isAvailable: isOnline ? (activeOrders.length === 0) : false,
+                    isAvailable: isOnline ? (activeOrders.length < 3) : false,
                     updatedAt: serverTimestamp() 
                 }, {merge: true});
             } catch(e) { console.log('Error saving online status', e); }
@@ -374,16 +435,15 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         }
 
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', order.id), updates);
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user?.uid), { isAvailable: false, updatedAt: serverTimestamp() });
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user?.uid), { isAvailable: (activeOrders.length + 1 < 3), updatedAt: serverTimestamp() });
         showNotify("Commande acceptée ! ✅", "success");
     };
 
     const handleReject = async (order) => {
         setConfirmDialog({
-            message: 'Wach met2ked bghiti trewez had l-commande?',
-            onConfirm: async () => {
-                await handleReassignOrder(order, user?.uid, false, false);
-            }
+            type: 'reject',
+            message: '3afak khtar 3lach bghiti trewez had l-commande:',
+            order: order
         });
     };
 
@@ -573,11 +633,18 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             <div className="p-5 bg-white border-t border-gray-100">
                 
                 {!o.driverAccepted ? (
-                    <div className="flex gap-2">
-                        {o.driverId === user?.uid && (
-                            <button onClick={()=>handleReject(o)} className="flex-1 bg-red-50 text-red-600 py-4 rounded-xl font-black text-xs uppercase border border-red-200 active:scale-95 transition-all shadow-sm">{brand.texts?.driverBtnReject || 'Refuser'}</button>
+                    <div className="flex flex-col gap-1">
+                        <div className="flex gap-2">
+                            {o.driverId === user?.uid && (
+                                <button onClick={()=>handleReject(o)} className="flex-1 bg-red-50 text-red-600 py-4 rounded-xl font-black text-xs uppercase border border-red-200 active:scale-95 transition-all shadow-sm">{brand.texts?.driverBtnReject || 'Refuser'}</button>
+                            )}
+                            <button onClick={()=>handleAccept(o)} className="flex-[2] text-white py-4 rounded-xl font-black text-sm uppercase shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2" style={{backgroundColor: brand.driverColor || brand.color || '#3b82f6'}}><CheckCircle size={18}/> {brand.texts?.driverBtnAccept || 'Accepter'} {o.driverId !== user?.uid ? '(Prendre)' : ''}</button>
+                        </div>
+                        
+                        {/* 🔥 CHRONO 30s POUR LE LIVREUR */}
+                        {o.driverId === user?.uid && (o.assignedAtLocal || o.createdAt?.seconds) && (
+                            <AcceptTimer assignedAt={o.assignedAtLocal || (o.createdAt?.seconds * 1000)} />
                         )}
-                        <button onClick={()=>handleAccept(o)} className="flex-[2] text-white py-4 rounded-xl font-black text-sm uppercase shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2" style={{backgroundColor: brand.driverColor || brand.color || '#3b82f6'}}><CheckCircle size={18}/> {brand.texts?.driverBtnAccept || 'Accepter'} {o.driverId !== user?.uid ? '(Prendre)' : ''}</button>
                     </div>
                 ) : o.status === 'preparing' || o.status === 'pending' ? (
                     <div className="bg-orange-50 text-orange-600 p-5 rounded-2xl font-black text-center text-sm uppercase border border-orange-200 flex flex-col items-center justify-center gap-2 shadow-inner">
@@ -700,9 +767,9 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     <div className="flex items-center gap-3">
                         <div className="bg-white/10 p-3 rounded-full border border-white/20"><Truck size={24} color={brand.driverColor || brand.color || '#3b82f6'}/></div>
                         <div>
-                            <h2 className="font-black uppercase italic tracking-wider text-base flex items-center gap-2">{brand.texts?.driverAppTitle || 'LIVREUR'}</h2>
-                            <p className="text-sm font-black text-white/90 uppercase mt-0.5">{profile?.name}</p>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 mt-1">
+                            <h2 className="font-bold uppercase tracking-widest text-[10px] text-gray-400 flex items-center gap-1.5 mb-0.5">{brand.name} • {brand.texts?.driverAppTitle || 'LIVREUR'}</h2>
+                            <p className="text-lg md:text-xl font-black text-white uppercase leading-none">{profile?.name}</p>
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 mt-1.5">
                                 {profile?.isFreelance ? <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">Freelance</span> : <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded border border-green-500/30">Officiel</span>}
                             </p>
                         </div>
@@ -772,7 +839,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                                 <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100"><Power size={24} className="text-gray-400"/></div>
                                 <h3 className="font-bold text-gray-900 text-lg mb-2">Vous êtes Hors Ligne</h3>
                                 <p className="text-sm text-gray-500 mb-6">Activez votre statut pour commencer à recevoir des missions.</p>
-                                <button onClick={toggleStatus} className="bg-black text-white w-full py-3 rounded-xl font-medium text-sm shadow-sm active:scale-95 transition-colors hover:bg-gray-800">Me Connecter</button>
+                                <button onClick={toggleStatus} className="bg-black text-white w-full py-3 rounded-xl font-medium text-sm shadow-sm active:scale-95 transition-colors hover:bg-gray-800">Je suis disponible (Me Connecter)</button>
                             </div>
                         ) : activeOrders.length === 0 ? (
                             <div className="bg-white p-8 rounded-2xl text-center shadow-sm border border-gray-200 mt-4">
@@ -909,16 +976,40 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                             <h2 className="text-lg font-black text-orange-800 flex items-center gap-2"><AlertTriangle size={20}/> Confirmation</h2>
                             <button onClick={() => setConfirmDialog(null)} className="p-2 bg-white rounded-full hover:bg-gray-100"><X size={20}/></button>
                         </div>
-                        <div className="p-6 bg-gray-50 text-center space-y-5">
-                            <p className="font-bold text-gray-800 text-base whitespace-pre-wrap">{confirmDialog.message}</p>
-                            <div className="flex gap-3">
-                                <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3 font-bold text-gray-600 bg-gray-200 rounded-xl hover:bg-gray-300 transition-colors shadow-sm">Non (Annuler)</button>
+                        {confirmDialog.type === 'reject' ? (
+                            <div className="p-6 bg-gray-50 text-center space-y-4">
+                                <p className="font-bold text-gray-800 text-base mb-2">{confirmDialog.message}</p>
                                 <button onClick={() => {
-                                    confirmDialog.onConfirm();
+                                    handleReassignOrder(confirmDialog.order, user?.uid);
                                     setConfirmDialog(null);
-                                }} className="flex-[2] py-3 font-black text-white bg-green-500 rounded-xl shadow-md active:scale-95 transition-all hover:bg-green-600">Oui, Confirmer</button>
+                                }} className="w-full py-4 font-black text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 shadow-sm active:scale-95 transition-all text-sm flex items-center justify-center gap-2">
+                                    🚀 Bzaf dl-khedma (Z7am)
+                                </button>
+                                <button onClick={() => {
+                                    handleReassignOrder(confirmDialog.order, user?.uid);
+                                    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user?.uid), { isOnline: false, isAvailable: false });
+                                    setIsOnline(false);
+                                    setConfirmDialog(null);
+                                    showNotify("T7eyed lik l-khedma 7it en panne. Klicki 3la 'Je suis disponible' mnin tsale7 l-mochkil.", "warning");
+                                }} className="w-full py-4 font-black text-red-600 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 shadow-sm active:scale-95 transition-all text-sm flex items-center justify-center gap-2">
+                                    🚨 En Panne (Mochkil)
+                                </button>
+                                <button onClick={() => setConfirmDialog(null)} className="mt-2 w-full py-2 font-bold text-gray-500 underline text-sm">
+                                    Annuler
+                                </button>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="p-6 bg-gray-50 text-center space-y-5">
+                                <p className="font-bold text-gray-800 text-base whitespace-pre-wrap">{confirmDialog.message}</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setConfirmDialog(null)} className="flex-1 py-3 font-bold text-gray-600 bg-gray-200 rounded-xl hover:bg-gray-300 transition-colors shadow-sm">Non (Annuler)</button>
+                                    <button onClick={() => {
+                                        confirmDialog.onConfirm();
+                                        setConfirmDialog(null);
+                                    }} className="flex-[2] py-3 font-black text-white bg-green-500 rounded-xl shadow-md active:scale-95 transition-all hover:bg-green-600">Oui, Confirmer</button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
