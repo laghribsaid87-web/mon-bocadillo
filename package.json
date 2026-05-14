@@ -3,7 +3,7 @@
   "description": "Caisse Mon Bocadillo Management Application",
   "author": "Mon Bocadillo",
   "private": true,
-  "version": "1.0.6",
+  "version": "1.0.7",
   "type": "module",
   "main": "public/electron.cjs",
   "scripts": {
@@ -24,6 +24,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.0",
     "@capacitor/push-notifications": "^8.0.4",
     "electron-updater": "^6.8.3"
   },
