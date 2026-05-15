@@ -96,5 +96,8 @@ jobs:
             dist/*.exe
             out/*.exe
             release/*.exe
+            dist/*.yml
+            out/*.yml
+            release/*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
