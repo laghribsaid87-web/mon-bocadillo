@@ -31,7 +31,7 @@
         <!-- Boutons de téléchargement (Cachés par défaut) -->
         <div id="buttons" class="space-y-4 hidden flex-col">
             <!-- Bouton APK (Livreur) -->
-            <a id="btn-apk" href="#" download class="flex flex-col items-center justify-center w-full brand-yellow brand-yellow-hover text-black font-bold py-4 px-6 rounded-2xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-95">
+            <a id="btn-apk" href="#" class="flex flex-col items-center justify-center w-full brand-yellow brand-yellow-hover text-black font-bold py-4 px-6 rounded-2xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-95">
                 <div class="flex items-center gap-2 text-lg">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                     App Livreur
@@ -42,7 +42,7 @@
             <!-- Section Caisse (Windows) -->
             <div class="flex gap-2">
                 <!-- Bouton EXE 64-bit -->
-            <a id="btn-exe-64" href="#" download class="flex-1 flex flex-col items-center justify-center bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 px-2 rounded-2xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-95">
+            <a id="btn-exe-64" href="#" class="flex-1 flex flex-col items-center justify-center bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 px-2 rounded-2xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-95">
                     <div class="flex items-center gap-1.5 text-sm">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                         Caisse PC
@@ -50,7 +50,7 @@
                     <span class="text-[10px] font-normal opacity-70 mt-1">Windows (64-bit)</span>
                 </a>
                 <!-- Bouton EXE 32-bit -->
-            <a id="btn-exe-32" href="#" download class="flex-1 flex flex-col items-center justify-center bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-2 rounded-2xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-95">
+            <a id="btn-exe-32" href="#" class="flex-1 flex flex-col items-center justify-center bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-2 rounded-2xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-95">
                     <div class="flex items-center gap-1.5 text-sm">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                         Caisse PC
@@ -77,6 +77,9 @@
                     document.getElementById('version-text').innerText = "Dernière version : " + data.tag_name;
                 }
                 if(data && data.assets) {
+                    let exe64Url = '';
+                    let exe32Url = '';
+                    
                     data.assets.forEach(asset => {
                         const name = asset.name.toLowerCase();
                         // Remplir le lien de l'APK
@@ -85,13 +88,19 @@
                         }
                         // Remplir les liens des EXE selon l'architecture
                         if (name.endsWith('.exe')) {
-                            if (name.includes('x64') || name.includes('64')) {
-                                document.getElementById('btn-exe-64').href = asset.browser_download_url;
-                            } else if (name.includes('ia32') || name.includes('32')) {
-                                document.getElementById('btn-exe-32').href = asset.browser_download_url;
+                            if (name.includes('ia32') || name.includes('32')) {
+                                exe32Url = asset.browser_download_url;
+                            } else {
+                                exe64Url = asset.browser_download_url;
                             }
                         }
                     });
+                    
+                    if (exe64Url) document.getElementById('btn-exe-64').href = exe64Url;
+                    else document.getElementById('btn-exe-64').style.display = 'none';
+                    
+                    if (exe32Url) document.getElementById('btn-exe-32').href = exe32Url;
+                    else document.getElementById('btn-exe-32').style.display = 'none';
                 }
             }).catch(err => { console.error("API error:", err); document.getElementById('loading').innerText = "Erreur de connexion."; });
     </script>
