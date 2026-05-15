@@ -3,7 +3,7 @@
   "description": "Caisse Mon Bocadillo Management Application",
   "author": "Mon Bocadillo",
   "private": true,
-  "version": "1.0.28",
+  "version": "1.0.29",
   "type": "module",
   "main": "public/electron.cjs",
   "scripts": {
