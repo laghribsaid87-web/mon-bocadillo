@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings } from 'lucide-react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings, MessageCircle, Truck, Phone } from 'lucide-react';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
 import { generateOrderNumber, printTicket, formatSansIngredient, buildMessage, openWhatsAppDirect } from '../utils/helpers';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PREDEFINED_DRINKS, DEFAULT_BRAND } from '../config/constants';
@@ -30,6 +30,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showPendingModal, setShowPendingModal] = useState(false);
     const [showOnlineOrdersModal, setShowOnlineOrdersModal] = useState(false);
     const [telInfo, setTelInfo] = useState({ phone: '', deliveryFee: 0 });
+    const [telType, setTelType] = useState('telephone');
     
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -566,6 +567,80 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         }
     };
 
+    // 🔥 NOUVEAU: Invitation Glovo mn l-Caisse
+    const handleGlovoInviteFromPOS = async () => {
+        if (!telInfo.phone) return showNotify("Numéro darouri!", "error");
+        const cleanPh = telInfo.phone.replace(/[^\d]/g, "").slice(0, 10);
+        if (!/^(06|07)\d{8}$/.test(cleanPh)) return showNotify("Numéro invalide (doit commencer par 06 ou 07)", "error");
+
+        const waPhone = cleanPh.startsWith("0") ? "212" + cleanPh.substring(1) : cleanPh;
+        const appUrl = window.location.origin + window.location.pathname;
+        const msgTemplate = brand?.messages?.glovoInvite || DEFAULT_BRAND.messages.glovoInvite;
+        const msgBody = buildMessage(msgTemplate, { brandName: (brand?.name || '').toUpperCase(), appUrl: appUrl });
+
+        try {
+            if (isNetOnline) {
+                const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', cleanPh);
+                const snap = await getDoc(clientRef);
+                if (!snap.exists()) {
+                    await setDoc(clientRef, { phone: cleanPh, source: 'glovo', isDriver: false, blocked: false, createdAt: serverTimestamp() });
+                } else {
+                    await setDoc(clientRef, { source: 'glovo' }, { merge: true });
+                }
+            }
+            openWhatsAppDirect(waPhone, msgBody);
+            showNotify("Invitation WhatsApp t7ellat w t-sjel l-client! ✅", "success");
+            setTelInfo({ phone: '', deliveryFee: 0 });
+            setShowTelNumpad(false);
+        } catch (error) { showNotify("Erreur lors de l'enregistrement", "error"); }
+    };
+
+    // 🔥 NOUVEAU: Commande Glovo Direct mn l-Caisse
+    const handleGlovoOrderFromPOS = async () => {
+        if (cart.length === 0) {
+            return showNotify("Veuillez d'abord ajouter un produit au panier.", "error");
+        }
+
+        let deliveryCost = Number(telInfo.deliveryFee) || 0;
+        let totalToPay = total + deliveryCost; 
+        let orderNum = generateOrderNumber();
+        const branch = (settings?.branches || []).find(b => b.id === activeBranchId) || null;
+
+        const newOrder = {
+            userId: "glovo",
+            orderNumber: orderNum,
+            customerName: "Client Glovo",
+            phone: "GLOVO",
+            address: "Commande Glovo",
+            nearestBranch: branch,
+            items: cart,
+            total: totalToPay,
+            deliveryFee: deliveryCost,
+            subtotal: total,
+            status: "preparing", // Dkhoul direct l-Kuzina (KDS)
+            source: "glovo",
+            orderType: "a_emporter",
+            paymentMethod: "espece",
+            etaMinutes: 15,
+            offlineCreatedAt: Date.now()
+        };
+
+        try {
+            if (isNetOnline) {
+                await addDoc(collection(db, "artifacts", appId, "public", "data", "orders"), { ...newOrder, createdAt: serverTimestamp() });
+                showNotify("Commande Glovo ajoutée et envoyée à la cuisine! ✅", "success");
+            } else {
+                saveOfflineOrder(newOrder);
+            }
+            
+            printTicketsPos(newOrder, brand); // Impression auto
+            setShowStandardModal(false);
+            setTelInfo({ phone: '', deliveryFee: 0 });
+            setShowTelNumpad(false);
+            setCart([]); 
+        } catch (error) { showNotify("W9e3 mochkil f tsjal dyal l-commande", "error"); }
+    };
+
     const handleEditCartItemOptions = (cartItem) => {
         const originalItem = menuItems.find(i => i.id === cartItem.id);
         if (!originalItem) {
@@ -996,17 +1071,6 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     ${kitchenItemsHtml}
                 </div>
             </div>
-
-            <script>
-                window.onload = function() {
-                    setTimeout(function() {
-                        window.print();
-                    }, 500);
-                };
-                window.onafterprint = function() {
-                    window.close();
-                };
-            </script>
         </body>
         </html>
         `;
@@ -1019,7 +1083,19 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             const printWindow = window.open('', '', 'width=400,height=800');
             if (printWindow) {
                 printWindow.document.open();
-                printWindow.document.write(html);
+                const htmlWithScript = html.replace('</body>', `
+                <script>
+                    window.onload = function() {
+                        setTimeout(function() {
+                            window.print();
+                        }, 500);
+                    };
+                    window.onafterprint = function() {
+                        window.close();
+                    };
+                </script>
+                </body>`);
+                printWindow.document.write(htmlWithScript);
                 printWindow.document.close();
             }
         }
@@ -1123,16 +1199,6 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             ${repartitionHtml}<p style="text-align:left; font-weight:bold; margin:5px 0;">Détails des ventes :</p>${itemsHtml || '<p style="text-align:left;">Aucun article</p>'}
             <hr style="border-top:1px dashed #000; margin:10px 0;"/><div style="display:flex; justify-content:space-between; font-weight:bold; font-size:18px; margin-top:10px;"><span>C.A TOTAL:</span><span>${isAdmin ? dailyCA + ' DH' : '*** DH'}</span></div>
             <p style="margin-top:20px; font-size:12px;">${type === 'Z' ? '*** CLOTURE Z ***' : '*** BILAN PROVISOIRE X ***'}</p>
-            <script>
-                window.onload = function() {
-                    setTimeout(function() {
-                        window.print();
-                    }, 500);
-                };
-                window.onafterprint = function() {
-                    window.close();
-                };
-            </script>
         </body></html>`;
 
         // 🔥 ZEDNA HAD L-CODE: Impression Electron ola Web
@@ -1143,7 +1209,19 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             const printWindow = window.open('', '', 'width=400,height=800');
             if (printWindow) {
                 printWindow.document.open();
-                printWindow.document.write(html);
+                const htmlWithScript = html.replace('</body>', `
+                <script>
+                    window.onload = function() {
+                        setTimeout(function() {
+                            window.print();
+                        }, 500);
+                    };
+                    window.onafterprint = function() {
+                        window.close();
+                    };
+                </script>
+                </body>`);
+                printWindow.document.write(htmlWithScript);
                 printWindow.document.close();
             }
         }
@@ -2116,6 +2194,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         </div>
                         
                         <div className="p-6 bg-gray-50 flex flex-col gap-4">
+                        <div className="flex bg-gray-200/60 p-1.5 rounded-xl border border-gray-200 shadow-inner mb-2 w-fit mx-auto">
+                            <button onClick={()=>setTelType('telephone')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${telType==='telephone'?'bg-blue-600 text-white shadow-md':'text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}><Phone size={16}/> Standard Tél</button>
+                            <button onClick={()=>setTelType('glovo')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${telType==='glovo'?'bg-yellow-400 text-black shadow-md':'text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}><Truck size={16}/> Invite Glovo</button>
+                        </div>
+
+                        {telType === 'telephone' && (
+                            <>
                             <label className="block text-left">
                                 <span className="text-xs font-bold text-gray-700 mb-1.5 block">Numéro de Téléphone Client <span className="text-red-500">*</span></span>
                                 <input
@@ -2165,6 +2250,28 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 </button>
                             </div>
                             )}
+                            </>
+                        )}
+
+                        {telType === 'glovo' && (
+                            <>
+                                <label className="block text-left">
+                                    <span className="text-xs font-bold text-gray-700 mb-1.5 block">Numéro de Téléphone Client (Glovo) <span className="text-red-500">*</span></span>
+                                    <input type="tel" readOnly onClick={() => setShowTelNumpad(true)} placeholder="06XXXXXXXX ou 07XXXXXXXX" className="w-full bg-white border border-gray-300 p-3 rounded-xl text-lg tracking-widest text-center font-bold text-gray-900 outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 transition-all shadow-sm cursor-pointer" value={telInfo.phone} onChange={(e) => setTelInfo({ ...telInfo, phone: e.target.value.replace(/[^\d]/g, "").slice(0, 10) })} />
+                                </label>
+                                {showTelNumpad && (
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (<button key={num} type="button" onClick={() => setTelInfo(prev => ({ ...prev, phone: (prev.phone + num).slice(0, 10) }))} className="py-3 bg-white border border-gray-200 rounded-xl font-black text-xl hover:bg-gray-50 active:scale-95 transition-all shadow-sm text-gray-800">{num}</button>))}
+                                        <button type="button" onClick={() => setTelInfo(prev => ({ ...prev, phone: prev.phone.slice(0, -1) }))} className="py-3 bg-red-50 border border-red-100 text-red-600 rounded-xl font-black text-xl hover:bg-red-100 active:scale-95 transition-all flex items-center justify-center shadow-sm"><Delete size={24} /></button>
+                                        <button type="button" onClick={() => setTelInfo(prev => ({ ...prev, phone: (prev.phone + '0').slice(0, 10) }))} className="py-3 bg-white border border-gray-200 rounded-xl font-black text-xl hover:bg-gray-50 active:scale-95 transition-all shadow-sm text-gray-800">0</button>
+                                        <button type="button" onClick={() => setTelInfo(prev => ({ ...prev, phone: '' }))} className="py-3 bg-gray-200 border border-gray-300 text-gray-700 rounded-xl font-black text-sm uppercase hover:bg-gray-300 active:scale-95 transition-all shadow-sm">Effacer</button>
+                                    </div>
+                                )}
+                                <button onClick={handleGlovoInviteFromPOS} className="w-full mt-3 bg-yellow-400 hover:bg-yellow-500 text-black py-4 rounded-xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                                    <MessageCircle size={20} /> Convertir & Envoyer WhatsApp
+                                </button>
+                            </>
+                        )}
                             
                             <label className="block text-left">
                                 <span className="text-xs font-bold text-gray-700 mb-1.5 block">Frais de Livraison (DH)</span>
@@ -2194,6 +2301,14 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                                 Créer & Envoyer WhatsApp
+                            </button>
+
+                            <button
+                                onClick={handleGlovoOrderFromPOS}
+                                className="w-full mt-3 bg-yellow-400 hover:bg-yellow-500 text-black py-4 rounded-xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                                <ShoppingBag size={20} />
+                                Client Glovo (Direct)
                             </button>
                         </div>
                     </div>

@@ -511,10 +511,19 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
         const msgTemplate = brand.messages?.glovoInvite || DEFAULT_BRAND.messages.glovoInvite; 
         const msgBody = buildMessage(msgTemplate, { brandName: (brand.name || '').toUpperCase(), appUrl: appUrl });
         
-        openWhatsAppDirect(waPhone, msgBody);
-        
-        showNotify("Invitation WhatsApp t7ellat! ✅", "success"); 
-        setExtOrder({ type: 'glovo', phone: '', address: '', details: '', total: '', branchId: '' });
+        try {
+            const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', cleanPh);
+            const snap = await getDoc(clientRef);
+            if (!snap.exists()) {
+                await setDoc(clientRef, { phone: cleanPh, source: 'glovo', isDriver: false, blocked: false, createdAt: serverTimestamp() });
+            } else {
+                await setDoc(clientRef, { source: 'glovo' }, { merge: true });
+            }
+            
+            openWhatsAppDirect(waPhone, msgBody);
+            showNotify("Invitation WhatsApp t7ellat w t-sjel l-client! ✅", "success"); 
+            setExtOrder({ type: 'glovo', phone: '', address: '', details: '', total: '', branchId: '' });
+        } catch (error) { showNotify("Erreur d'enregistrement", "error"); }
     };
 
     const handleExportCSV = () => {
@@ -1288,17 +1297,6 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                ${productsHtml || '<tr><td colspan="3" style="text-align:center; padding: 20px; color: #999;">Aucun produit vendu dans cette période.</td></tr>'}
                            </tbody>
                        </table>
-                       
-                       <script>
-                           window.onload = function() { 
-                               setTimeout(function() {
-                                   window.print();
-                               }, 500);
-                           };
-                           window.onafterprint = function() {
-                               window.close();
-                           };
-                       </script>
                    </body>
                    </html>
                    `;
@@ -1310,7 +1308,19 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                    } else {
                        const printWindow = window.open('', '', 'width=800,height=900');
                        if (printWindow) {
-                           printWindow.document.write(html);
+                           const htmlWithScript = html.replace('</body>', `
+                           <script>
+                               window.onload = function() { 
+                                   setTimeout(function() {
+                                       window.print();
+                                   }, 500);
+                               };
+                               window.onafterprint = function() {
+                                   window.close();
+                               };
+                           </script>
+                           </body>`);
+                           printWindow.document.write(htmlWithScript);
                            printWindow.document.close();
                        }
                    }
