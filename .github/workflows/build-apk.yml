@@ -42,16 +42,16 @@ jobs:
 
       - name: Extract Version
         id: version
-        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Renommer l'APK pour la Release
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Mon-Bocadillo-Livreur-v${{ env.VERSION }}.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Mon-Bocadillo-Livreur-v${{ steps.version.outputs.VERSION }}.apk
 
       - name: Ajouter l'APK a la Release (Lien Direct)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
-          files: Mon-Bocadillo-Livreur-v${{ env.VERSION }}.apk
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          files: Mon-Bocadillo-Livreur-v${{ steps.version.outputs.VERSION }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
