@@ -3,7 +3,7 @@
   "description": "Caisse Mon Bocadillo Management Application",
   "author": "Mon Bocadillo",
   "private": true,
-  "version": "1.0.9",
+  "version": "1.0.10",
   "type": "module",
   "main": "public/electron.cjs",
   "scripts": {
@@ -20,6 +20,8 @@
     "publish:win": "npm run build && electron-builder --win --x64 -p always && electron-builder --win --ia32 -p always",
     "deploy:update": "npm version patch --force && npm run publish:win",
     "deploy:apk": "npm version patch --force && npm run build:apk-driver && npx cap sync android && cd android && gradlew assembleDebug && cd .. && node -e \"require('fs').copyFileSync('android/app/build/outputs/apk/debug/app-debug.apk', 'public/livreur.apk'); require('fs').copyFileSync('android/app/build/outputs/apk/debug/app-debug.apk', 'dist/livreur.apk');\" && firebase deploy --only hosting",
+    "deploy:apk-only": "npm run build:apk-driver && npx cap sync android && cd android && gradlew assembleDebug && cd .. && node -e \"require('fs').copyFileSync('android/app/build/outputs/apk/debug/app-debug.apk', 'public/livreur.apk')\"",
+    "deploy:all": "npm version patch --force && npm run deploy:apk-only && npm run build && firebase deploy && npm run publish:win && git add . && git commit -m \"Mise a jour globale (Web, APK, EXE)\" && git push",
     "lint": "eslint .",
     "preview": "vite preview"
   },
