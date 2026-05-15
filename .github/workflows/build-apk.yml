@@ -80,7 +80,7 @@ jobs:
         run: npm run build
 
       - name: Build EXE (Windows)
-        run: npx electron-builder --win
+        run: npx electron-builder --win -p never
 
       - name: Extract Version
         id: version
@@ -95,5 +95,6 @@ jobs:
           files: |
             dist/*.exe
             out/*.exe
+            release/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
