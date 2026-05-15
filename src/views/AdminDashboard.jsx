@@ -443,10 +443,13 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
     };
     // 🔥 Fonction jdida bach t-imprimi automatiquement mnin t-accepter l-commande
     const handleUpdateStatus = async (orderId, newStatus, extraData) => {
+        const orderToPrint = orders.find(o => o.id === orderId);
+        const oldStatus = orderToPrint?.status;
+
         await updateStatus(orderId, newStatus, extraData);
         
-        if (newStatus === 'preparing') {
-            const orderToPrint = orders.find(o => o.id === orderId);
+        // Impression GHI ila kanet l-commande yalah dazet men 'pending' l 'preparing' (Accepter)
+        if (newStatus === 'preparing' && oldStatus === 'pending') {
             if (orderToPrint) {
                 // 🔔 L3ab sonnette (Audio)
             if (isSoundEnabled) {

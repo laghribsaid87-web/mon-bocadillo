@@ -180,9 +180,7 @@ export const printTicket = async (o, brand) => {
             const n = printer ? printer.toLowerCase() : '';
             // 🔥 N-blockiw les imprimantes virtuelles li kay7elo fenêtre
             if (!printer || n.includes('pdf') || n.includes('xps') || n.includes('fax') || n.includes('onenote') || n.includes('desktop') || n.includes('anydesk') || n.includes('microsoft')) {
-                console.warn("Imprimante non détectée. Vente passée sans bloquer la caisse.");
-                notifyCaissier("Imprimante non détectée ou éteinte. La vente est passée.");
-                return; // N7bso hna, may-imprimich w may-blokich l-caisse
+                throw new Error("Imprimante thermique introuvable, passage au fallback Web");
             }
         }
         
@@ -202,7 +200,20 @@ export const printTicket = async (o, brand) => {
         
     } catch (e) {
         console.error("Erreur QZ Tray:", e);
-        notifyCaissier("Imprimante débranchée ou QZ Tray fermé. Vente passée.");
+        
+        // 🔥 Fallback Web: Impression directe via Chrome si QZ Tray est éteint ou inaccessible
+        const printWindow = window.open('', '', 'width=400,height=800');
+        if (printWindow) {
+            printWindow.document.open();
+            const htmlWithScript = html.replace('</body>', `
+            <script>
+                window.onload = function() { setTimeout(function() { window.print(); }, 500); };
+                window.onafterprint = function() { window.close(); };
+            </script>
+            </body>`);
+            printWindow.document.write(htmlWithScript);
+            printWindow.document.close();
+        }
     }
 };
 

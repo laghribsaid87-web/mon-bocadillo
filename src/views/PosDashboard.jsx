@@ -1031,12 +1031,10 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         const dateStr = new Date().toLocaleString('fr-FR');
         const orderTypeStr = order.orderType === 'a_emporter' ? 'À EMPORTER' : 'SUR PLACE';
 
-        const html = `
+        const clientHtmlStr = `
         <html>
-        <head><title>Tickets</title></head>
+        <head><title>Ticket Client</title></head>
         <body style="font-family: monospace; padding: 10px; color: #000; width: 300px; margin: 0 auto;">
-            
-            <!-- TICKET CLIENT -->
             <div style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 20px;">
                 ${brandInfo?.ticketLogoUrl ? `<img src="${brandInfo.ticketLogoUrl}" style="max-width: 150px; max-height: 80px; object-fit: contain; margin-bottom: 10px;" /><br/>` : ''}
                 <h2 style="margin: 0; font-size: 24px; font-weight: 900;">${brandInfo?.name?.toUpperCase() || 'RESTAURANT'}</h2>
@@ -1057,11 +1055,14 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 </div>
                 <p style="font-size: 14px; margin-top: 15px; font-weight: bold;">${brandInfo?.ticketFooter || 'Merci de votre visite !'}</p>
             </div>
+        </body>
+        </html>
+        `;
 
-            <!-- COUPURE (Nouveau ticket) -->
-            <div style="page-break-after: always; height: 30px;"></div>
-
-            <!-- TICKET CUISINE -->
+        const cuisineHtmlStr = `
+        <html>
+        <head><title>Ticket Cuisine</title></head>
+        <body style="font-family: monospace; padding: 10px; color: #000; width: 300px; margin: 0 auto;">
             <div style="text-align: center; padding-top: 10px;">
                 <h2 style="margin: 0; font-size: 28px; font-weight: 900;">BON CUISINE</h2>
                 <p style="margin: 5px 0; font-size: 12px; font-weight: bold;">${dateStr}</p>
@@ -1078,26 +1079,27 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         // 🔥 ZEDNA HAD L-CODE: Impression Electron ola Web
         if (typeof window !== 'undefined' && window.require) {
             const { ipcRenderer } = window.require('electron');
-            ipcRenderer.send('print-ticket', html, brand?.selectedPrinter);
-        } else {
-            const printWindow = window.open('', '', 'width=400,height=800');
-            if (printWindow) {
-                printWindow.document.open();
-                const htmlWithScript = html.replace('</body>', `
-                <script>
-                    window.onload = function() {
-                        setTimeout(function() {
-                            window.print();
-                        }, 500);
-                    };
-                    window.onafterprint = function() {
-                        window.close();
-                    };
-                </script>
-                </body>`);
-                printWindow.document.write(htmlWithScript);
-                printWindow.document.close();
+            if (printAddition) ipcRenderer.send('print-ticket', clientHtmlStr, brand?.selectedPrinter);
+            if (printCuisine) {
+                setTimeout(() => { ipcRenderer.send('print-ticket', cuisineHtmlStr, brand?.selectedPrinter); }, 1000);
             }
+        } else {
+            const printHtml = (htmlContent) => {
+                const printWindow = window.open('', '', 'width=400,height=800');
+                if (printWindow) {
+                    printWindow.document.open();
+                    const htmlWithScript = htmlContent.replace('</body>', `
+                    <script>
+                        window.onload = function() { setTimeout(function() { window.print(); }, 500); };
+                        window.onafterprint = function() { window.close(); };
+                    </script>
+                    </body>`);
+                    printWindow.document.write(htmlWithScript);
+                    printWindow.document.close();
+                }
+            };
+            if (printAddition) printHtml(clientHtmlStr);
+            if (printCuisine) setTimeout(() => { printHtml(cuisineHtmlStr); }, printAddition ? 1500 : 0);
         }
     };
 
