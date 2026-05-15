@@ -40,6 +40,21 @@ jobs:
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug
 
+      - name: Extract Version
+        id: version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+
+      - name: Renommer l'APK pour la Release
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Mon-Bocadillo-Livreur-v${{ env.VERSION }}.apk
+
+      - name: Ajouter l'APK a la Release (Lien Direct)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          files: Mon-Bocadillo-Livreur-v${{ env.VERSION }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload APK pour le téléchargement
         uses: actions/upload-artifact@v4
         with:
