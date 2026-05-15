@@ -19,6 +19,13 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "/telecharger",
+        "destination": "https://github.com/laghribsaid87-web/mon-bocadillo/releases/latest",
+        "type": 302
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

@@ -60,3 +60,23 @@ jobs:
         with:
           name: Mon-Bocadillo-Livreur-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  build-windows:
+    needs: build-android
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build and Publish EXE
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run publish:win
