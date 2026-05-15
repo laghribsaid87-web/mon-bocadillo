@@ -22,6 +22,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showReadyPosModal, setShowReadyPosModal] = useState(false); // Jdid: Modal Commandes Prêtes
     const [showConfirmToutDonner, setShowConfirmToutDonner] = useState(false); // Jdid: Modal Custom Confirmation
     const [confirmDialog, setConfirmDialog] = useState(null);
+    const [printCuisine, setPrintCuisine] = useState(true);
+    const [printAddition, setPrintAddition] = useState(true);
 
     const [showStandardModal, setShowStandardModal] = useState(false);
     const [showTelNumpad, setShowTelNumpad] = useState(false);
@@ -839,6 +841,10 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     // 🔥 Print Custom pour Pos (1 Ticket Client + 1 Ticket Cuisine)
     const printTicketsPos = async (order, brandInfo) => {
+        if (!printAddition && !printCuisine) {
+            openDrawer();
+            return; // Ila kano bjoj m-désactivin, n7ello ghir tiroir w n7bso
+        }
         
         // 🔥 Si une imprimante Bluetooth est connectée, on imprime directement via BT et on coupe !
         if (btCharacteristic) {
@@ -847,40 +853,69 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 const orderTypeStr = order.orderType === 'a_emporter' ? 'A EMPORTER' : 'SUR PLACE';
                 
                 let text = "\x1B\x40"; // Initialize printer
-                text += "\x1B\x61\x01"; // Center align
-                text += `${brandInfo?.name?.toUpperCase() || 'RESTAURANT'}\n`;
-                text += `--------------------------------\n`;
-                text += `TICKET CLIENT\n`;
-                text += `${dateStr}\n`;
-                text += `COMMANDE #${order.orderNumber}\n`;
-                text += `*** ${orderTypeStr} ***\n`;
-                text += `--------------------------------\n`;
-                text += "\x1B\x61\x00"; // Left align
                 
-                order.items.forEach(item => {
-                    text += `${item.qty}x ${item.name.split(' (Sans')[0]}    ${item.price * item.qty} DH\n`;
-                    if (item.name.includes(' (Sans')) {
-                        const sansList = item.name.split(' (Sans ')[1].replace(')', '').split(', ');
-                        sansList.forEach(opt => { text += `  - Sans ${formatSansIngredient(opt)}\n`; });
-                    }
-                    if (item.isCombo && item.comboChoices) {
-                        item.comboChoices.forEach(c => {
-                            text += `  🔹 ${c.name}\n`;
-                            if (c.removables?.length > 0) text += `    - Sans ${c.removables.join(', ')}\n`;
-                            if (c.selectedOption) text += `    - ${c.selectedOption}\n`;
-                        });
-                    }
-                });
-                
-                text += `--------------------------------\n`;
-                text += `TOTAL: ${order.total} DH\n\n`;
-                text += "\x1B\x61\x01"; // Center align
-                text += `Merci de votre visite !\n\n\n\n`;
+                if (printAddition) {
+                    text += "\x1B\x61\x01"; // Center align
+                    text += `${brandInfo?.name?.toUpperCase() || 'RESTAURANT'}\n`;
+                    text += `--------------------------------\n`;
+                    text += `TICKET CLIENT\n`;
+                    text += `${dateStr}\n`;
+                    text += `COMMANDE #${order.orderNumber}\n`;
+                    text += `*** ${orderTypeStr} ***\n`;
+                    text += `--------------------------------\n`;
+                    text += "\x1B\x61\x00"; // Left align
+                    
+                    order.items.forEach(item => {
+                        text += `${item.qty}x ${item.name.split(' (Sans')[0]}    ${item.price * item.qty} DH\n`;
+                        if (item.name.includes(' (Sans')) {
+                            const sansList = item.name.split(' (Sans ')[1].replace(')', '').split(', ');
+                            sansList.forEach(opt => { text += `  - Sans ${formatSansIngredient(opt)}\n`; });
+                        }
+                        if (item.isCombo && item.comboChoices) {
+                            item.comboChoices.forEach(c => {
+                                text += `  🔹 ${c.name}\n`;
+                                if (c.removables?.length > 0) text += `    - Sans ${c.removables.join(', ')}\n`;
+                                if (c.selectedOption) text += `    - ${c.selectedOption}\n`;
+                            });
+                        }
+                    });
+                    
+                    text += `--------------------------------\n`;
+                    text += `TOTAL: ${order.total} DH\n\n`;
+                    text += "\x1B\x61\x01"; // Center align
+                    text += `Merci de votre visite !\n\n\n\n`;
+                    text += "\x1D\x56\x00"; // Cut
+                }
+
+                if (printCuisine) {
+                    text += "\x1B\x61\x01"; // Center align
+                    text += `BON CUISINE\n`;
+                    text += `${dateStr}\n`;
+                    text += `COMMANDE #${order.orderNumber}\n`;
+                    text += `*** ${orderTypeStr} ***\n`;
+                    text += `--------------------------------\n`;
+                    text += "\x1B\x61\x00"; // Left align
+                    
+                    order.items.forEach(item => {
+                        text += `${item.qty}x ${item.name.split(' (Sans')[0]}\n`;
+                        if (item.name.includes(' (Sans')) {
+                            const sansList = item.name.split(' (Sans ')[1].replace(')', '').split(', ');
+                            sansList.forEach(opt => { text += `  *** SANS ${formatSansIngredient(opt).toUpperCase()} ***\n`; });
+                        }
+                        if (item.isCombo && item.comboChoices) {
+                            item.comboChoices.forEach(c => {
+                                text += `  🔹 ${c.name}\n`;
+                                if (c.removables?.length > 0) text += `    *** SANS ${c.removables.join(', ').toUpperCase()} ***\n`;
+                                if (c.selectedOption) text += `    *** ${c.selectedOption.toUpperCase()} ***\n`;
+                            });
+                        }
+                    });
+                    text += `\n\n\n\n`;
+                    text += "\x1D\x56\x00"; // Cut
+                }
                 
                 // Code pour ouvrir le tiroir
                 text += "\x1B\x70\x00\x19\xFA";
-                // Code pour couper le papier (Cut)
-                text += "\x1D\x56\x00";
 
                 await sendBluetoothData(text);
                 return; // Sortir de la fonction pour ne pas ouvrir la fenêtre Web normale
@@ -1435,6 +1470,15 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             )}
                         </div>
                     )}
+
+                    <div className="flex gap-2 mb-4 p-1.5 bg-gray-50 rounded-2xl border border-gray-200">
+                        <button onClick={() => setPrintCuisine(!printCuisine)} className={`flex-1 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${printCuisine ? 'bg-orange-100 text-orange-700 border border-orange-200 shadow-sm' : 'text-gray-400 hover:bg-gray-200'}`}>
+                            <ChefHat size={16}/> Cuisine {printCuisine ? 'ON' : 'OFF'}
+                        </button>
+                        <button onClick={() => setPrintAddition(!printAddition)} className={`flex-1 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${printAddition ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-sm' : 'text-gray-400 hover:bg-gray-200'}`}>
+                            <Printer size={16}/> Ticket {printAddition ? 'ON' : 'OFF'}
+                        </button>
+                    </div>
 
                     <div className="flex justify-between items-end mb-6">
                         <span className="text-gray-400 font-bold uppercase tracking-widest text-xs">{brand?.texts?.posTotal || 'Total à payer'}</span>
