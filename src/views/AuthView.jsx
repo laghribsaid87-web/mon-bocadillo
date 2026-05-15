@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MessageCircle, AlertTriangle, X, Share, PlusSquare, BellRing, Phone, User, Navigation } from 'lucide-react';
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment, setDoc, serverTimestamp } from 'firebase/firestore';
 import { formatPhoneNumber, getWhatsAppFormat, getClosestBranch, buildMessage } from '../utils/helpers';
 import { DEFAULT_BRANCHES, DEFAULT_BRAND } from '../config/constants';
 import { appId } from '../config/firebase';
@@ -102,9 +102,18 @@ export default function AuthView({ onComplete, brand, settings, showNotify, db }
        }
     };
 
-    const proceedToGps = (finalName, finalPhone) => {
+const proceedToGps = async (finalName, finalPhone) => {
        setLoading(true);
        try {
+       // 🔥 Tsjal l-wa9t dyal l-Client mli kaytsjel awel merra
+       const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', finalPhone);
+       const snap = await getDoc(clientRef);
+       if (!snap.exists()) {
+           await setDoc(clientRef, { name: finalName, phone: finalPhone, isDriver: false, blocked: false, createdAt: serverTimestamp() });
+       } else if (!snap.data().createdAt) {
+           await updateDoc(clientRef, { createdAt: serverTimestamp() });
+       }
+
            if(navigator.geolocation) {
               navigator.geolocation.getCurrentPosition(
                  (pos) => { 

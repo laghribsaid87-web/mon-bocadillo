@@ -76,7 +76,24 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build and Publish EXE
+      - name: Build React App
+        run: npm run build
+
+      - name: Build EXE (Windows)
+        run: npx electron-builder --win
+
+      - name: Extract Version
+        id: version
+        shell: bash
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Ajouter l'EXE a la Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          fail_on_unmatched_files: false
+          files: |
+            dist/*.exe
+            out/*.exe
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run publish:win
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
