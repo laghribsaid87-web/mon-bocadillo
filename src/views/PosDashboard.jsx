@@ -1163,7 +1163,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             onDragOver: e => e.preventDefault(),
         } : {};
         const cursorClass = isAdmin ? 'cursor-move' : '';
-        const baseClass = `relative flex items-center justify-center gap-2 px-3 sm:px-4 rounded-xl font-bold transition-all text-xs sm:text-sm md:text-base shadow-sm shrink-0 ml-1 sm:ml-2 ${cursorClass}`;
+        const baseClass = `relative flex items-center justify-center gap-2 px-3 sm:px-4 rounded-xl font-bold transition-all text-xs sm:text-sm shadow-sm shrink-0 ${cursorClass}`;
 
         switch(btnId) {
             case 'commandes_web':
@@ -1250,54 +1250,57 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
             {/* MAIN CONTENT (LEFT) */}
             <div className="flex-1 flex flex-col h-full w-full overflow-hidden relative">
-                <header className="p-3 sm:p-4 shadow-sm font-black text-lg sm:text-2xl flex flex-wrap items-center gap-y-3 gap-x-2 z-10 shrink-0 w-full" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff', color: brand?.posColor || brand?.color || '#4f46e5' }}>
-                    <div className="flex items-center gap-2 shrink-0 mr-2">
-                        <ShoppingCart size={24} className="sm:w-7 sm:h-7"/> <span className="truncate max-w-[120px] sm:max-w-none">{brand?.texts?.posAppTitle || brand?.name || 'Caisse POS'}</span>
+                <header className="px-3 sm:px-4 py-2 shadow-sm flex items-center justify-between z-10 shrink-0 w-full gap-2 sm:gap-4" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff', color: brand?.posColor || brand?.color || '#4f46e5' }}>
+                    
+                    {/* LEFT: LOGO */}
+                    <div className="flex items-center gap-2 shrink-0 font-black text-lg sm:text-xl">
+                        <ShoppingCart size={22} className="sm:w-6 sm:h-6"/> <span className="truncate max-w-[120px] sm:max-w-[200px]">{brand?.texts?.posAppTitle || brand?.name || 'Caisse POS'}</span>
                     </div>
                     
-                    {/* BUTTONS IN HEADER */}
-                    {displayedButtons.map((btnId, idx) => renderHeaderButton(btnId, idx))}
+                    {/* MIDDLE: BUTTONS (SCROLLABLE SINGLE LINE) */}
+                    <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-2 py-1">
+                        {displayedButtons.map((btnId, idx) => renderHeaderButton(btnId, idx))}
+                    </div>
 
-                <div className="ml-auto flex flex-wrap items-center gap-y-2 gap-x-2 shrink-0 pl-2">
-                    {!isNetOnline ? (
-                        <div className="flex items-center gap-1.5 bg-red-100 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm border border-red-200">
-                            <span className="relative flex h-2.5 w-2.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                            </span>
-                            Hors Ligne ({offlineQueue.length})
+                    {/* RIGHT: CONFIG & WINDOW CONTROLS */}
+                    <div className="flex items-center gap-2 shrink-0 border-l border-gray-200/50 pl-2 sm:pl-4">
+                        {!isNetOnline ? (
+                            <div className="flex items-center gap-1.5 bg-red-100 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm border border-red-200">
+                                <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span></span>
+                                <span className="hidden sm:inline">Hors Ligne</span> ({offlineQueue.length})
+                            </div>
+                        ) : offlineQueue.length > 0 ? (
+                            <button onClick={() => syncOfflineOrdersRef.current && syncOfflineOrdersRef.current()} className="flex items-center gap-1.5 bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm border border-yellow-300 hover:bg-yellow-200 transition-colors">
+                                <History size={14} /> Sync ({offlineQueue.length})
+                            </button>
+                        ) : null}
+
+                        <button onClick={() => setShowUISettings(true)} className="p-2 sm:px-3 sm:py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors shadow-md flex items-center gap-1.5 text-[10px] sm:text-xs font-bold" title="Configuration">
+                            <Settings size={16}/> <span className="hidden sm:inline">Config</span>
+                        </button>
+                        
+                        {/* Electron Window Controls - Plus compacts et pros */}
+                        <div className="hidden md:flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-inner">
+                            <button onClick={() => {
+                                if (window.require) {
+                                    const { ipcRenderer } = window.require('electron');
+                                    ipcRenderer.send('minimize-window');
+                                }
+                            }} className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-white hover:shadow-sm rounded-lg transition-all" title="Réduire">
+                                <Minus size={16} strokeWidth={3} />
+                            </button>
+                            <button onClick={() => {
+                                if (window.require) {
+                                    const { ipcRenderer } = window.require('electron');
+                                    ipcRenderer.send('close-window');
+                                } else {
+                                    window.close();
+                                }
+                            }} className="p-1.5 text-gray-500 hover:text-white hover:bg-red-500 hover:shadow-sm rounded-lg transition-all" title="Fermer">
+                                <X size={16} strokeWidth={3} />
+                            </button>
                         </div>
-                    ) : offlineQueue.length > 0 ? (
-                        <button onClick={() => syncOfflineOrdersRef.current && syncOfflineOrdersRef.current()} className="flex items-center gap-1.5 bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm border border-yellow-300 hover:bg-yellow-200 transition-colors">
-                            <History size={14} /> Sync ({offlineQueue.length})
-                        </button>
-                    ) : null}
-                    <button onClick={() => setShowUISettings(true)} className="ml-2 px-3 py-1.5 sm:py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors shadow-md flex items-center gap-1.5 text-[10px] sm:text-xs font-bold shrink-0">
-                        <Monitor size={16}/> <span className="hidden sm:inline">Config</span>
-                    </button>
-                    
-                    {/* Electron Window Controls */}
-                    <div className="hidden md:flex items-center gap-2 pl-2 border-l border-gray-200 ml-2">
-                        <button onClick={() => {
-                            if (window.require) {
-                                const { ipcRenderer } = window.require('electron');
-                                ipcRenderer.send('minimize-window');
-                            }
-                        }} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shadow-sm bg-white border border-gray-200" title="Réduire">
-                            <Minus size={20} />
-                        </button>
-                        <button onClick={() => {
-                            if (window.require) {
-                                const { ipcRenderer } = window.require('electron');
-                                ipcRenderer.send('close-window');
-                            } else {
-                                window.close();
-                            }
-                        }} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shadow-sm bg-white border border-gray-200" title="Fermer">
-                            <X size={20} />
-                        </button>
                     </div>
-                </div>
                 </header>
                 
                 <div className="border-b border-gray-100 p-2 sm:p-4 overflow-x-auto no-scrollbar shrink-0 w-full" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff' }}>
