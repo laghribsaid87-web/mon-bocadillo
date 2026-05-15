@@ -43,7 +43,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const dragItemRef = useRef(null);
     const dropItemRef = useRef(null);
     
-    const defaultHeaderButtons = ['commandes_web', 'problemes', 'suivi', 'pretes', 'tv', 'standard', 'kds', 'quitter'];
+    const defaultHeaderButtons = ['commandes_web', 'problemes', 'suivi', 'pretes', 'tv', 'standard', 'kds'];
     
     // 🔥 Ordre des boutons (Drag & Drop Flex)
     const [headerBtnsOrder, setHeaderBtnsOrder] = useState(settings?.headerBtnsOrder || []);
@@ -173,7 +173,6 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             return currentBranch.posButtons.includes(btnId);
         }
         if (!hasAccess || isAdmin) return true;
-        if (btnId === 'quitter') return true;
         if (btnId === 'tv') return hasAccess('tv');
         if (btnId === 'kds') return hasAccess('kds');
         if (btnId === 'standard') return hasAccess('standard');
@@ -1113,18 +1112,15 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         const branch = (settings?.branches || []).find(b => b.id === activeBranchId);
         const itemsHtml = dailyItemsList.map(([name, qty]) => `<div style="display:flex; justify-content:space-between;"><span>${qty}x ${name}</span><span></span></div>`).join('');
         
+        const repartitionHtml = isAdmin ? `\n            <p style="text-align:left; font-weight:bold; margin:5px 0;">Répartition C.A :</p>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Sur Place (Caisse):</span><span>${caPos} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Livraison (App):</span><span>${caApp} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Standard (Tél):</span><span>${caTel} DH</span></div>\n            <hr style="border-top:1px dashed #000; margin:10px 0;"/>\n` : '';
+        
         const html = `<html><head><title>Rapport ${type}</title></head>
         <body style="font-family:monospace; padding:10px; font-size:14px; color:#000; text-align:center;">
             ${brand?.ticketLogoUrl ? `<img src="${brand.ticketLogoUrl}" style="max-width: 150px; max-height: 80px; object-fit: contain; margin-bottom: 10px;" /><br/>` : ''}
             <h2 style="margin:0;">RAPPORT ${type}</h2>
-            <p style="margin:5px 0;">${branch?.name?.toUpperCase() || brand?.name?.toUpperCase() || 'CAISSE'}<br>Date: ${new Date().toLocaleDateString('fr-FR')}</p>
+            <p style="margin:5px 0;">${branch?.name?.toUpperCase() || brand?.name?.toUpperCase() || 'CAISSE'}<br>Date: ${new Date().toLocaleString('fr-FR')}</p>
             <hr style="border-top:1px dashed #000; margin:10px 0;"/><div style="display:flex; justify-content:space-between;"><span>Total Tickets:</span><span>${completedOrdersToday.length}</span></div><hr style="border-top:1px dashed #000; margin:10px 0;"/>
-            <p style="text-align:left; font-weight:bold; margin:5px 0;">Répartition C.A :</p>
-            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Sur Place (Caisse):</span><span>${caPos} DH</span></div>
-            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Livraison (App):</span><span>${caApp} DH</span></div>
-            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Standard (Tél):</span><span>${caTel} DH</span></div>
-            <hr style="border-top:1px dashed #000; margin:10px 0;"/>
-            <p style="text-align:left; font-weight:bold; margin:5px 0;">Détails des ventes :</p>${itemsHtml || '<p style="text-align:left;">Aucun article</p>'}
+            ${repartitionHtml}<p style="text-align:left; font-weight:bold; margin:5px 0;">Détails des ventes :</p>${itemsHtml || '<p style="text-align:left;">Aucun article</p>'}
             <hr style="border-top:1px dashed #000; margin:10px 0;"/><div style="display:flex; justify-content:space-between; font-weight:bold; font-size:18px; margin-top:10px;"><span>C.A TOTAL:</span><span>${isAdmin ? dailyCA + ' DH' : '*** DH'}</span></div>
             <p style="margin-top:20px; font-size:12px;">${type === 'Z' ? '*** CLOTURE Z ***' : '*** BILAN PROVISOIRE X ***'}</p>
             <script>
@@ -1151,6 +1147,9 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 printWindow.document.close();
             }
         }
+
+        // Ouvrir le tiroir caisse automatiquement
+        openDrawer();
 
         if (type === 'Z') { showNotify("Journée clôturée avec succès ✅", "success"); setShowXZModal(false); }
     };
@@ -1238,14 +1237,6 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         <ChefHat size={18} className="text-orange-500" /> <span className="hidden sm:inline">{brand?.texts?.btnKds || 'Cuisine (KDS)'}</span>
                     </button>
                 );
-            case 'quitter':
-                const quitBg = brand?.btnPosQuitColor || ''; const quitTxt = brand?.btnPosQuitTxtColor || '';
-                const quitStyle = quitBg ? { backgroundColor: quitBg, color: quitTxt || '#374151', borderColor: quitBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
-                return (
-                    <button key={btnId} {...dragProps} style={quitStyle} onClick={() => setTab ? setTab('active') : (onQuit ? onQuit() : window.location.href = '/idara')} className={`${baseClass} ${quitBg ? '' : 'bg-white border border-gray-200 hover:bg-gray-50 text-gray-700'}`}>
-                        <ArrowLeft size={18}/> <span className="hidden sm:inline">{brand?.texts?.btnQuitter || 'Quitter'}</span>
-                    </button>
-                );
             default:
                 return null;
         }
@@ -1282,7 +1273,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         </button>
                     ) : null}
                     <button onClick={() => setShowUISettings(true)} className="ml-2 px-3 py-1.5 sm:py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors shadow-md flex items-center gap-1.5 text-[10px] sm:text-xs font-bold shrink-0">
-                        <Monitor size={16}/> <span className="hidden sm:inline">Affichage / Zoom</span>
+                        <Monitor size={16}/> <span className="hidden sm:inline">Config</span>
                     </button>
                     
                     {/* Electron Window Controls */}
@@ -1311,14 +1302,6 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 
                 <div className="border-b border-gray-100 p-2 sm:p-4 overflow-x-auto no-scrollbar shrink-0 w-full" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff' }}>
                     <div className="flex gap-2 w-max items-center">
-                        <button 
-                            onClick={handleGlobalOptionsClick} 
-                            className="px-4 sm:px-6 rounded-full sm:rounded-2xl font-black bg-gray-800 text-white shadow-md active:scale-95 flex items-center justify-center gap-2 text-xs sm:text-base mr-2"
-                            style={{ minWidth: `${posUI.catWidth}px`, height: `${posUI.catHeight}px` }}
-                        >
-                            ⚙️ Options / Sans
-                        </button>
-                        <div className="w-px h-8 bg-gray-200 mx-1"></div>
                         {categories.map((cat, idx) => (
                             <button 
                                 key={cat} 
@@ -1473,17 +1456,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     )}
 
                     <div className="flex justify-between items-end mb-3">
-                        <div className="flex flex-col gap-1.5">
-                            <span className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">{brand?.texts?.posTotal || 'Total à payer'}</span>
-                            <div className="flex gap-1.5">
-                                <button onClick={() => setPrintCuisine(!printCuisine)} className={`px-2 py-1.5 text-[9px] font-black uppercase rounded-md transition-all flex items-center gap-1 border ${printCuisine ? 'bg-orange-100 text-orange-700 border-orange-200 shadow-sm' : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`}>
-                                    <ChefHat size={12}/> Cuisine {printCuisine ? 'ON' : 'OFF'}
-                                </button>
-                                <button onClick={() => setPrintAddition(!printAddition)} className={`px-2 py-1.5 text-[9px] font-black uppercase rounded-md transition-all flex items-center gap-1 border ${printAddition ? 'bg-blue-100 text-blue-700 border-blue-200 shadow-sm' : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`}>
-                                    <Printer size={12}/> Ticket {printAddition ? 'ON' : 'OFF'}
-                                </button>
-                            </div>
-                        </div>
+                        <span className="text-gray-400 font-bold uppercase tracking-widest text-xs">{brand?.texts?.posTotal || 'Total à payer'}</span>
                         <span className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tighter leading-none">{total} <span className="text-lg sm:text-xl tracking-normal" style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}>DH</span></span>
                     </div>
 
@@ -1746,10 +1719,18 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 <div className="fixed inset-0 z-[5000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowUISettings(false)}>
                     <div className="bg-white rounded-3xl w-full max-w-sm flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
                         <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h2 className="text-lg font-black text-gray-900 flex items-center gap-2"><Settings size={20}/> Affichage Caisse</h2>
+                            <h2 className="text-lg font-black text-gray-900 flex items-center gap-2"><Settings size={20}/> Config</h2>
                             <button onClick={() => setShowUISettings(false)} className="p-2 bg-white rounded-full hover:bg-gray-200"><X size={20}/></button>
                         </div>
                         <div className="p-6 bg-white space-y-6">
+                            <div className="flex gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-200">
+                                <button onClick={() => setPrintCuisine(!printCuisine)} className={`flex-1 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 border ${printCuisine ? 'bg-orange-100 text-orange-700 border-orange-200 shadow-sm' : 'bg-transparent text-gray-400 border-transparent hover:bg-gray-200'}`}>
+                                    <ChefHat size={16}/> Cuisine {printCuisine ? 'ON' : 'OFF'}
+                                </button>
+                                <button onClick={() => setPrintAddition(!printAddition)} className={`flex-1 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 border ${printAddition ? 'bg-blue-100 text-blue-700 border-blue-200 shadow-sm' : 'bg-transparent text-gray-400 border-transparent hover:bg-gray-200'}`}>
+                                    <Printer size={16}/> Ticket {printAddition ? 'ON' : 'OFF'}
+                                </button>
+                            </div>
                             <div>
                                 <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur du Panier</span><span className="text-blue-600">{posUI.cartWidth}px</span></label>
                                 <input type="range" min="300" max="800" step="10" value={posUI.cartWidth} onChange={e => setPosUI({...posUI, cartWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
@@ -2001,15 +1982,15 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 <div className="grid grid-cols-3 gap-2 border-t border-gray-100 pt-3">
                                     <div className="flex flex-col items-center">
                                         <span className="text-[10px] text-gray-400 uppercase font-bold">Sur Place</span>
-                                        <span className="text-sm font-black text-indigo-600">{caPos} DH</span>
+                                        <span className="text-sm font-black text-indigo-600">{isAdmin ? `${caPos} DH` : '***'}</span>
                                     </div>
                                     <div className="flex flex-col items-center border-l border-r border-gray-100">
                                         <span className="text-[10px] text-gray-400 uppercase font-bold">App</span>
-                                        <span className="text-sm font-black text-green-600">{caApp} DH</span>
+                                        <span className="text-sm font-black text-green-600">{isAdmin ? `${caApp} DH` : '***'}</span>
                                     </div>
                                     <div className="flex flex-col items-center">
                                         <span className="text-[10px] text-gray-400 uppercase font-bold">Téléphone</span>
-                                        <span className="text-sm font-black text-orange-600">{caTel} DH</span>
+                                        <span className="text-sm font-black text-orange-600">{isAdmin ? `${caTel} DH` : '***'}</span>
                                     </div>
                                 </div>
                             </div>
