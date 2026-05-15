@@ -6,7 +6,7 @@ import {
     ChevronDown, ChevronUp, Smartphone, ChefHat, CheckCircle, Minus, X
 } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection } from 'firebase/firestore';
 import { FONTS_OPTIONS, DEFAULT_BRAND } from '../../config/constants';
 import AdminMenuEditor from './AdminMenuEditor';
 
@@ -120,9 +120,17 @@ export default function AdminConfig({
     const [saveSuccessModal, setSaveSuccessModal] = useState(false);
     const [expandedSec, setExpandedSec] = useState({ app_colors: true, txt_ui: true, txt_feat: true });
     const [expandedBranches, setExpandedBranches] = useState({});
+    const [posStatuses, setPosStatuses] = useState([]);
 
     const toggleSec = (sec) => setExpandedSec(prev => ({ ...prev, [sec]: !prev[sec] }));
     const toggleBranch = (id) => setExpandedBranches(prev => ({ ...prev, [id]: !prev[id] }));
+
+    useEffect(() => {
+        const unsubPos = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'pos_status'), (snap) => {
+            setPosStatuses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+        return () => unsubPos();
+    }, [db, appId]);
 
     useEffect(() => {
         const fetchVoices = () => {
@@ -791,28 +799,19 @@ export default function AdminConfig({
                                              </div>
                                          </label>
 
-                                        <div className="flex flex-col gap-3 p-5 rounded-2xl border-2 border-orange-200 bg-orange-50/50 shadow-sm md:col-span-2">
+                                        <div className="flex flex-col gap-4 p-5 rounded-2xl border-2 border-orange-200 bg-orange-50/50 shadow-sm md:col-span-2">
                                             <div className="flex flex-col">
-                                                <span className="text-sm font-black text-orange-900 flex items-center gap-2"><Smartphone size={18} className="text-orange-500"/> Version APK Livreur (Mise à jour forcée)</span>
-                                                <span className="text-xs font-bold text-orange-700/80 mt-1 leading-relaxed">Mli katbeddel had r-reqm, ga3 l-livreurs li 3ndhom version 9dima ghat-bloqua 3ndhom l'application w ghay-telleb menhom y-téléchargew jdid.</span>
+                                                <span className="text-sm font-black text-orange-900 flex items-center gap-2"><Smartphone size={18} className="text-orange-500"/> Mise à jour de l'Application Livreur</span>
+                                                <span className="text-xs font-bold text-orange-700/80 mt-1 leading-relaxed">
+                                                    L'application des livreurs vérifie les mises à jour <strong>uniquement au démarrage</strong> pour économiser la batterie. Vous pouvez forcer la vérification à distance via le bouton ci-dessous.
+                                                </span>
                                             </div>
-                                            <div className="flex items-center gap-3 mt-2">
-                                                <input type="text" placeholder="Ex: 1.0.0" value={settings?.livreurAppVersion || '1.0.0'} onChange={(e) => saveSettings({...settings, livreurAppVersion: e.target.value})} className="flex-1 bg-white border border-orange-300 px-4 py-2.5 rounded-xl text-sm font-black text-gray-900 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none shadow-sm" />
-                                                    <button onClick={() => {
-                                                        const current = settings?.livreurAppVersion || '1.0.0';
-                                                        const parts = current.split('.');
-                                                        const last = parseInt(parts.pop()) || 0;
-                                                        parts.push(last + 1);
-                                                        const newVersion = parts.join('.');
-                                                        saveSettings({...settings, livreurAppVersion: newVersion});
-                                                        if(showNotify) showNotify(`Nouvelle version générée : ${newVersion} 🔄`, "info");
-                                                    }} className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-4 py-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 whitespace-nowrap" title="Incrémenter la version automatiquement">
-                                                        +1 Auto
-                                                    </button>
-                                                <button onClick={() => showNotify("Version APK modifiée ! Les livreurs devront mettre à jour. ✅", "success")} className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-black transition-all shadow-md active:scale-95">
-                                                    Valider
-                                                </button>
-                                            </div>
+                                            <button onClick={() => {
+                                                saveSettings({...settings, forceDriverUpdateCheck: Date.now()});
+                                                if(showNotify) showNotify("Signal envoyé ! Les livreurs vont vérifier la mise à jour 📡", "success");
+                                            }} className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-3 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 w-fit flex items-center gap-2 uppercase tracking-wide">
+                                                <Zap size={16}/> Forcer la vérification
+                                            </button>
                                         </div>
                                      </>
                                  )}
@@ -873,6 +872,21 @@ export default function AdminConfig({
                                                  <span className={`w-2 h-2 rounded-full ${branch.isOpen !== false ? 'bg-green-500' : 'bg-red-500'}`}></span>
                                                  <span className="text-xs font-medium text-gray-500">{branch.isOpen !== false ? 'Ouverte' : 'Fermée'} • {branch.phone || 'Sans numéro'}</span>
                                              </div>
+                                             {(() => {
+                                                 const st = posStatuses.find(s => s.id === branch.id);
+                                                 if (st) {
+                                                     const isOnline = (Date.now() - (st.updatedAt?.seconds * 1000 || 0)) < 120000; // 2 min
+                                                     return (
+                                                         <div className="flex items-center gap-1.5 mt-2">
+                                                             <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
+                                                             <span className="text-[10px] font-bold text-gray-500">
+                                                                 Caisse: {isOnline ? 'En ligne' : 'Hors ligne'} ({st.deviceType || 'Web'})
+                                                             </span>
+                                                         </div>
+                                                     );
+                                                 }
+                                                 return null;
+                                             })()}
                                          </div>
                                      </div>
                                      <div className="flex items-center gap-4">

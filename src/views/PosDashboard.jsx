@@ -113,6 +113,25 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         tryAutoConnectBT();
     }, []);
 
+    // 🔥 Enregistrer le statut de la caisse (En ligne, Version) pour l'Idara
+    useEffect(() => {
+        if (!activeBranchId) return;
+        const savePosStatus = async () => {
+            try {
+                const isDesktop = typeof window !== 'undefined' && window.require;
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pos_status', activeBranchId), {
+                    branchId: activeBranchId,
+                    isOnline: true,
+                    updatedAt: serverTimestamp(),
+                    deviceType: isDesktop ? "Logiciel Caisse (Windows)" : "Navigateur Web"
+                }, {merge: true});
+            } catch(e) {}
+        };
+        savePosStatus();
+        const interval = setInterval(savePosStatus, 60000); // Toutes les minutes
+        return () => clearInterval(interval);
+    }, [activeBranchId, db, appId]);
+
     useEffect(() => {
         if (settings?.headerBtnsOrder) {
             setHeaderBtnsOrder(settings.headerBtnsOrder);

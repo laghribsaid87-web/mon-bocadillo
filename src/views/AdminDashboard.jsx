@@ -52,6 +52,21 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
     const [showAddDriver, setShowAddDriver] = useState(false);
     const [newDriver, setNewDriver] = useState({ name: '', phone: '', isFreelance: false });
 
+    const [latestGithubVersion, setLatestGithubVersion] = useState(null);
+
+    useEffect(() => {
+        const checkVersions = async () => {
+            try {
+                const response = await fetch('https://api.github.com/repos/laghribsaid87-web/mon-bocadillo/releases/latest');
+                const data = await response.json();
+                if (data && data.tag_name) {
+                    setLatestGithubVersion(data.tag_name.replace('v', ''));
+                }
+            } catch (err) {}
+        };
+        checkVersions();
+    }, []);
+
     // 🔥 States pour l'historique complet à la demande
     const [olderOrders, setOlderOrders] = useState([]);
     const [isFetchingHistory, setIsFetchingHistory] = useState(false);
@@ -1015,6 +1030,11 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                                            <div className="flex flex-col">
                                                                <span className="font-bold text-gray-900 flex items-center gap-1.5">{c.name || 'Inconnu'} {isGpsOutdated && <span title="Mochkil f l'GPS" className="cursor-help text-xs">⚠️</span>}</span>
                                                                <span className="text-[10px] text-gray-500 font-mono">{c.phone || ''}</span>
+                                                               {onlineData.appVersion && (
+                                                                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border w-fit mt-0.5 ${onlineData.appVersion === latestGithubVersion ? 'text-green-600 bg-green-50 border-green-200' : 'text-orange-600 bg-orange-50 border-orange-200'}`}>
+                                                                       v{onlineData.appVersion} {onlineData.appVersion !== latestGithubVersion && '(Maj dispo)'}
+                                                                   </span>
+                                                               )}
                                                            </div>
                                                        </div>
                                                    </td>

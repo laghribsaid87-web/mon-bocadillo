@@ -66,24 +66,39 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
     const [isScreenFlashing, setIsScreenFlashing] = useState(false);
     const [appVersion, setAppVersion] = useState("1.0.0");
+    const [latestGithubVersion, setLatestGithubVersion] = useState(null);
 
-    // 🔥 Détection automatique de la version APK (Capacitor)
+    // 🔥 Détection automatique de la version APK (Capacitor) et comparaison avec Github
     useEffect(() => {
-        const fetchAppVersion = async () => {
+        const checkVersions = async () => {
+            let githubVer = null;
+            // Fetch depuis Github
+            try {
+                const response = await fetch('https://api.github.com/repos/laghribsaid87-web/mon-bocadillo/releases/latest');
+                const data = await response.json();
+                if (data && data.tag_name) {
+                    githubVer = data.tag_name.replace('v', '');
+                    setLatestGithubVersion(githubVer);
+                }
+            } catch (err) {
+                console.error("Erreur check update Github:", err);
+            }
+
             if (Capacitor.isNativePlatform()) {
                 try {
                     const info = await App.getInfo();
                     setAppVersion(info.version); // Récupère la version native (ex: 1.0.1)
                 } catch (e) {
-                    console.log("Erreur de récupération de la version:", e);
+                    console.log("Erreur de récupération de la version locale:", e);
                 }
             } else {
-                // Sur Web (PC/Navigateur), on synchronise avec la version demandée pour ne pas bloquer le testeur
-                if (settings?.livreurAppVersion) setAppVersion(settings.livreurAppVersion);
+                // Sur Web (PC/Navigateur), on synchronise avec Github pour ne pas bloquer le testeur
+                if (githubVer) setAppVersion(githubVer);
             }
         };
-        fetchAppVersion();
-    }, [settings?.livreurAppVersion]);
+        // S'exécute au démarrage (Mount) ET quand l'Admin clique sur le bouton "Forcer la vérification"
+        checkVersions();
+    }, [settings?.forceDriverUpdateCheck]);
 
     useEffect(() => {
         // Zoom global de l'interface (Ajusté pour être un peu plus grand)
@@ -355,7 +370,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             lastGpsUpdateRef.current = now;
 
             const driverRef = doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user?.uid);
-            await setDoc(driverRef, { uid: user?.uid, phone: profile?.phone || '', name: profile?.name || '', lat, lng, isOnline: true, isAvailable: activeOrders.length === 0, updatedAt: serverTimestamp() }, {merge: true}).catch(() => {});
+            await setDoc(driverRef, { uid: user?.uid, phone: profile?.phone || '', name: profile?.name || '', lat, lng, isOnline: true, isAvailable: activeOrders.length === 0, updatedAt: serverTimestamp(), appVersion }, {merge: true}).catch(() => {});
         };
 
         const handleError = (err) => {
@@ -396,7 +411,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             clearInterval(safetyInterval);
         };
-    }, [isOnline, gpsActive, user?.uid, profile?.name, profile?.phone, db, appId, activeOrders.length, showSetupModal]);
+    }, [isOnline, gpsActive, user?.uid, profile?.name, profile?.phone, db, appId, activeOrders.length, showSetupModal, appVersion]);
 
     // Hssab dyal l-youm
     const todayStr = new Date().toISOString().split('T')[0];
@@ -430,12 +445,13 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     name: profile?.name || '', 
                     isOnline: isOnline, 
                     isAvailable: isOnline ? (activeOrders.length < 3) : false,
-                    updatedAt: serverTimestamp() 
+                    updatedAt: serverTimestamp(),
+                    appVersion: appVersion
                 }, {merge: true});
             } catch(e) { console.log('Error saving online status', e); }
         };
         saveOnlineStatus();
-    }, [isOnline, user?.uid, profile?.phone, profile?.name, db, appId, activeOrders.length]);
+    }, [isOnline, user?.uid, profile?.phone, profile?.name, db, appId, activeOrders.length, appVersion]);
 
     const toggleStatus = async () => {
         const newState = !isOnline;
@@ -481,8 +497,8 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         showNotify("Message siftnah l-client! 📱", "success");
     };
 
-    // 🔥 BLOCKING UI IF UPDATE REQUIRED (APK VERSION CONTROL)
-    if (settings?.livreurAppVersion && settings.livreurAppVersion !== appVersion) {
+    // 🔥 BLOCKING UI IF UPDATE REQUIRED (APK VERSION CONTROL VIA GITHUB)
+    if (latestGithubVersion && latestGithubVersion !== appVersion) {
         return (
             <div className="min-h-[100dvh] bg-gray-900 text-white flex flex-col items-center justify-center p-6 text-center z-[9999] relative" style={{fontFamily: brand.fontFamily}}>
                 <div className="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center mb-6 animate-bounce">
