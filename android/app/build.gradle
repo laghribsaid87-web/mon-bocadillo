@@ -1,5 +1,25 @@
 apply plugin: 'com.android.application'
 
+import groovy.json.JsonSlurper
+
+def getVersionFromPackage() {
+    def packageFile = new File("$rootDir/../package.json")
+    if (packageFile.exists()) {
+        def packageJson = new JsonSlurper().parseText(packageFile.text)
+        return packageJson.version
+    }
+    return "1.0.0"
+}
+
+def getVersionCodeFromVersion(String version) {
+    try {
+        def parts = version.tokenize('.')
+        return (parts[0].toInteger() * 10000) + (parts[1].toInteger() * 100) + (parts.length > 2 ? parts[2].toInteger() : 0)
+    } catch (Exception e) {
+        return 1
+    }
+}
+
 android {
     namespace = "com.monbocadillo.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +27,8 @@ android {
         applicationId "com.monbocadillo.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode getVersionCodeFromVersion(getVersionFromPackage())
+        versionName getVersionFromPackage()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

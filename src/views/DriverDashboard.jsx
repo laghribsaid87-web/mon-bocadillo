@@ -6,8 +6,8 @@ import { getWhatsAppFormat, getDistance, formatSansIngredient, openWhatsAppDirec
 import StatusBadge from '../components/StatusBadge';
 import LiveTimer from '../components/LiveTimer';
 import { VAPID_KEY } from '../config/firebase';
-
-const APP_VERSION = "1.0.0"; // 🔥 Version dyal l'application l-7aliya
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 // 🔥 NOUVEAU: Composant dyal l-Chrono 30s
 const AcceptTimer = ({ assignedAt }) => {
@@ -65,6 +65,25 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     const [showSetupModal, setShowSetupModal] = useState(localStorage.getItem('driver_setup_done') !== 'true');
     const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
     const [isScreenFlashing, setIsScreenFlashing] = useState(false);
+    const [appVersion, setAppVersion] = useState("1.0.0");
+
+    // 🔥 Détection automatique de la version APK (Capacitor)
+    useEffect(() => {
+        const fetchAppVersion = async () => {
+            if (Capacitor.isNativePlatform()) {
+                try {
+                    const info = await App.getInfo();
+                    setAppVersion(info.version); // Récupère la version native (ex: 1.0.1)
+                } catch (e) {
+                    console.log("Erreur de récupération de la version:", e);
+                }
+            } else {
+                // Sur Web (PC/Navigateur), on synchronise avec la version demandée pour ne pas bloquer le testeur
+                if (settings?.livreurAppVersion) setAppVersion(settings.livreurAppVersion);
+            }
+        };
+        fetchAppVersion();
+    }, [settings?.livreurAppVersion]);
 
     useEffect(() => {
         // Zoom global de l'interface (Ajusté pour être un peu plus grand)
@@ -463,7 +482,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     };
 
     // 🔥 BLOCKING UI IF UPDATE REQUIRED (APK VERSION CONTROL)
-    if (settings?.livreurAppVersion && settings.livreurAppVersion !== APP_VERSION) {
+    if (settings?.livreurAppVersion && settings.livreurAppVersion !== appVersion) {
         return (
             <div className="min-h-[100dvh] bg-gray-900 text-white flex flex-col items-center justify-center p-6 text-center z-[9999] relative" style={{fontFamily: brand.fontFamily}}>
                 <div className="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center mb-6 animate-bounce">
@@ -473,9 +492,9 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                 <p className="text-sm font-medium text-gray-400 mb-8 leading-relaxed max-w-sm mx-auto">
                     Wa7ed l-version jdida dyal l'application raha kayna. Khassek t-telechargiha w t-installiha bach t9der tkemel l-khedma.
                 </p>
-                <a href="/telecharger-livreur.html" className="w-full max-w-sm bg-yellow-500 text-black font-black uppercase py-4 rounded-xl shadow-lg active:scale-95 transition-all text-sm block mx-auto">
+                <button onClick={() => window.open('https://www.monbocadillo.ma/telecharger-livreur.html', '_system')} className="w-full max-w-sm bg-yellow-500 text-black font-black uppercase py-4 rounded-xl shadow-lg active:scale-95 transition-all text-sm block mx-auto">
                     Télécharger la mise à jour
-                </a>
+                </button>
             </div>
         );
     }

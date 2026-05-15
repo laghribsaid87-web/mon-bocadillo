@@ -2,79 +2,54 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Télécharger l'App Livreur - Mon Bocadillo</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mise à jour Livreur - Mon Bocadillo</title>
+    
+    <!-- Tailwind CSS pour un design moderne -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f1f5f9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .card {
-            background: white;
-            padding: 40px 30px;
-            border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-            text-align: center;
-            max-width: 350px;
-            width: 90%;
-        }
-        .logo {
-            width: 90px;
-            height: 90px;
-            margin-bottom: 15px;
-            border-radius: 20px;
-            object-fit: contain;
-        }
-        h1 {
-            color: #1e293b;
-            font-size: 22px;
-            margin-bottom: 8px;
-            font-weight: 800;
-        }
-        p {
-            color: #64748b;
-            font-size: 14px;
-            margin-bottom: 30px;
-            line-height: 1.5;
-        }
-        .btn {
-            background-color: #ffbc0d;
-            color: #000000;
-            text-decoration: none;
-            padding: 14px 20px;
-            border-radius: 30px;
-            font-weight: 600;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            width: 100%;
-            box-sizing: border-box;
-            transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 0 4px 10px rgba(255, 188, 13, 0.3);
-        }
-        .btn:active {
-            transform: scale(0.95);
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800;900&display=swap');
+        body { font-family: 'Poppins', sans-serif; background-color: #111827; } /* Fond sombre comme l'app livreur */
     </style>
 </head>
-<body>
-    <div class="card">
-        <!-- L-logo dyalk, ila kan b smia khra f dossier public beddelha hna -->
-        <img src="/logo.png" alt="Mon Bocadillo" class="logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/1046/1046784.png'">
-        <h1>App Livreur</h1>
-        <p>Téléchargez la dernière version de l'application Mon Bocadillo (Android).</p>
-        <a href="/App-Livreur.apk" class="btn">
-            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-            Télécharger l'APK
+<body class="min-h-[100dvh] flex flex-col items-center justify-center p-6 text-center text-white">
+    
+    <div class="bg-gray-900 max-w-sm w-full rounded-[2rem] shadow-2xl p-8 border border-gray-800">
+        <!-- Icon -->
+        <div class="w-24 h-24 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(234,179,8,0.3)] animate-bounce">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+        </div>
+
+        <h1 class="text-2xl font-black uppercase tracking-widest mb-2 text-white">Application Livreur</h1>
+        <p class="text-sm font-bold text-gray-400 mb-8">Mise à jour requise (APK)</p>
+
+        <!-- Instructions -->
+        <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 mb-8 text-left shadow-inner">
+            <h3 class="font-black text-gray-300 text-sm mb-3 flex items-center gap-2 uppercase tracking-wide">
+                📱 Kifach t-installiha ?
+            </h3>
+            <ul class="text-xs text-gray-400 space-y-3 font-medium leading-relaxed">
+                <li class="flex gap-2"><span>1️⃣</span> Cliquez 3la l-bouton sfer l-te7t bach t-telechargi jdid.</li>
+                <li class="flex gap-2"><span>2️⃣</span> Mli ysali, 7el l-fichier <b>livreur.apk</b>.</li>
+                <li class="flex gap-2"><span>3️⃣</span> Ila tlbat mnk Google Chrome l-idne, cliqui 3la <b>Paramètres</b> w dir <b>"Autoriser"</b>.</li>
+                <li class="flex gap-2"><span>4️⃣</span> Cliqui 3la <b>Installer</b> ola <b>Mettre à jour</b>.</li>
+            </ul>
+        </div>
+
+        <!-- Bouton Magique (kayjbed dima l-fichier livreur.apk li f racine) -->
+        <a href="/livreur.apk" download="MonBocadillo_Livreur.apk" class="w-full block bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase py-4 rounded-xl shadow-lg transition-all active:scale-95 text-sm tracking-wider">
+            📥 Télécharger la mise à jour
         </a>
+
+        <p class="mt-6 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+            ⚠️ Réservé aux livreurs Mon Bocadillo
+        </p>
     </div>
+
 </body>
 </html>

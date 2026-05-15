@@ -227,6 +227,7 @@ export default function AdminConfig({
                       }} className="bg-black text-white px-6 py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-gray-800 active:scale-95 transition-all flex items-center gap-2"><Save size={18}/> Enregistrer</button>
                   </div>
               </div>
+              </div>
               
               <div className="px-8 pt-4 pb-6 border-b-2 border-gray-50 shrink-0 bg-white">
                   {/* Multi-App Selector (The Engine Hub) */}
@@ -789,6 +790,30 @@ export default function AdminConfig({
                                                  <span className="text-xs font-bold text-blue-700/80 mt-1 leading-relaxed">Le bot gère automatiquement les surcharges de la cuisine (Cloud Kitchen vers Zoubire) et redirige les livreurs intelligents (Mounqid) en cas de rush.</span>
                                              </div>
                                          </label>
+
+                                        <div className="flex flex-col gap-3 p-5 rounded-2xl border-2 border-orange-200 bg-orange-50/50 shadow-sm md:col-span-2">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-black text-orange-900 flex items-center gap-2"><Smartphone size={18} className="text-orange-500"/> Version APK Livreur (Mise à jour forcée)</span>
+                                                <span className="text-xs font-bold text-orange-700/80 mt-1 leading-relaxed">Mli katbeddel had r-reqm, ga3 l-livreurs li 3ndhom version 9dima ghat-bloqua 3ndhom l'application w ghay-telleb menhom y-téléchargew jdid.</span>
+                                            </div>
+                                            <div className="flex items-center gap-3 mt-2">
+                                                <input type="text" placeholder="Ex: 1.0.0" value={settings?.livreurAppVersion || '1.0.0'} onChange={(e) => saveSettings({...settings, livreurAppVersion: e.target.value})} className="flex-1 bg-white border border-orange-300 px-4 py-2.5 rounded-xl text-sm font-black text-gray-900 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none shadow-sm" />
+                                                    <button onClick={() => {
+                                                        const current = settings?.livreurAppVersion || '1.0.0';
+                                                        const parts = current.split('.');
+                                                        const last = parseInt(parts.pop()) || 0;
+                                                        parts.push(last + 1);
+                                                        const newVersion = parts.join('.');
+                                                        saveSettings({...settings, livreurAppVersion: newVersion});
+                                                        if(showNotify) showNotify(`Nouvelle version générée : ${newVersion} 🔄`, "info");
+                                                    }} className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-4 py-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 whitespace-nowrap" title="Incrémenter la version automatiquement">
+                                                        +1 Auto
+                                                    </button>
+                                                <button onClick={() => showNotify("Version APK modifiée ! Les livreurs devront mettre à jour. ✅", "success")} className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-black transition-all shadow-md active:scale-95">
+                                                    Valider
+                                                </button>
+                                            </div>
+                                        </div>
                                      </>
                                  )}
 
@@ -1011,7 +1036,6 @@ export default function AdminConfig({
               </div>
               </div>
            </div>
-        </div>
 
         {/* SMART PHONE / TABLET SIMULATOR */}
         {showSimulator && (
