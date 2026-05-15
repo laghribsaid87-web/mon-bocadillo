@@ -1459,61 +1459,63 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </AnimatePresence>
                 </div>
 
-                <div className="p-6 sm:p-8 bg-white/90 backdrop-blur-xl border-t border-gray-100/50 shadow-[0_-10px_40px_rgba(0,0,0,0.02)] shrink-0">
+                {/* CONTROLES DU BAS (Plus compact pour petits ecrans) */}
+                <div className="p-3 sm:p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100/50 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] shrink-0 z-20 overflow-y-auto max-h-[50dvh]">
                     {(!settings?.hidePosSurPlace || !settings?.hidePosAEmporter) && (
-                        <div className="flex gap-2 mb-6 p-1.5 bg-gray-100 rounded-2xl border border-gray-200">
+                        <div className="flex gap-2 mb-3 p-1 bg-gray-100 rounded-xl border border-gray-200">
                             {!settings?.hidePosSurPlace && (
-                                <button onClick={() => setOrderType('sur_place')} style={orderType === 'sur_place' ? {backgroundColor: brand?.btnPosSurPlaceColor || '#3b82f6', color: '#ffffff'} : {}} className={`flex-1 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${orderType === 'sur_place' ? 'shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>{brand?.texts?.posBtnSurPlace || '🍽️ Sur Place (Plateaux)'}</button>
+                                <button onClick={() => setOrderType('sur_place')} style={orderType === 'sur_place' ? {backgroundColor: brand?.btnPosSurPlaceColor || '#3b82f6', color: '#ffffff'} : {}} className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 ${orderType === 'sur_place' ? 'shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>{brand?.texts?.posBtnSurPlace || '🍽️ Sur Place'}</button>
                             )}
                             {!settings?.hidePosAEmporter && (
-                                <button onClick={() => setOrderType('a_emporter')} style={orderType === 'a_emporter' ? {backgroundColor: brand?.btnPosAEmporterColor || '#ec4899', color: '#ffffff'} : {}} className={`flex-1 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${orderType === 'a_emporter' ? 'shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>{brand?.texts?.posBtnAEmporter || '🛍️ À Emporter (Emballage)'}</button>
+                                <button onClick={() => setOrderType('a_emporter')} style={orderType === 'a_emporter' ? {backgroundColor: brand?.btnPosAEmporterColor || '#ec4899', color: '#ffffff'} : {}} className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 ${orderType === 'a_emporter' ? 'shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>{brand?.texts?.posBtnAEmporter || '🛍️ À Emporter'}</button>
                             )}
                         </div>
                     )}
 
-                    <div className="flex gap-2 mb-4 p-1.5 bg-gray-50 rounded-2xl border border-gray-200">
-                        <button onClick={() => setPrintCuisine(!printCuisine)} className={`flex-1 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${printCuisine ? 'bg-orange-100 text-orange-700 border border-orange-200 shadow-sm' : 'text-gray-400 hover:bg-gray-200'}`}>
-                            <ChefHat size={16}/> Cuisine {printCuisine ? 'ON' : 'OFF'}
-                        </button>
-                        <button onClick={() => setPrintAddition(!printAddition)} className={`flex-1 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${printAddition ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-sm' : 'text-gray-400 hover:bg-gray-200'}`}>
-                            <Printer size={16}/> Ticket {printAddition ? 'ON' : 'OFF'}
-                        </button>
+                    <div className="flex justify-between items-end mb-3">
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">{brand?.texts?.posTotal || 'Total à payer'}</span>
+                            <div className="flex gap-1.5">
+                                <button onClick={() => setPrintCuisine(!printCuisine)} className={`px-2 py-1.5 text-[9px] font-black uppercase rounded-md transition-all flex items-center gap-1 border ${printCuisine ? 'bg-orange-100 text-orange-700 border-orange-200 shadow-sm' : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`}>
+                                    <ChefHat size={12}/> Cuisine {printCuisine ? 'ON' : 'OFF'}
+                                </button>
+                                <button onClick={() => setPrintAddition(!printAddition)} className={`px-2 py-1.5 text-[9px] font-black uppercase rounded-md transition-all flex items-center gap-1 border ${printAddition ? 'bg-blue-100 text-blue-700 border-blue-200 shadow-sm' : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`}>
+                                    <Printer size={12}/> Ticket {printAddition ? 'ON' : 'OFF'}
+                                </button>
+                            </div>
+                        </div>
+                        <span className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tighter leading-none">{total} <span className="text-lg sm:text-xl tracking-normal" style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}>DH</span></span>
                     </div>
 
-                    <div className="flex justify-between items-end mb-6">
-                        <span className="text-gray-400 font-bold uppercase tracking-widest text-xs">{brand?.texts?.posTotal || 'Total à payer'}</span>
-                        <span className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tighter leading-none">{total} <span className="text-xl sm:text-2xl tracking-normal" style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}>DH</span></span>
-                    </div>
-
-                    <div className="flex gap-3 mb-6">
+                    <div className="flex gap-2 mb-3">
                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => {
                             if (cart.length === 0) return;
                             setHeldCarts(prev => [...prev, { id: Date.now(), time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), cart: [...cart], orderType, total }]);
                             setCart([]);
                             showNotify("Commande mise en attente 🕒", "info");
-                        }} disabled={cart.length === 0} className="w-16 h-16 bg-orange-50 text-orange-500 border border-orange-100 rounded-2xl font-black disabled:opacity-50 flex flex-col items-center justify-center gap-1 shadow-sm hover:bg-orange-100">
+                        }} disabled={cart.length === 0} className="w-14 h-14 bg-orange-50 text-orange-500 border border-orange-100 rounded-xl font-black disabled:opacity-50 flex flex-col items-center justify-center gap-1 shadow-sm hover:bg-orange-100 shrink-0">
                             <Clock size={20}/>
                         </motion.button>
-                        <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={handleEncaissement} disabled={cart.length === 0} className="flex-1 rounded-2xl font-black text-xl text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-3 shadow-[0_15px_40px_rgba(0,0,0,0.15)] transition-colors hover:opacity-90" style={{ backgroundColor: brand?.posColor || brand?.color || '#000' }}>
+                        <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={handleEncaissement} disabled={cart.length === 0} className="flex-1 rounded-xl font-black text-lg text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(0,0,0,0.15)] transition-colors hover:opacity-90" style={{ backgroundColor: brand?.posColor || brand?.color || '#000' }}>
                             <Banknote size={24}/> {brand?.texts?.posBtnPay || 'ENCAISSER'}
                         </motion.button>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className="flex gap-2">
                         {!settings?.hidePosTiroir && (!hasAccess || hasAccess('pos_drawer')) && (
-                            <button onClick={openDrawer} className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><Unlock size={18} className="text-green-500"/><span>Tiroir</span></button>
+                            <button onClick={openDrawer} className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><Unlock size={16} className="text-green-500"/><span>Tiroir</span></button>
                         )}
                         {!settings?.hidePosHistory && (!hasAccess || hasAccess('pos_history')) && (
-                            <button onClick={() => setShowHistoryModal(true)} className="flex-1 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><History size={18}/><span>Historique</span></button>
+                            <button onClick={() => setShowHistoryModal(true)} className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><History size={16}/><span>Historique</span></button>
                         )}
                         {!settings?.hidePosReports && (!hasAccess || hasAccess('pos_reports')) && (
-                            <button onClick={() => setShowXZModal(true)} className="flex-1 py-3 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-700 rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors"><ClipboardList size={18}/><span>Rapports</span></button>
+                            <button onClick={() => setShowXZModal(true)} className="flex-1 py-2 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><ClipboardList size={16}/><span>Rapports</span></button>
                         )}
                     </div>
                     {!settings?.hidePosBluetooth && (
-                        <div className="flex gap-3 mt-3">
-                            <button onClick={handleBluetoothConnect} disabled={isBtConnecting} className={`flex-1 py-3 border rounded-xl flex flex-col items-center justify-center gap-1.5 font-bold text-[10px] transition-colors ${btCharacteristic ? 'bg-green-50 hover:bg-green-100 border-green-200 text-green-700' : (isBtConnecting ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700')}`}>
-                                <Bluetooth size={18} className={`${btCharacteristic ? "text-green-500" : "text-blue-500"} ${isBtConnecting ? "animate-pulse" : ""}`}/>
+                        <div className="flex gap-2 mt-2">
+                            <button onClick={handleBluetoothConnect} disabled={isBtConnecting} className={`flex-1 py-2 border rounded-lg flex items-center justify-center gap-1.5 font-bold text-[9px] transition-colors ${btCharacteristic ? 'bg-green-50 hover:bg-green-100 border-green-200 text-green-700' : (isBtConnecting ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700')}`}>
+                                <Bluetooth size={14} className={`${btCharacteristic ? "text-green-500" : "text-blue-500"} ${isBtConnecting ? "animate-pulse" : ""}`}/>
                                 <span>{isBtConnecting ? "Connexion en cours..." : (btCharacteristic ? "Imprimante BT Connectée" : "Connecter Imprimante BT")}</span>
                             </button>
                         </div>
