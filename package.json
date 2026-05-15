@@ -3,7 +3,7 @@
   "description": "Caisse Mon Bocadillo Management Application",
   "author": "Mon Bocadillo",
   "private": true,
-  "version": "1.0.16",
+  "version": "1.0.17",
   "type": "module",
   "main": "public/electron.cjs",
   "scripts": {
@@ -20,7 +20,7 @@
     "publish:win": "npm run build && electron-builder --win --x64 -p always && electron-builder --win --ia32 -p always",
     "deploy:update": "npm version patch --force && npm run publish:win",
     "deploy:apk-sync": "npm run build:apk-driver && npx cap sync android",
-    "deploy:all": "npm version patch --force && npm run deploy:apk-sync && npm run build && firebase deploy && npm run publish:win && git add . && git commit -m \"Mise a jour globale (Web, EXE, Sync Android)\" && git push",
+    "deploy:all": "npm version patch --force && npm run deploy:apk-sync && npm run build && firebase deploy && git add . && git commit -m \"Mise a jour globale (Web, APK, EXE via Github)\" && git push",
     "lint": "eslint .",
     "preview": "vite preview"
   },
