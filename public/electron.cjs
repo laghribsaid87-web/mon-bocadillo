@@ -1,4 +1,3 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');

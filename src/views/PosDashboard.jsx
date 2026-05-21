@@ -1247,6 +1247,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             printTicketsPos(orderToPrint, brand, isPaid); 
 
             setCart([]); // Nkhwiw l-panier l-client jdid
+            setOrderType('sur_place'); // Reset l-type par défaut "Sur Place"
         } catch (error) {
             showNotify("W9e3 mochkil f tsjal dyal l-commande", "error");
         }
@@ -1602,9 +1603,17 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 <div className="p-4 sm:p-6 md:p-8 flex justify-between items-center border-b border-gray-100/50 sticky top-0 z-10 bg-white/50 backdrop-blur-md">
                     <div className="font-black text-xl sm:text-2xl flex items-center gap-3 text-gray-900 tracking-tight">
                         <ShoppingBag size={28} style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}/> 
-                        {brand?.texts?.posTabOrder || 'Commande'}
+                        <span className="hidden xl:inline">{brand?.texts?.posTabOrder || 'Commande'}</span>
                     </div>
                     <div className="flex items-center gap-2">
+                        {(!settings?.hidePosSurPlace || !settings?.hidePosAEmporter) && (
+                            <button
+                                onClick={() => setOrderType(prev => prev === 'sur_place' ? 'a_emporter' : 'sur_place')}
+                                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 ${orderType === 'a_emporter' ? 'bg-pink-500 text-white border-pink-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                            >
+                                {orderType === 'a_emporter' ? '🛍️ À EMPORTER' : '🍽️ SUR PLACE'}
+                            </button>
+                        )}
                         {/* Bouton fermer sur Mobile */}
                         <button onClick={() => setIsMobileCartOpen(false)} className="md:hidden p-2.5 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors mr-1">
                             <X size={20}/>
@@ -1658,17 +1667,6 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
                 {/* CONTROLES DU BAS (Plus compact pour petits ecrans) */}
                 <div className="p-3 sm:p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100/50 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] shrink-0 z-20 overflow-y-auto max-h-[50dvh]">
-                    {(!settings?.hidePosSurPlace || !settings?.hidePosAEmporter) && (
-                        <div className="flex gap-2 mb-3 p-1 bg-gray-100 rounded-xl border border-gray-200">
-                            {!settings?.hidePosSurPlace && (
-                                <button onClick={() => setOrderType('sur_place')} style={orderType === 'sur_place' ? {backgroundColor: brand?.btnPosSurPlaceColor || '#3b82f6', color: '#ffffff'} : {}} className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 ${orderType === 'sur_place' ? 'shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>{brand?.texts?.posBtnSurPlace || '🍽️ Sur Place'}</button>
-                            )}
-                            {!settings?.hidePosAEmporter && (
-                                <button onClick={() => setOrderType('a_emporter')} style={orderType === 'a_emporter' ? {backgroundColor: brand?.btnPosAEmporterColor || '#ec4899', color: '#ffffff'} : {}} className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 ${orderType === 'a_emporter' ? 'shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}>{brand?.texts?.posBtnAEmporter || '🛍️ À Emporter'}</button>
-                            )}
-                        </div>
-                    )}
-
                     <div className="flex justify-between items-end mb-3">
                         <span className="text-gray-400 font-bold uppercase tracking-widest text-xs">{brand?.texts?.posTotal || 'Total à payer'}</span>
                         <span className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tighter leading-none">{total} <span className="text-lg sm:text-xl tracking-normal" style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}>DH</span></span>
@@ -1685,12 +1683,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             <Clock size={20}/>
                         </motion.button>
                         
-                        <div className="flex-1 flex gap-2">
-                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(false)} disabled={cart.length === 0} className="flex-1 rounded-xl font-black text-sm md:text-base text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(0,0,0,0.15)] transition-colors hover:opacity-90 bg-red-500">
-                                NON PAYÉ
+                        <div className="flex-1 flex gap-3">
+                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(true)} disabled={cart.length === 0} className="flex-1 rounded-xl font-black text-lg md:text-xl text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-lg transition-colors hover:opacity-90 bg-green-500 py-4">
+                                <Banknote size={24}/> PAYER
                             </motion.button>
-                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(true)} disabled={cart.length === 0} className="flex-1 rounded-xl font-black text-sm md:text-base text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(0,0,0,0.15)] transition-colors hover:opacity-90" style={{ backgroundColor: brand?.posColor || brand?.color || '#000' }}>
-                                <Banknote size={20}/> PAYER
+                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(false)} disabled={cart.length === 0} className="flex-[0.8] rounded-xl font-black text-lg md:text-xl text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-lg transition-colors hover:opacity-90 bg-orange-500 py-4">
+                                NON PAYÉ
                             </motion.button>
                         </div>
                     </div>

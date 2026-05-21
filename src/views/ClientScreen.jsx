@@ -50,11 +50,38 @@ export default function ClientScreen({ brand, db, appId }) {
     const preparing = posOrders.filter(o => o.status === 'preparing' || o.status === 'pending');
     const ready = posOrders.filter(o => o.status === 'ready');
 
+    // 🔥 Filtrer automatiquement les commandes prêtes après 2 minutes
+    const [hiddenReadyOrders, setHiddenReadyOrders] = useState(new Set());
+    const readyTimersRef = useRef({});
+
+    const displayReady = ready.filter(o => !hiddenReadyOrders.has(o.id));
+
+    useEffect(() => {
+        const currentReadyIds = new Set(ready.map(o => o.id));
+        
+        // Nettoyer les chronos pour les commandes qui ne sont plus 'ready'
+        Object.keys(readyTimersRef.current).forEach(id => {
+            if (!currentReadyIds.has(id)) {
+                clearTimeout(readyTimersRef.current[id]);
+                delete readyTimersRef.current[id];
+            }
+        });
+
+        // Démarrer un chrono pour chaque nouvelle commande prête
+        ready.forEach(o => {
+            if (!readyTimersRef.current[o.id] && !hiddenReadyOrders.has(o.id)) {
+                readyTimersRef.current[o.id] = setTimeout(() => {
+                    setHiddenReadyOrders(prev => new Set(prev).add(o.id));
+                }, 120000); // 2 minutes (120 000 ms)
+            }
+        });
+    }, [ready, hiddenReadyOrders]);
+
     const [lastReadyId, setLastReadyId] = useState(null);
     const prevReadyRef = useRef(new Set());
 
     useEffect(() => {
-        const currentReady = new Set(ready.map(o => o.id));
+        const currentReady = new Set(displayReady.map(o => o.id));
         const prevReady = prevReadyRef.current;
         
         let hasNew = false;
@@ -70,7 +97,7 @@ export default function ClientScreen({ brand, db, appId }) {
         if (hasNew) {
             setLastReadyId(newestId);
             
-            const newOrder = ready.find(o => o.id === newestId);
+            const newOrder = displayReady.find(o => o.id === newestId);
             const orderNum = newOrder ? (newOrder.orderNumber || newOrder.id.slice(-4).toUpperCase()) : '';
 
             try {
@@ -95,7 +122,7 @@ export default function ClientScreen({ brand, db, appId }) {
         }
 
         prevReadyRef.current = currentReady;
-    }, [ready]);
+    }, [displayReady]);
 
     return (
         <div className="h-[100dvh] w-full bg-[#111827] overflow-hidden relative">
@@ -128,8 +155,8 @@ export default function ClientScreen({ brand, db, appId }) {
                                 <h3 className="text-3xl md:text-5xl font-black uppercase tracking-widest text-white flex items-center justify-center gap-3 md:gap-4"><CheckCircle className="w-8 h-8 md:w-12 md:h-12" /> Prêtes</h3>
                             </div>
                             <div className="flex-1 p-6 md:p-8 grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 content-start overflow-y-auto no-scrollbar">
-                                {ready.map(o => <div key={o.id} className={`rounded-[2rem] py-6 md:py-8 text-center shadow-2xl border-b-8 transition-all duration-300 ${lastReadyId === o.id ? 'bg-green-100 border-green-500 text-green-700 animate-pulse scale-105' : 'bg-green-500 border-green-700 text-white'}`}><span className="text-4xl md:text-6xl font-black tracking-tighter">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span></div>)}
-                                {ready.length === 0 && <div className="col-span-full text-center py-16 md:py-20 text-green-800 font-bold text-xl md:text-2xl">Aucune commande prête</div>}
+                                {displayReady.map(o => <div key={o.id} className={`rounded-[2rem] py-6 md:py-8 text-center shadow-2xl border-b-8 transition-all duration-300 ${lastReadyId === o.id ? 'bg-green-100 border-green-500 text-green-700 animate-pulse scale-105' : 'bg-green-500 border-green-700 text-white'}`}><span className="text-4xl md:text-6xl font-black tracking-tighter">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span></div>)}
+                                {displayReady.length === 0 && <div className="col-span-full text-center py-16 md:py-20 text-green-800 font-bold text-xl md:text-2xl">Aucune commande prête</div>}
                             </div>
                         </div>
                     </div>
