@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageCircle, AlertTriangle, X, Share, PlusSquare, BellRing, Phone, User, Navigation } from 'lucide-react';
+import { MessageCircle, AlertTriangle, X, Share, PlusSquare, BellRing, Phone, User, Navigation, CheckCircle } from 'lucide-react';
 import { doc, getDoc, updateDoc, increment, setDoc, serverTimestamp } from 'firebase/firestore';
 import { formatPhoneNumber, getWhatsAppFormat, getClosestBranch, buildMessage } from '../utils/helpers';
 import { DEFAULT_BRANCHES, DEFAULT_BRAND } from '../config/constants';
@@ -40,6 +40,18 @@ export default function AuthView({ onComplete, brand, settings, showNotify, db }
             setShowIosPrompt(true);
         }
     }, []);
+
+    useEffect(() => {
+        if (brand?.logoUrl) {
+            let link = document.querySelector("link[rel~='apple-touch-icon']");
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'apple-touch-icon';
+                document.head.appendChild(link);
+            }
+            link.href = brand.logoUrl;
+        }
+    }, [brand?.logoUrl]);
 
     useEffect(() => {
         if (window.deferredPWAInstall) {
@@ -165,10 +177,11 @@ const proceedToGps = async (finalName, finalPhone) => {
                   <h3 className="font-black text-lg text-gray-900 tracking-tight">Installer l'App 🍎</h3>
                   <button onClick={dismissIosPrompt} className="p-2 bg-gray-100/80 rounded-full text-gray-500 hover:bg-gray-200 active:scale-95 transition-all"><X size={16}/></button>
               </div>
-              <p className="text-sm font-medium text-gray-600 mb-5 text-left">Ajoutez l'application à votre écran d'accueil pour un accès ultra-rapide :</p>
+              <p className="text-sm font-medium text-gray-600 mb-5 text-left">Ajoutez l'application à votre écran d'accueil pour un accès ultra-rapide avec notre logo 🌟 :</p>
               <ol className="text-left text-sm font-bold text-gray-800 space-y-4">
                   <li className="flex items-center gap-4"><span className="bg-white p-2.5 rounded-xl shadow-sm border border-gray-100"><Share size={20} className="text-blue-500"/></span> 1. Touchez l'icône Partager en bas.</li>
                   <li className="flex items-center gap-4"><span className="bg-white p-2.5 rounded-xl shadow-sm border border-gray-100"><PlusSquare size={20} className="text-gray-500"/></span> 2. Choisissez "Sur l'écran d'accueil".</li>
+                  <li className="flex items-center gap-4 text-green-600"><span className="bg-white p-2.5 rounded-xl shadow-sm border border-gray-100"><CheckCircle size={20} className="text-green-500"/></span> 3. Cliquez sur "Ajouter" en haut à droite.</li>
               </ol>
           </div>
         )}
@@ -263,7 +276,16 @@ const proceedToGps = async (finalName, finalPhone) => {
                   <div className="animate-in slide-in-from-bottom-4 duration-500 fade-in text-left">
                       <div className="mb-6">
                           <h2 className="text-2xl font-black tracking-tight mb-2">Où êtes-vous ?</h2>
-                          <p className="text-sm font-medium text-gray-500">Le GPS est bloqué, veuillez choisir votre agence la plus proche manuellement.</p>
+                          <p className="text-sm font-medium text-gray-500 mb-3">Le GPS est bloqué, veuillez choisir votre agence la plus proche manuellement.</p>
+                          {/iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase()) ? (
+                              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold mb-4">
+                                  🍎 <strong>Sur iPhone :</strong> Allez dans <strong>Réglages ➔ Safari ➔ Position ➔ "Autoriser"</strong>. Puis rechargez la page.
+                              </div>
+                          ) : (
+                              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold mb-4">
+                                  🔒 <strong>Sur Android :</strong> Cliquez sur le cadenas 🔒 en haut (barre d'adresse) ➔ <strong>Autorisations ➔ Autoriser "Position"</strong>. Puis rechargez la page.
+                              </div>
+                          )}
                       </div>
                       <div className="relative group mb-6">
                           <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">

@@ -4,25 +4,45 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 export default function ClientScreen({ brand, db, appId }) {
     const [orders, setOrders] = useState([]);
+    const [selectedBranchId, setSelectedBranchId] = useState('');
 
     useEffect(() => {
-        // Zoom global de l'interface (Ajusté pour être un peu plus grand)
         document.documentElement.style.fontSize = '13px';
+        
+        // Récupérer la branche depuis l'URL
+        const params = new URLSearchParams(window.location.search);
+        const urlBranch = params.get('branch');
+        const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
+        const hashBranch = hashParams?.get('branch');
+        const branchFromUrl = urlBranch || hashBranch;
+        
+        if (branchFromUrl && branchFromUrl !== 'ALL') {
+            setSelectedBranchId(branchFromUrl);
+        }
     }, []);
 
     // 🔥 Njibou l-commandes directement mn Firestore bla man-tsenaw l-Auth dyal l-klyan
     useEffect(() => {
         if (!db || !appId) return;
+        
+        let constraints = [
+            where('status', 'in', ['pending', 'preparing', 'ready'])
+        ];
+        
+        if (selectedBranchId) {
+            constraints.push(where('nearestBranch.id', '==', selectedBranchId));
+        }
+
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'orders'),
-            where('status', 'in', ['pending', 'preparing', 'ready'])
+            ...constraints
         );
         const unsub = onSnapshot(q, (snap) => {
             const ords = snap.docs.map(d => ({id: d.id, ...d.data()}));
             setOrders(ords);
         });
         return () => unsub();
-    }, [db, appId]);
+    }, [db, appId, selectedBranchId]);
 
     // On ne prend que les commandes Caisse (POS) ou À emporter/Sur place
     const posOrders = (orders || []).filter(o => o.source === 'pos' || o.orderType === 'sur_place' || o.orderType === 'a_emporter');

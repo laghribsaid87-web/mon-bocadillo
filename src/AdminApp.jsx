@@ -281,7 +281,7 @@ function AdminAppInner() {
       <>
         {notify && <div className={`fixed top-4 right-4 p-4 rounded-xl z-50 text-white shadow-lg ${notify.type === 'error' ? 'bg-red-500' : 'bg-gray-800'}`}>{notify.msg}</div>}
         <Suspense fallback={<div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white"><div className="w-12 h-12 border-4 border-neutral-800 border-t-orange-500 rounded-full animate-spin"></div></div>}>
-            <KitchenDashboard activeOrders={orders} updateStatus={updateStatus} printTicket={printTicket} brand={brand} settings={settings} />
+            <KitchenDashboard activeOrders={orders} updateStatus={updateStatus} printTicket={printTicket} brand={brand} settings={settings} profile={profile} />
         </Suspense>
       </>
     );
@@ -324,7 +324,7 @@ function AdminAppInner() {
       {/* 🔥 Boutons flottants pour ouvrir KDS et TV depuis l'Idara */}
       <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3">
           <button onClick={() => {
-              const route = '/tv';
+              const route = profile?.managerBranchId && profile.managerBranchId !== 'ALL' ? `/tv?branch=${profile.managerBranchId}` : '/tv';
               window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank', 'width=1024,height=768');
           }} className="bg-neutral-900 text-white p-4 md:px-6 md:py-4 rounded-full md:rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.4)] flex items-center justify-center gap-3 transition-all hover:scale-105 active:scale-95 border-2 border-neutral-700 group hover:bg-black">
               <Monitor size={28} className="text-blue-400 group-hover:scale-110 transition-transform" /> 
@@ -332,7 +332,7 @@ function AdminAppInner() {
           </button>
 
           <button onClick={() => {
-              const route = '/kds';
+              const route = profile?.managerBranchId && profile.managerBranchId !== 'ALL' ? `/kds?branch=${profile.managerBranchId}` : '/kds';
               window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank', 'width=1024,height=768');
           }} className="bg-neutral-900 text-white p-4 md:px-6 md:py-4 rounded-full md:rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.4)] flex items-center justify-center gap-3 transition-all hover:scale-105 active:scale-95 border-2 border-neutral-700 group hover:bg-black">
               <ChefHat size={28} className="text-orange-500 group-hover:rotate-12 transition-transform" /> 

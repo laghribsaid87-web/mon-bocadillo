@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingBag, User, Plus, ChevronRight, Lock, MapPin, Navigation, MessageCircle, Star, X, Home, Clock, Check, Phone, Utensils, Trash2, FileText, ClipboardList, BellRing } from 'lucide-react';
+import { ShoppingBag, User, Plus, ChevronRight, Lock, MapPin, Navigation, MessageCircle, Star, X, Home, Clock, Check, Phone, Utensils, Trash2, FileText, ClipboardList, BellRing, Share, PlusSquare, CheckCircle } from 'lucide-react';
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, updateDoc, increment, onSnapshot } from 'firebase/firestore';
 import { getMessaging, onMessage, getToken } from 'firebase/messaging';
+import { getDatabase, ref as rtdbRef, onValue } from 'firebase/database';
 import { getClosestBranch, getDeliveryFee, getWhatsAppFormat, generateOrderNumber, buildMessage, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
 import ClientTrackingMap from '../components/ClientTrackingMap';
 import StatusBadge from '../components/StatusBadge';
@@ -79,6 +80,41 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
     const [editPhoneMode, setEditPhoneMode] = useState(false);
     const [newPhone, setNewPhone] = useState('');
     const [trackDrivers, setTrackDrivers] = useState([]); // 🔥 Jdid: Suivi dyal livreur direct l-client
+    const [deviceType, setDeviceType] = useState('desktop');
+    const [showIosPrompt, setShowIosPrompt] = useState(false);
+
+    useEffect(() => {
+        const ua = navigator.userAgent.toLowerCase();
+        let dt = 'desktop';
+        if (/iphone|ipad|ipod/.test(ua)) dt = 'ios';
+        else if (/android/.test(ua)) dt = 'android';
+        setDeviceType(dt);
+
+        const checkStandalone = () => window.matchMedia('(display-mode: standalone)').matches || 
+                                      window.matchMedia('(display-mode: fullscreen)').matches ||
+                                      window.matchMedia('(display-mode: minimal-ui)').matches ||
+                                      window.navigator.standalone || 
+                                      document.referrer.includes('android-app://');
+
+        if (user?.uid && info?.phone) {
+            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', info.phone), {
+                isAppInstalled: checkStandalone(),
+                deviceType: dt
+            }, { merge: true }).catch(() => {});
+        }
+    }, [user?.uid, info?.phone, db, appId]);
+
+    useEffect(() => {
+        if (brand?.logoUrl) {
+            let link = document.querySelector("link[rel~='apple-touch-icon']");
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'apple-touch-icon';
+                document.head.appendChild(link);
+            }
+            link.href = brand.logoUrl;
+        }
+    }, [brand?.logoUrl]);
     
     const activeBranches = settings.branches || DEFAULT_BRANCHES;
     const txtMenu = brand.texts?.navMenu || 'VOIR MENU'; 
@@ -210,6 +246,16 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
 
+    useEffect(() => {
+        const isIos = () => /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+        const isStandalone = () => ('standalone' in window.navigator) && window.navigator.standalone;
+        const hasDismissed = localStorage.getItem('iosInstallDismissedClient');
+
+        if (isIos() && !isStandalone() && !hasDismissed) {
+            setShowIosPrompt(true);
+        }
+    }, []);
+
     const handleInstallApp = async () => {
         if (!deferredPrompt) return;
         localStorage.setItem('pwa_mode', 'client');
@@ -298,18 +344,41 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
             return;
         }
         
-        const unsubs = activeDriverIds.map(dId => {
+        const rtdb = getDatabase();
+
+        const unsubsFirestore = activeDriverIds.map(dId => {
             return onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', dId), (docSnap) => {
                 if (docSnap.exists()) {
                     setTrackDrivers(prev => {
                         const newDrivers = prev.filter(d => d.uid !== dId);
-                        newDrivers.push({ uid: docSnap.id, ...docSnap.data() });
+                        const existing = prev.find(d => d.uid === dId);
+                        const lat = existing?.lat || docSnap.data().lat;
+                        const lng = existing?.lng || docSnap.data().lng;
+                        newDrivers.push({ uid: docSnap.id, ...docSnap.data(), lat, lng });
                         return newDrivers;
                     });
                 }
             });
         });
-        return () => unsubs.forEach(unsub => unsub());
+
+        const unsubsRTDB = activeDriverIds.map(dId => {
+            return onValue(rtdbRef(rtdb, `tracking/${appId}/drivers/${dId}`), (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    setTrackDrivers(prev => {
+                        const newDrivers = prev.filter(d => d.uid !== dId);
+                        const existing = prev.find(d => d.uid === dId) || { uid: dId };
+                        newDrivers.push({ ...existing, lat: data.lat, lng: data.lng });
+                        return newDrivers;
+                    });
+                }
+            });
+        });
+
+        return () => {
+            unsubsFirestore.forEach(unsub => unsub());
+            unsubsRTDB.forEach(unsub => unsub());
+        };
     }, [clientOrders, db, appId]);
 
     // 🔥 OPTIMISATION: Cacher les calculs du panier
@@ -399,7 +468,12 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
         setCart([]); setV('tracking'); setTrackTab('active'); setPromoApplied(null); setUsePoints(false); setPromoCodeInput(''); setOrderNote('');
     };
 
-    const activeMenu = useMemo(() => settings.menuItems || defaultMenu, [settings.menuItems, defaultMenu]); 
+    const activeMenu = useMemo(() => {
+        const baseMenu = settings.menuItems || defaultMenu || [];
+        const currentBranchId = info.nearestBranch?.id;
+        if (!currentBranchId) return baseMenu;
+        return baseMenu.filter(item => !(item.disabledInBranches || []).includes(currentBranchId));
+    }, [settings.menuItems, defaultMenu, info.nearestBranch?.id]); 
     const categories = useMemo(() => ['All', ...new Set(activeMenu.map(i => i.category))], [activeMenu]); 
     const upsellItems = useMemo(() => {
         if (!settings?.upsellEnabled || !settings?.upsellCategory) return [];
@@ -438,6 +512,21 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
     return (
       <div className="min-h-[100dvh] pb-32 text-left relative w-full overflow-x-hidden" style={{color: brand.textColor, backgroundColor: brand.bgColor}}>
         {brand.promoMsg && <div className="text-[10px] font-black uppercase tracking-widest py-2 px-4 overflow-hidden relative flex items-center h-8" style={{backgroundColor: brand.color, color: '#000'}}><div className={`whitespace-nowrap absolute ${anims.promoMarquee ? 'animate-scroll-left' : 'animate-pulse text-center w-full'}`}>{brand.promoMsg}</div></div>}
+        
+        {showIosPrompt && (
+          <div className="fixed bottom-20 left-4 right-4 bg-white/95 backdrop-blur-xl p-5 rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] z-[200] animate-in slide-in-from-bottom-10 border border-gray-100">
+              <div className="flex justify-between items-start mb-3">
+                  <h3 className="font-black text-sm text-gray-900 tracking-tight">Installer l'App 🍎</h3>
+                  <button onClick={() => { setShowIosPrompt(false); localStorage.setItem('iosInstallDismissedClient', 'true'); }} className="p-1.5 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 active:scale-95 transition-all"><X size={14}/></button>
+              </div>
+              <p className="text-xs font-medium text-gray-600 mb-3 text-left">Ajoutez l'application à votre écran d'accueil avec notre logo officiel 🌟 :</p>
+              <ol className="text-left text-xs font-bold text-gray-800 space-y-3">
+                  <li className="flex items-center gap-3"><span className="bg-gray-50 p-2 rounded-lg shadow-sm border border-gray-100"><Share size={16} className="text-blue-500"/></span> 1. Touchez l'icône Partager en bas.</li>
+                  <li className="flex items-center gap-3"><span className="bg-gray-50 p-2 rounded-lg shadow-sm border border-gray-100"><PlusSquare size={16} className="text-gray-500"/></span> 2. Choisissez "Sur l'écran d'accueil".</li>
+                  <li className="flex items-center gap-3 text-green-600"><span className="bg-gray-50 p-2 rounded-lg shadow-sm border border-gray-100"><CheckCircle size={16} className="text-green-500"/></span> 3. Cliquez sur "Ajouter".</li>
+              </ol>
+          </div>
+        )}
         <header className="px-4 py-2 flex justify-between items-center sticky top-0 z-[50] shadow-sm border-b-2 md:mt-0" style={{borderBottomColor: brand.color, backgroundColor: brand.headerColor}}>
           <div className="leading-none flex flex-col justify-center">
             {brand.logoUrl ? <img src={brand.logoUrl} alt="Logo" className={`h-8 object-contain mb-1 ${anims.boutiqueFloat ? 'animate-float-text inline-block' : ''}`} loading="lazy" /> : <h1 className={`text-2xl font-black italic ${anims.boutiqueFloat ? 'animate-float-text inline-block' : ''}`} dangerouslySetInnerHTML={{__html: brand.displayName || brand.name}}></h1>}
@@ -538,7 +627,21 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                        <textarea className={`w-full bg-gray-50 border border-gray-200 p-3 ${btnRadius} font-medium text-sm outline-none focus:border-black resize-none min-h-[80px]`} placeholder="Ex: Sans oignon, sauce à part, bien cuit..." value={orderNote} onChange={e => setOrderNote(e.target.value)} />
                    </div>
                )}
-               <div className={`bg-white p-5 ${btnRadius} shadow-sm border border-black/5 text-left relative overflow-hidden`}><div className={`absolute top-0 right-0 bg-blue-100 text-blue-800 text-[9px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-blue-200`}>POINT: {info.nearestBranch?.name}</div><h3 className="font-black text-[11px] uppercase tracking-widest mb-3 border-b border-gray-50 pb-2 opacity-50">Infos Livraison</h3><div className="space-y-3"><div className={`w-full border-2 p-4 rounded-2xl flex flex-col gap-3 shadow-sm transition-all ${info.lat || info.nearestBranch ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}><div className="flex items-center justify-between"><div className="text-left flex-1"><p className="font-black text-gray-800 text-sm flex items-center gap-1"><Navigation size={14}/> Localisation Exacte <span className="text-red-500">*</span></p><p className={`text-[10px] font-bold mt-1 ${info.lat ? 'text-green-700' : info.nearestBranch ? 'text-blue-600' : 'text-red-500'}`}>{info.lat ? `✅ GPS: ${Number(info.lat).toFixed(5)}, ${Number(info.lng).toFixed(5)}` : info.nearestBranch ? `✅ Manuel: ${info.nearestBranch?.name}` : "❌ Darouri t7ded blastek"}</p></div><button onClick={handleGps} disabled={isG} className={`p-3 rounded-xl font-black text-xs transition-all flex items-center gap-2 ${info.lat ? 'bg-green-200 text-green-800' : 'bg-black text-white active:scale-95 shadow-md'}`}>{isG ? 'Kantsnaw...' : info.lat ? 'Mbedel' : '📍 7ded GPS'}</button></div>{info.gpsFailed && (<div className="mt-2 p-3 bg-red-100/50 rounded-xl border border-red-200 animate-in slide-in-from-top-2"><select className="w-full bg-white border border-gray-300 p-2.5 rounded-lg outline-none font-bold text-sm text-gray-700 mb-2" value={info.nearestBranch?.id || ''} onChange={(e) => { const branch = activeBranches.find(b => b.id === e.target.value); setInfo(prev => ({ ...prev, nearestBranch: branch, lat: null, lng: null })); }}><option value="" disabled>1. Khtar a9rab ma7al...</option>{activeBranches.map(b => <option key={b.id} value={b.id} disabled={b.isOpen === false}>{b.name} {b.isOpen === false ? '🚫' : ''}</option>)}</select><input type="url" placeholder="2. Coller Lien Google Maps" className="w-full bg-white border border-gray-300 p-2.5 rounded-lg outline-none focus:border-[#ffbc0d] text-xs font-bold text-gray-700" value={info.mapsLink || ''} onChange={(e) => setInfo(prev => ({ ...prev, mapsLink: e.target.value }))} /></div>)}</div></div>{(!info.lat && !info.nearestBranch) && (<button onClick={() => setV('profile')} className={`mt-4 w-full bg-white text-gray-800 py-3 ${btnRadius} font-black text-xs uppercase active:scale-95 transition-all shadow-sm border border-gray-200`}>👉 9ad l'GPS hna</button>)}</div>
+               <div className={`bg-white p-5 ${btnRadius} shadow-sm border border-black/5 text-left relative overflow-hidden`}><div className={`absolute top-0 right-0 bg-blue-100 text-blue-800 text-[9px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-blue-200`}>POINT: {info.nearestBranch?.name}</div><h3 className="font-black text-[11px] uppercase tracking-widest mb-3 border-b border-gray-50 pb-2 opacity-50">Infos Livraison</h3><div className="space-y-3"><div className={`w-full border-2 p-4 rounded-2xl flex flex-col gap-3 shadow-sm transition-all ${info.lat || info.nearestBranch ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}><div className="flex items-center justify-between"><div className="text-left flex-1"><p className="font-black text-gray-800 text-sm flex items-center gap-1"><Navigation size={14}/> Localisation Exacte <span className="text-red-500">*</span></p><p className={`text-[10px] font-bold mt-1 ${info.lat ? 'text-green-700' : info.nearestBranch ? 'text-blue-600' : 'text-red-500'}`}>{info.lat ? `✅ GPS: ${Number(info.lat).toFixed(5)}, ${Number(info.lng).toFixed(5)}` : info.nearestBranch ? `✅ Manuel: ${info.nearestBranch?.name}` : "❌ Darouri t7ded blastek"}</p></div><button onClick={handleGps} disabled={isG} className={`p-3 rounded-xl font-black text-xs transition-all flex items-center gap-2 ${info.lat ? 'bg-green-200 text-green-800' : 'bg-black text-white active:scale-95 shadow-md'}`}>{isG ? 'Kantsnaw...' : info.lat ? 'Mbedel' : '📍 7ded GPS'}</button></div>{info.gpsFailed && (
+    <div className="mt-2 p-3 bg-red-100/50 rounded-xl border border-red-200 animate-in slide-in-from-top-2">
+        {deviceType === 'ios' ? (
+            <div className="mb-3 text-xs text-red-700 font-bold bg-white p-2 rounded-lg border border-red-200">
+                🍎 <strong>Sur iPhone :</strong> Allez dans <strong>Réglages ➔ Safari ➔ Position ➔ "Autoriser"</strong>. Puis réessayez.
+            </div>
+        ) : (
+            <div className="mb-3 text-xs text-red-700 font-bold bg-white p-2 rounded-lg border border-red-200">
+                🔒 <strong>Sur Android :</strong> Cliquez sur le cadenas 🔒 en haut (barre d'adresse) ➔ <strong>Autorisations ➔ Autoriser "Position"</strong>. Puis réessayez.
+            </div>
+        )}
+        <select className="w-full bg-white border border-gray-300 p-2.5 rounded-lg outline-none font-bold text-sm text-gray-700 mb-2" value={info.nearestBranch?.id || ''} onChange={(e) => { const branch = activeBranches.find(b => b.id === e.target.value); setInfo(prev => ({ ...prev, nearestBranch: branch, lat: null, lng: null })); }}><option value="" disabled>1. Khtar a9rab ma7al...</option>{activeBranches.map(b => <option key={b.id} value={b.id} disabled={b.isOpen === false}>{b.name} {b.isOpen === false ? '🚫' : ''}</option>)}</select>
+        <input type="url" placeholder="2. Coller Lien Google Maps" className="w-full bg-white border border-gray-300 p-2.5 rounded-lg outline-none focus:border-[#ffbc0d] text-xs font-bold text-gray-700" value={info.mapsLink || ''} onChange={(e) => setInfo(prev => ({ ...prev, mapsLink: e.target.value }))} />
+    </div>
+)}</div></div>{(!info.lat && !info.nearestBranch) && (<button onClick={() => setV('profile')} className={`mt-4 w-full bg-white text-gray-800 py-3 ${btnRadius} font-black text-xs uppercase active:scale-95 transition-all shadow-sm border border-gray-200`}>👉 9ad l'GPS hna</button>)}</div>
                <button onClick={handleFinalOrder} className={`w-full text-black py-5 ${btnRadius} font-black text-xl uppercase shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all border-b-4`} style={{backgroundColor: brand.color, borderBottomColor: 'rgba(0,0,0,0.2)'}}>
                    {settings?.whatsappRedirectEnabled !== false ? <MessageCircle size={24}/> : <Check size={24} strokeWidth={3}/>} 
                    {settings?.whatsappRedirectEnabled !== false ? `${txtOrder} WhatsApp` : txtOrder}

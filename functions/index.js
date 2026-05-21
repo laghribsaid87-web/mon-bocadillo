@@ -263,3 +263,115 @@ exports.sendMarketingPush = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
+
+// 9. 🛡️ SÉCURITÉ CRITIQUE: Vérifier les prix des commandes (Anti-Fraude / Hacker)
+exports.verifyOrderSecurity = functions.firestore
+    .document('artifacts/{appId}/public/data/orders/{orderId}')
+    .onCreate(async (snap, context) => {
+        const order = snap.data();
+        const appId = context.params.appId;
+        
+        // On fait confiance aux commandes passées par la Caisse (Admin/Manager)
+        if (order.source === 'pos' || order.source === 'telephone' || order.source === 'glovo') return null;
+        if (order.status === 'rejected') return null;
+        
+        const configSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("settings").doc("config").get();
+        const config = configSnap.exists ? configSnap.data() : {};
+        const menuItems = config.menuItems || [];
+        const globalDrinks = config.globalDrinks || [
+            { name: "🥤 Pepsi", price: 10 }, { name: "🍊 Mirinda Orange", price: 10 }, { name: "🍋 Mirinda Citron", price: 10 },
+            { name: "🍏 Mirinda Pomme", price: 10 }, { name: "🥤 Fanta Orange", price: 10 }, { name: "💧 Eau 50cl", price: 10 }, { name: "🧃 Jus d'orange", price: 25 }
+        ];
+
+        let realSubtotal = 0;
+
+        for (const item of order.items || []) {
+            const realItem = menuItems.find(m => m.id === item.id);
+            if (!realItem) continue;
+
+            let unitPrice = Number(realItem.price || 0);
+
+            if (item.selectedVariation && realItem.variations) {
+                const realVar = realItem.variations.find(v => v.name === item.selectedVariation.name);
+                if (realVar) unitPrice = Number(realVar.price || 0);
+            }
+
+            if (item.selectedExtras && item.selectedExtras.length > 0) {
+                item.selectedExtras.forEach(ext => {
+                    let realExt = (realItem.extras || []).find(e => e.name === ext.name);
+                    if (!realExt) realExt = globalDrinks.find(d => d.name === ext.name);
+                    if (realExt) unitPrice += Number(realExt.price || 0);
+                });
+            }
+
+            if (item.isCombo) {
+                unitPrice = Number(realItem.price || 0);
+            }
+
+            realSubtotal += (unitPrice * item.qty);
+        }
+
+        // 🔥 1. Vérification du Code Promo
+        let realDiscount = 0;
+        if (order.promoCode) {
+            const promo = order.promoCode.toUpperCase();
+            if (promo === 'GLOVO1') realDiscount = 15;
+            else if (promo === 'BOCA10') realDiscount = Math.floor(realSubtotal * 0.10);
+        }
+
+        // 🔥 2. Vérification des Points de Fidélité
+        let availablePoints = 0;
+        if (Number(order.pointsUsed || 0) > 0) {
+            let pEarned = 0;
+            let pUsed = 0;
+            
+            let pastOrdersSnap;
+            if (order.userId && order.userId !== 'guest') {
+                pastOrdersSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("orders")
+                    .where("userId", "==", order.userId).where("status", "==", "delivered").get();
+            } else if (order.phone) {
+                pastOrdersSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("orders")
+                    .where("phone", "==", order.phone).where("status", "==", "delivered").get();
+            }
+            
+            if (pastOrdersSnap && !pastOrdersSnap.empty) {
+                pastOrdersSnap.forEach(doc => {
+                    const o = doc.data();
+                    pEarned += Math.floor((Number(o.subtotal) || 0) / 10);
+                    pUsed += Number(o.pointsUsed || 0);
+                });
+            }
+            
+            if (order.userId && order.userId !== 'guest') {
+                const profileSnap = await db.collection("artifacts").doc(appId).collection("users").doc(order.userId).collection("profile").doc("data").get();
+                if (profileSnap.exists) pEarned += Number(profileSnap.data().manualPoints || 0);
+            }
+            
+            availablePoints = Math.max(0, pEarned - pUsed);
+        }
+
+        // 3. Calcul du total attendu (Sécurisé)
+        const expectedTotal = realSubtotal + Number(order.deliveryFee || 0) - realDiscount - (Number(order.pointsUsed || 0) <= availablePoints ? Number(order.pointsUsed || 0) : 0);
+
+        // 4. Détection des fraudes
+        const isSubtotalFraud = Number(order.subtotal || 0) < realSubtotal - 2;
+        const isTotalFraud = Number(order.total || 0) < expectedTotal - 2;
+        const isDiscountFraud = Number(order.discount || 0) > realDiscount + 1;
+        const isPointsFraud = Number(order.pointsUsed || 0) > availablePoints;
+
+        if (isSubtotalFraud || isTotalFraud || isDiscountFraud || isPointsFraud) {
+            console.error(`🚨 Fraude détectée sur ${snap.id}. Attendu: ${expectedTotal}, Reçu: ${order.total}`);
+            let fraudReason = "PRIX FALSIFIÉ";
+            if (isDiscountFraud) fraudReason = "CODE PROMO FALSIFIÉ";
+            else if (isPointsFraud) fraudReason = "POINTS DE FIDÉLITÉ FALSIFIÉS";
+
+            return snap.ref.update({
+                status: 'rejected',
+                adminMessage: `🚨 FRAUDE DÉTECTÉE (${fraudReason}) : Le client a essayé de payer ${order.total} DH au lieu de ${expectedTotal} DH ! Commande bloquée.`,
+                clientUnreachable: true,
+                isFraud: true
+            });
+        }
+        
+        return null;
+    });

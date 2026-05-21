@@ -221,19 +221,26 @@ export const printTicket = async (o, brand) => {
 export const openWhatsAppDirect = (phone, message) => {
     const waPhone = getWhatsAppFormat(phone);
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const isElectron = typeof window !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron');
     
     if (isMobile) {
         // En mobile: Ouvre l'application WhatsApp directement (0 onglet web, 0 page de confirmation)
         window.location.href = `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`;
+    } else if (isElectron) {
+        // En Logiciel Windows (.exe) :
+        try {
+            const { shell } = window.require('electron');
+            // Ouvre directement le logiciel WhatsApp Desktop de Windows (0 onglet Chrome !)
+            shell.openExternal(`whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`).catch(() => {
+                // Si WhatsApp Desktop n'est pas installé, on ouvre WhatsApp Web dans le vrai navigateur
+                shell.openExternal(`https://web.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(message)}`);
+            });
+        } catch (e) {
+            window.location.href = `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`;
+        }
     } else {
-        // En PC: Chrome bloque la réutilisation d'onglets (Cross-Origin Policy)
-        // On est obligé d'ouvrir un nouvel onglet pour WhatsApp Web
+        // En PC (Navigateur Web normal)
         window.open(`https://web.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(message)}`, '_blank');
-        
-        // 🔥 SOLUTION ULTIME POUR LE PC DE CAISSE (0 ONGLET) :
-        // Si le caissier a installé l'application "WhatsApp Desktop" sur son PC (Windows/Mac),
-        // supprimez le window.open ci-dessus et décommentez la ligne suivante :
-        // window.location.href = `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`;
     }
 };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Utensils, Trash2, Image, Tag, AlignLeft, Settings2, Plus, Edit3, Copy, Check, X, Save, DollarSign, Layers, GripVertical, ChevronUp, ChevronDown, Upload, Download } from 'lucide-react';
+import { Utensils, Trash2, Image, Tag, AlignLeft, Settings2, Plus, Edit3, Copy, Check, X, Save, DollarSign, Layers, GripVertical, ChevronUp, ChevronDown, Upload, Download, Store } from 'lucide-react';
 import { PREDEFINED_INGREDIENTS, PREDEFINED_EXTRAS, PREDEFINED_DRINKS } from '../../config/constants';
 
 export default function AdminMenuEditor({
@@ -73,7 +73,7 @@ export default function AdminMenuEditor({
     }, [activeEditZone]);
 
     const handleAdd = () => {
-        setEditingItem({ id: 'new_'+Date.now(), name: '', price: '', category: '', img: '🍔', desc: '', removableIngredients: '', choices: '', maxOptions: 0, isNew: true, outOfStock: false, hasVariations: false, variations: [], station: '', stepOrder: ['variations', 'choices', 'removableIngredients', 'extras'] });
+        setEditingItem({ id: 'new_'+Date.now(), name: '', price: '', category: '', img: '🍔', desc: '', removableIngredients: '', choices: '', maxOptions: 0, isNew: true, outOfStock: false, hasVariations: false, variations: [], station: '', stepOrder: ['variations', 'choices', 'removableIngredients', 'extras'], disabledInBranches: [] });
         setEditTab('basic');
     };
 
@@ -253,6 +253,7 @@ export default function AdminMenuEditor({
                     removableIngredients: '', choices: '', maxOptions: 0, outOfStock: false, 
                     hasVariations: false, variations: [], station: '', 
                     stepOrder: ['variations', 'choices', 'removableIngredients', 'extras'],
+                    disabledInBranches: [],
                     extras: []
                 };
 
@@ -268,6 +269,7 @@ export default function AdminMenuEditor({
                     else if (h.includes('station')) item.station = val.toUpperCase();
                     else if (h.includes('choix') || h === 'choices') item.choices = val;
                     else if (h.includes('sans') || h.includes('remov')) item.removableIngredients = val;
+                    else if (h.includes('agences') || h.includes('désactiv')) item.disabledInBranches = val.split(',').map(v=>v.trim()).filter(Boolean);
                     else if (h.includes('taille') || h.includes('variation')) {
                         item.hasVariations = true;
                         item.variations = val.split(',').map(v => {
@@ -299,7 +301,7 @@ export default function AdminMenuEditor({
             return;
         }
         
-        const headers = ["Nom", "Categorie", "Prix", "Image", "Description", "Station", "Choix", "Sans", "Tailles"];
+        const headers = ["Nom", "Categorie", "Prix", "Image", "Description", "Station", "Choix", "Sans", "Tailles", "Agences Désactivées"];
         const rows = editableMenu.map(item => {
             const escape = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
             
@@ -317,7 +319,8 @@ export default function AdminMenuEditor({
                 escape(item.station),
                 escape(item.choices),
                 escape(item.removableIngredients),
-                escape(tailles)
+                escape(tailles),
+                escape((item.disabledInBranches || []).join(', '))
             ].join(",");
         });
 
@@ -403,6 +406,7 @@ export default function AdminMenuEditor({
                                                             {item.hasVariations && <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-100"><Layers size={10} className="mr-1"/> Tailles</span>}
                                                         {item.choices && <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium text-purple-600 bg-purple-50 border border-purple-100"><Tag size={10} className="mr-1"/> Choix</span>}
                                                         {item.extras && item.extras.length > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium text-green-600 bg-green-50 border border-green-100"><Plus size={10} className="mr-1"/> Suppléments</span>}
+                                                        {item.disabledInBranches && item.disabledInBranches.length > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-100"><Store size={10} className="mr-1"/> Agences Spécifiques</span>}
                                                     {item.isCombo && <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-100"><Layers size={10} className="mr-1"/> Combo (Menu)</span>}
                                                         </div>
                                                     </div>
@@ -883,6 +887,42 @@ export default function AdminMenuEditor({
                                     </div>
                                 </label>
                             </div>
+
+                            {/* Disponibilité par Agence */}
+                            {(settings?.branches || []).length > 0 && (
+                                <div className="bg-blue-50 p-6 md:p-8 rounded-3xl border border-blue-200 mt-6">
+                                    <h5 className="font-black text-sm text-blue-800 uppercase tracking-widest mb-4 flex items-center gap-2"><Store size={18} className="text-blue-600"/> Disponibilité par Agence</h5>
+                                    <p className="text-xs font-bold text-blue-600 mb-4 leading-tight">Par défaut, le produit est disponible dans toutes les agences. Décochez les agences où il ne doit pas apparaître.</p>
+                                    <div className="space-y-3">
+                                        {(settings?.branches || []).map(branch => {
+                                            const isDisabled = (editingItem.disabledInBranches || []).includes(branch.id);
+                                            return (
+                                                <label key={branch.id} className="flex items-center justify-between bg-white p-4 rounded-xl border border-blue-100 shadow-sm cursor-pointer hover:bg-blue-50/50 transition-colors">
+                                                    <span className={`text-sm font-black ${!isDisabled ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{branch.name}</span>
+                                                    <div className={`w-12 h-6 rounded-full relative transition-all border-2 ${!isDisabled ? 'bg-blue-500 border-blue-600' : 'bg-gray-200 border-gray-300'}`}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="hidden" 
+                                                            checked={!isDisabled} 
+                                                            onChange={e => {
+                                                                const checked = e.target.checked;
+                                                                let newDisabled = [...(editingItem.disabledInBranches || [])];
+                                                                if (checked) {
+                                                                    newDisabled = newDisabled.filter(id => id !== branch.id);
+                                                                } else {
+                                                                    if (!newDisabled.includes(branch.id)) newDisabled.push(branch.id);
+                                                                }
+                                                                setEditingItem({...editingItem, disabledInBranches: newDisabled});
+                                                            }} 
+                                                        />
+                                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${!isDisabled ? 'translate-x-6' : 'translate-x-1'}`}></div>
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         )}
                     </div>

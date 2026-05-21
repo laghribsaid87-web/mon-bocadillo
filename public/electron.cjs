@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
@@ -110,6 +111,19 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // ✅ L-Khedma 3.1 PRO: Autorisation automatique dyal l-micro
+  // Had l-code kayched ay demande dyal permission w kay-acceptiha bla maybiyyen l-popup
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    // Hna kan-acceptiw rir l-permission dyal l-micro w l-camera ('media')
+    if (permission === 'media') {
+      // Kan-acceptiwha direct. Bnadm f KDS maghay3ref walo.
+      callback(true);
+    } else {
+      // Ay permission khera, refuséha par sécurité.
+      callback(false);
+    }
+  });
+
   createWindow();
   autoUpdater.checkForUpdatesAndNotify();
 });

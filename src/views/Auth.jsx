@@ -26,15 +26,22 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
       if (type === 'livreur' && !autoLoginAttempted.current) {
           autoLoginAttempted.current = true;
           const savedPhone = localStorage.getItem('driver_auto_phone');
-          const savedPin = localStorage.getItem('driver_auto_pin');
+          const savedPinEnc = localStorage.getItem('driver_auto_pin_enc');
           
-          if (savedPhone && savedPin && onLogin) {
-              setPhone(savedPhone);
-              setPin(savedPin);
-              // Petit délai pour s'assurer que l'état de l'application est prêt
-              setTimeout(() => {
-                  onLogin(savedPhone, savedPin);
-              }, 150);
+          // 🔥 Nettoyage de l'ancien PIN en clair
+          if (localStorage.getItem('driver_auto_pin')) {
+              localStorage.removeItem('driver_auto_pin');
+          }
+          
+          if (savedPhone && savedPinEnc && onLogin) {
+              try {
+                  const decodedPin = atob(savedPinEnc);
+                  setPhone(savedPhone);
+                  setPin(decodedPin);
+                  setTimeout(() => {
+                      onLogin(savedPhone, decodedPin);
+                  }, 150);
+              } catch (e) {}
           }
       }
   }, [type, onLogin]);
@@ -46,7 +53,7 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
         onLogin(email, password);
       } else {
         localStorage.setItem('driver_auto_phone', phone);
-        localStorage.setItem('driver_auto_pin', pin);
+        localStorage.setItem('driver_auto_pin_enc', btoa(pin));
         onLogin(phone, pin);
       }
     }
@@ -181,7 +188,7 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
                   type="button" 
                   onClick={() => {
                       localStorage.removeItem('driver_auto_phone');
-                      localStorage.removeItem('driver_auto_pin');
+                      localStorage.removeItem('driver_auto_pin_enc');
                       setPhone('');
                       setPin('');
                   }} 
