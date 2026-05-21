@@ -52,6 +52,9 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const dragBtnRef = useRef(null);
     const dropBtnRef = useRef(null);
 
+    const [deferredPrompt, setDeferredPrompt] = useState(null);
+    const [showInstallBtn, setShowInstallBtn] = useState(false);
+
     // 🔥 Jdid: State pour l'imprimante Bluetooth
     const [btCharacteristic, setBtCharacteristic] = useState(null);
     const [isBtConnecting, setIsBtConnecting] = useState(false);
@@ -204,6 +207,40 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         const interval = setInterval(savePosStatus, 60000); // Toutes les minutes
         return () => clearInterval(interval);
     }, [activeBranchId, db, appId]);
+
+    // 🔥 NOUVEAU: Écouter l'événement pour installer la PWA (POS / KDS / IDARA sur Tablette)
+    useEffect(() => {
+        if (window.deferredPWAInstall) {
+            setDeferredPrompt(window.deferredPWAInstall);
+            setShowInstallBtn(true);
+        }
+        const handler = (e) => {
+            e.preventDefault();
+            window.deferredPWAInstall = e;
+            setDeferredPrompt(e);
+            setShowInstallBtn(true);
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    const handleInstallApp = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            window.deferredPWAInstall = null;
+            setShowInstallBtn(false);
+        }
+        setDeferredPrompt(null);
+    };
+
+    useEffect(() => {
+        if (brand?.logoUrl) {
+            const addOrUpdateIcon = (relType) => { let link = document.querySelector(`link[rel='${relType}']`); if (!link) { link = document.createElement('link'); link.rel = relType; document.head.appendChild(link); } link.href = brand.logoUrl; };
+            ['apple-touch-icon', 'apple-touch-icon-precomposed', 'icon', 'shortcut icon'].forEach(addOrUpdateIcon);
+        }
+    }, [brand?.logoUrl]);
 
     useEffect(() => {
         if (settings?.headerBtnsOrder) {
@@ -1485,6 +1522,11 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
                     {/* RIGHT: CONFIG & WINDOW CONTROLS */}
                     <div className="flex items-center gap-2 shrink-0 border-l border-gray-200/50 pl-2 sm:pl-4">
+                        {showInstallBtn && (
+                            <button onClick={handleInstallApp} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] sm:text-xs font-black uppercase rounded-xl shadow-md animate-bounce active:scale-95 transition-all">
+                                📲 Installer
+                            </button>
+                        )}
                         {!isNetOnline ? (
                             <div className="flex items-center gap-1.5 bg-red-100 text-red-600 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm border border-red-200">
                                 <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span></span>
