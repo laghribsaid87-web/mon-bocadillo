@@ -3,7 +3,7 @@
   "description": "Caisse Mon Bocadillo Management Application",
   "author": "Mon Bocadillo",
   "private": true,
-  "version": "1.0.33",
+  "version": "1.0.34",
   "type": "module",
   "main": "public/electron.cjs",
   "scripts": {
@@ -17,6 +17,8 @@
     "dist": "npm run build && electron-builder",
     "build:32": "npm run build && electron-builder --win --ia32",
     "build:64": "npm run build && electron-builder --win --x64",
+    "build:exe": "npm run build && electron-builder --win --x64 --ia32",
+    "build:apk": "npm run deploy:apk-sync && cd android && gradlew assembleDebug",
     "publish:win": "npm run build && electron-builder --win --x64 -p always && electron-builder --win --ia32 -p always",
     "deploy:update": "npm version patch --force && npm run publish:win",
     "deploy:apk-sync": "npm run build:apk-driver && npx cap sync android",
@@ -25,6 +27,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/app": "^8.1.0",
     "@capacitor/push-notifications": "^8.0.4",
     "electron-updater": "^6.8.3"
