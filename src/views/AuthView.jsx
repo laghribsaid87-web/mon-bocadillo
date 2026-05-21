@@ -77,6 +77,9 @@ export default function AuthView({ onComplete, brand, settings, showNotify, db }
 
     const handleInstallApp = async () => {
         if (!deferredPrompt) return;
+        
+        localStorage.setItem('pwa_mode', 'client');
+        
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === 'accepted') {

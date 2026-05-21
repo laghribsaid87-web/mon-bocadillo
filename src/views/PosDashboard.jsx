@@ -226,6 +226,18 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     const handleInstallApp = async () => {
         if (!deferredPrompt) return;
+        
+        const url = window.location.href.toLowerCase();
+        if (url.includes('kds')) {
+            localStorage.setItem('pwa_mode', 'kds');
+        } else if (url.includes('tv')) {
+            localStorage.setItem('pwa_mode', 'tv');
+        } else if (url.includes('pos')) {
+            localStorage.setItem('pwa_mode', 'pos');
+        } else {
+            localStorage.setItem('pwa_mode', 'admin');
+        }
+
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === 'accepted') {
