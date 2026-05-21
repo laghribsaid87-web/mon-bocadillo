@@ -515,42 +515,51 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     }, [orders, activeBranchId]);
 
     // 🔥 Hssab dyal Z w Rapports
-    const todayStr = new Date().toISOString().split('T')[0];
-    const completedOrdersToday = (orders || []).filter(o => {
-        if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
+    const { completedOrdersToday, caPos, caApp, caTel, dailyCA, dailyItemsList } = useMemo(() => {
+        const todayStr = new Date().toISOString().split('T')[0];
         
-        // POS: tout sauf annulé. Livraison: Seulement les commandes livrées.
-        if (o.source === 'pos') {
-            if (o.status === 'rejected') return false; 
-            if (o.paymentStatus === 'en_attente') return false; // Ne pas compter dans le CA tant que ce n'est pas payé
-        } else {
-            if (o.status !== 'delivered') return false; 
-        }
-        
-        let d = new Date();
-        try {
-            if (o.createdAt?.seconds) d = new Date(o.createdAt.seconds * 1000);
-            else if (typeof o.createdAt === 'string' || typeof o.createdAt === 'number') d = new Date(o.createdAt);
+        const completed = (orders || []).filter(o => {
+            if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
             
-            if (isNaN(d.getTime())) return false;
-            return d.toISOString().split('T')[0] === todayStr;
-        } catch (err) {
-            return false;
-        }
-    });
+            if (o.source === 'pos') {
+                if (o.status === 'rejected' || o.paymentStatus === 'en_attente') return false; 
+            } else {
+                if (o.status !== 'delivered') return false; 
+            }
+            
+            try {
+                let d = new Date();
+                if (o.createdAt?.seconds) d = new Date(o.createdAt.seconds * 1000);
+                else if (typeof o.createdAt === 'string' || typeof o.createdAt === 'number') d = new Date(o.createdAt);
+                
+                if (isNaN(d.getTime())) return false;
+                return d.toISOString().split('T')[0] === todayStr;
+            } catch (err) { return false; }
+        });
 
-    const caPos = completedOrdersToday.filter(o => o.source === 'pos').reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-    const caApp = completedOrdersToday.filter(o => !o.source || o.source === 'app' || o.source === 'glovo').reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-    const caTel = completedOrdersToday.filter(o => o.source === 'telephone').reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-    const dailyCA = caPos + caApp + caTel;
-    
-    let dailyItemsMap = {};
-    completedOrdersToday.forEach(o => {
-        (o.items || []).forEach(i => { const baseName = (i.name || '').split(' (Sans ')[0]; dailyItemsMap[baseName] = (dailyItemsMap[baseName] || 0) + i.qty; });
-    });
-    const dailyItemsList = Object.entries(dailyItemsMap).sort((a,b) => b[1] - a[1]);
+        let cPos = 0, cApp = 0, cTel = 0;
+        let itemsMap = {};
 
-    const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        completed.forEach(o => {
+            const t = Number(o.total) || 0;
+            if (o.source === 'pos') cPos += t;
+            else if (o.source === 'telephone') cTel += t;
+            else cApp += t;
+
+            (o.items || []).forEach(i => { 
+                const baseName = (i.name || '').split(' (Sans ')[0]; 
+                itemsMap[baseName] = (itemsMap[baseName] || 0) + i.qty; 
+            });
+        });
+
+        return {
+            completedOrdersToday: completed, caPos: cPos, caApp: cApp, caTel: cTel,
+            dailyCA: cPos + cApp + cTel,
+            dailyItemsList: Object.entries(itemsMap).sort((a, b) => b[1] - a[1])
+        };
+    }, [orders, activeBranchId]);
+
+    const total = useMemo(() => cart.reduce((sum, item) => sum + (item.price * item.qty), 0), [cart]);
 
     const addToCart = (item, note = "") => {
         const finalName = note ? item.name + note : item.name;
@@ -1226,39 +1235,35 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 offlineCreatedAt: Date.now()
             };
 
-            let docId = null;
+            // 🚀 1. IMPRESSION ET RESET INSTANTANÉS (0 SECONDE D'ATTENTE)
+            const orderToPrint = { ...newOrder, id: orderNum };
+            printTicketsPos(orderToPrint, brand, isPaid); 
+            setCart([]); // Nkhwiw l-panier f l-blassa
+            setOrderType('sur_place'); 
+
+            // 🚀 2. SAUVEGARDE FIREBASE EN ARRIÈRE-PLAN (Sans bloquer la caisse)
             if (isNetOnline) {
-                try {
-                    const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), {
-                        ...newOrder,
-                        createdAt: serverTimestamp()
-                    });
-                    docId = docRef.id;
-                    showNotify("Commande daret b-naja7! ✅", "success");
-                } catch (error) {
-                    console.log("Erreur réseau/Firestore, sauvegarde locale...", error);
-                    saveOfflineOrder(newOrder);
-                }
+                addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), {
+                    ...newOrder,
+                    createdAt: serverTimestamp()
+                }).catch((error) => saveOfflineOrder(newOrder));
             } else {
                 saveOfflineOrder(newOrder);
             }
-            
-            const orderToPrint = { ...newOrder, id: docId || orderNum };
-            printTicketsPos(orderToPrint, brand, isPaid); 
-
-            setCart([]); // Nkhwiw l-panier l-client jdid
-            setOrderType('sur_place'); // Reset l-type par défaut "Sur Place"
         } catch (error) {
             showNotify("W9e3 mochkil f tsjal dyal l-commande", "error");
         }
     };
     
-    const handlePayUnpaidTicket = async (order) => {
+    const handlePayUnpaidTicket = (order) => {
         try {
-            await updateStatus(order.id, order.status, { paymentStatus: 'paye' });
-            await printTicketsPos(order, brand, true, true);
-            showNotify("Ticket payé w t'imprima ! ✅", "success");
+            // 🚀 UI INSTANTANÉE
             if (unpaidOrders.length === 1) setShowUnpaidModal(false);
+            showNotify("Ticket payé w t'imprima ! ✅", "success");
+            printTicketsPos(order, brand, true, true);
+
+            // 🚀 FIREBASE EN ARRIÈRE-PLAN
+            updateStatus(order.id, order.status, { paymentStatus: 'paye' }).catch(()=>{});
         } catch (error) {
             showNotify("Erreur lors du paiement", "error");
         }
@@ -1352,12 +1357,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             onDragOver: e => e.preventDefault(),
         } : {};
         const cursorClass = isAdmin ? 'cursor-move' : '';
-        const baseClass = `relative flex items-center justify-center gap-2 px-3 sm:px-4 rounded-xl font-bold transition-all text-xs sm:text-sm shadow-sm shrink-0 ${cursorClass}`;
+            const baseClass = `relative flex items-center justify-center gap-1.5 px-2 rounded-xl font-bold transition-all text-[11px] sm:text-sm shadow-sm shrink-0 ${cursorClass}`;
 
         switch(btnId) {
             case 'commandes_web':
                 const webBg = brand?.btnPosWebColor || ''; const webTxt = brand?.btnPosWebTxtColor || '';
-                const webStyle = webBg ? { backgroundColor: webBg, color: webTxt || '#ffffff', borderColor: webBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
+                    const webStyle = webBg ? { backgroundColor: webBg, color: webTxt || '#ffffff', borderColor: webBg, width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={webStyle} onClick={() => {
                         if (pendingOnline.length > 0) setShowPendingModal(true);
@@ -1370,7 +1375,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'non_payes':
                 return (
-                    <button key={btnId} {...dragProps} onClick={() => setShowUnpaidModal(true)} className={`${baseClass} ${unpaidOrders.length > 0 ? 'bg-red-600 text-white hover:bg-red-700 border-red-700 animate-pulse' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200'}`} style={{ minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
+                        <button key={btnId} {...dragProps} onClick={() => setShowUnpaidModal(true)} className={`${baseClass} ${unpaidOrders.length > 0 ? 'bg-red-600 text-white hover:bg-red-700 border-red-700 animate-pulse' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200'}`} style={{ width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
                         <Banknote size={18} /> <span className="hidden sm:inline">Non Payés</span>
                         {unpaidOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md animate-bounce">{unpaidOrders.length}</span>}
                     </button>
@@ -1378,7 +1383,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             case 'problemes':
                 if (problemOrders.length === 0) return null;
                 const probBg = brand?.btnPosProbColor || ''; const probTxt = brand?.btnPosProbTxtColor || '';
-                const probStyle = probBg ? { backgroundColor: probBg, color: probTxt || '#ffffff', borderColor: probBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
+                    const probStyle = probBg ? { backgroundColor: probBg, color: probTxt || '#ffffff', borderColor: probBg, width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={probStyle} onClick={() => setShowProblemModal(true)} className={`${baseClass} ${probBg ? '' : 'bg-red-500 text-white border border-red-600'} animate-pulse`}>
                         <AlertTriangle size={18} /> <span className="hidden sm:inline">{brand?.texts?.btnProblemes || 'Problèmes'}</span>
@@ -1387,7 +1392,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'suivi':
                 const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSuiviTxtColor || '';
-                const suiviStyle = suiviBg ? { backgroundColor: suiviBg, color: suiviTxt || '#ffffff', borderColor: suiviBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
+                    const suiviStyle = suiviBg ? { backgroundColor: suiviBg, color: suiviTxt || '#ffffff', borderColor: suiviBg, width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={suiviStyle} onClick={() => setShowOnlineOrdersModal(true)} className={`${baseClass} ${onlineOrders.length > 0 ? 'bg-purple-500 text-white hover:bg-purple-600 border-purple-600' : (suiviBg ? '' : 'bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100')}`}>
                         <ShoppingBag size={18} /> <span className="hidden sm:inline">{brand?.texts?.btnSuivi || 'Suivi Web/Tél'}</span>
@@ -1396,7 +1401,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'pretes':
                 const preteBg = brand?.btnPosPretesColor || ''; const preteTxt = brand?.btnPosPretesTxtColor || '';
-                const preteStyle = preteBg ? { backgroundColor: preteBg, color: preteTxt || '#ffffff', borderColor: preteBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
+                    const preteStyle = preteBg ? { backgroundColor: preteBg, color: preteTxt || '#ffffff', borderColor: preteBg, width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={preteStyle} onClick={() => setShowReadyPosModal(true)} className={`${baseClass} ${readyPosOrders.length > 0 ? 'bg-green-500 text-white animate-pulse border border-green-600' : (preteBg ? '' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100')}`}>
                         <CheckCircle size={18} /> <span className="hidden sm:inline">{brand?.texts?.btnPretes || 'Prêtes (Servir)'}</span>
@@ -1405,7 +1410,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'tv':
                 const tvBg = brand?.btnPosTvColor || ''; const tvTxt = brand?.btnPosTvTxtColor || '';
-                const tvStyle = tvBg ? { backgroundColor: tvBg, color: tvTxt || '#ffffff', borderColor: tvBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
+                    const tvStyle = tvBg ? { backgroundColor: tvBg, color: tvTxt || '#ffffff', borderColor: tvBg, width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={tvStyle} onClick={() => {
                     const route = activeBranchId !== 'ALL' ? `/tv?branch=${activeBranchId}` : '/tv';
@@ -1416,7 +1421,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'standard':
                 const stdBg = brand?.btnPosStdColor || ''; const stdTxt = brand?.btnPosStdTxtColor || '';
-                const stdStyle = stdBg ? { backgroundColor: stdBg, color: stdTxt || '#ffffff', borderColor: stdBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
+                    const stdStyle = stdBg ? { backgroundColor: stdBg, color: stdTxt || '#ffffff', borderColor: stdBg, width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={stdStyle} onClick={() => setShowStandardModal(true)} className={`${baseClass} ${stdBg ? '' : 'bg-orange-500 hover:bg-orange-600 text-white border border-orange-600'}`}>
                         📞 <span className="hidden sm:inline">{brand?.texts?.btnStandard || 'Standard Tél'}</span>
@@ -1424,7 +1429,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'kds':
                 const kdsBg = brand?.btnPosKdsColor || ''; const kdsTxt = brand?.btnPosKdsTxtColor || '';
-                const kdsStyle = kdsBg ? { backgroundColor: kdsBg, color: kdsTxt || '#ffffff', borderColor: kdsBg, minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { minWidth: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
+                    const kdsStyle = kdsBg ? { backgroundColor: kdsBg, color: kdsTxt || '#ffffff', borderColor: kdsBg, width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={kdsStyle} onClick={() => {
                     const route = activeBranchId !== 'ALL' ? `/kds?branch=${activeBranchId}` : '/kds';
@@ -1449,14 +1454,18 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 <header className="px-3 sm:px-4 py-2 shadow-sm flex items-center justify-between z-10 shrink-0 w-full gap-2 sm:gap-4" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff', color: brand?.posColor || brand?.color || '#4f46e5' }}>
                     
                     {/* LEFT: LOGO */}
-                    <div className="flex items-center gap-2 shrink-0 font-black text-lg sm:text-xl">
-                        <ShoppingCart size={22} className="sm:w-6 sm:h-6"/> 
-                        <span className="truncate max-w-[120px] sm:max-w-[350px]">
-                            {brand?.texts?.posAppTitle || brand?.name || 'Mon Bocadillo'}
+                    <div className="flex items-center gap-2 shrink-0">
+                        <ShoppingCart size={22} className="sm:w-6 sm:h-6 font-black text-lg sm:text-xl"/> 
+                        <div className="flex flex-col justify-center">
+                            <span className="font-black text-lg sm:text-xl truncate max-w-[120px] sm:max-w-[200px] leading-tight">
+                                {brand?.texts?.posAppTitle || brand?.name || 'Mon Bocadillo'}
+                            </span>
                             {activeBranchId && activeBranchId !== 'ALL' && (
-                            <span className="ml-2 text-sm md:text-base font-black text-gray-500 uppercase tracking-widest inline-block">- Caisse {(settings?.branches || []).find(b => b.id === activeBranchId)?.name || ''}</span>
+                            <span className="text-[10px] md:text-xs font-black text-gray-500 uppercase tracking-widest leading-tight">
+                                Caisse {(settings?.branches || []).find(b => b.id === activeBranchId)?.name || ''}
+                            </span>
                             )}
-                        </span>
+                        </div>
                         {isAdmin && (
                             <select
                                 value={activeBranchId}
@@ -1470,7 +1479,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </div>
                     
                     {/* MIDDLE: BUTTONS (SCROLLABLE SINGLE LINE) */}
-                    <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-2 py-1">
+                    <div className="flex-1 flex flex-wrap items-center justify-center gap-1.5 py-1">
                         {displayedButtons.map((btnId, idx) => renderHeaderButton(btnId, idx))}
                     </div>
 
@@ -1952,7 +1961,15 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             </div>
                             <div>
                                 <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur du Panier</span><span className="text-blue-600">{posUI.cartWidth}px</span></label>
-                                <input type="range" min="300" max="800" step="10" value={posUI.cartWidth} onChange={e => setPosUI({...posUI, cartWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                <input type="range" min="150" max="800" step="5" value={posUI.cartWidth} onChange={e => setPosUI({...posUI, cartWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                            </div>
+                            <div>
+                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur Boutons (Haut)</span><span className="text-blue-600">{posUI.actionBtnWidth}px</span></label>
+                                <input type="range" min="80" max="250" step="5" value={posUI.actionBtnWidth} onChange={e => setPosUI({...posUI, actionBtnWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                            </div>
+                            <div>
+                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Hauteur Boutons (Haut)</span><span className="text-blue-600">{posUI.actionBtnHeight}px</span></label>
+                                <input type="range" min="30" max="80" step="2" value={posUI.actionBtnHeight} onChange={e => setPosUI({...posUI, actionBtnHeight: Number(e.target.value)})} className="w-full accent-blue-600" />
                             </div>
                             <div>
                                 <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur des Produits</span><span className="text-blue-600">{posUI.cardWidth}px</span></label>
@@ -2374,30 +2391,31 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             <button onClick={()=>setTelType('glovo')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${telType==='glovo'?'bg-yellow-400 text-black shadow-md':'text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}><Truck size={16}/> Invite Glovo</button>
                         </div>
 
-                        {telType === 'telephone' && (
-                            <>
-                            <label className="block text-left">
-                                <span className="text-xs font-bold text-gray-700 mb-1.5 block">Numéro de Téléphone Client <span className="text-red-500">*</span></span>
-                                <input
-                                    type="tel"
-                                    readOnly
-                                    onClick={() => setShowTelNumpad(true)}
-                                    placeholder="06XXXXXXXX ou 07XXXXXXXX"
-                                    className="w-full bg-white border border-gray-300 p-3 rounded-xl text-lg tracking-widest text-center font-bold text-gray-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-sm cursor-pointer"
-                                    value={telInfo.phone}
-                                    onChange={(e) => setTelInfo({ ...telInfo, phone: e.target.value.replace(/[^\d]/g, "").slice(0, 10) })}
-                                />
-                            </label>
+                        {/* Input Number - SHARED */}
+                        <label className="block text-left">
+                            <span className="text-xs font-bold text-gray-700 mb-1.5 block">
+                                {telType === 'telephone' ? 'Numéro de Téléphone Client' : 'Numéro de Téléphone Client (Glovo)'} <span className="text-red-500">*</span>
+                            </span>
+                            <input
+                                type="tel"
+                                readOnly
+                                onClick={() => setShowTelNumpad(true)}
+                                placeholder="06XXXXXXXX ou 07XXXXXXXX"
+                                className={`w-full bg-white border border-gray-300 p-4 rounded-2xl text-3xl tracking-widest text-center font-bold text-gray-900 outline-none focus:ring-4 transition-all shadow-sm cursor-pointer ${telType === 'telephone' ? 'focus:border-blue-500 focus:ring-blue-500/20' : 'focus:border-yellow-500 focus:ring-yellow-500/20'}`}
+                                value={telInfo.phone}
+                                onChange={(e) => setTelInfo({ ...telInfo, phone: e.target.value.replace(/[^\d]/g, "").slice(0, 10) })}
+                            />
+                        </label>
 
-                            {/* Numpad Tactile */}
-                            {showTelNumpad && (
-                            <div className="grid grid-cols-3 gap-2">
+                        {/* Numpad Tactile - SHARED (Style iPhone) */}
+                        {showTelNumpad && (
+                            <div className="grid grid-cols-3 gap-y-4 gap-x-8 w-fit mx-auto my-4">
                                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
                                     <button
                                         key={num}
                                         type="button"
                                         onClick={() => setTelInfo(prev => ({ ...prev, phone: (prev.phone + num).slice(0, 10) }))}
-                                        className="py-3 bg-white border border-gray-200 rounded-xl font-black text-xl hover:bg-gray-50 active:scale-95 transition-all shadow-sm text-gray-800"
+                                        className="w-20 h-20 bg-white hover:bg-gray-100 active:bg-gray-200 rounded-full font-light text-4xl text-gray-800 flex items-center justify-center transition-all shadow-md border border-gray-100"
                                     >
                                         {num}
                                     </button>
@@ -2405,49 +2423,30 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 <button
                                     type="button"
                                     onClick={() => setTelInfo(prev => ({ ...prev, phone: prev.phone.slice(0, -1) }))}
-                                    className="py-3 bg-red-50 border border-red-100 text-red-600 rounded-xl font-black text-xl hover:bg-red-100 active:scale-95 transition-all flex items-center justify-center shadow-sm"
+                                    className="w-20 h-20 bg-red-50 hover:bg-red-100 text-red-500 rounded-full font-light text-3xl flex items-center justify-center transition-all shadow-sm border border-red-100"
                                 >
-                                    <Delete size={24} />
+                                    <Delete size={32} />
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setTelInfo(prev => ({ ...prev, phone: (prev.phone + '0').slice(0, 10) }))}
-                                    className="py-3 bg-white border border-gray-200 rounded-xl font-black text-xl hover:bg-gray-50 active:scale-95 transition-all shadow-sm text-gray-800"
+                                    className="w-20 h-20 bg-white hover:bg-gray-100 active:bg-gray-200 rounded-full font-light text-4xl text-gray-800 flex items-center justify-center transition-all shadow-md border border-gray-100"
                                 >
                                     0
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setTelInfo(prev => ({ ...prev, phone: '' }))}
-                                    className="py-3 bg-gray-200 border border-gray-300 text-gray-700 rounded-xl font-black text-sm uppercase hover:bg-gray-300 active:scale-95 transition-all shadow-sm"
+                                    className="w-20 h-20 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full font-bold text-xs uppercase flex items-center justify-center transition-all shadow-sm"
                                 >
                                     Effacer
                                 </button>
                             </div>
-                            )}
-                            </>
                         )}
 
-                        {telType === 'glovo' && (
+                        {/* Section Telephone only */}
+                        {telType === 'telephone' && (
                             <>
-                                <label className="block text-left">
-                                    <span className="text-xs font-bold text-gray-700 mb-1.5 block">Numéro de Téléphone Client (Glovo) <span className="text-red-500">*</span></span>
-                                    <input type="tel" readOnly onClick={() => setShowTelNumpad(true)} placeholder="06XXXXXXXX ou 07XXXXXXXX" className="w-full bg-white border border-gray-300 p-3 rounded-xl text-lg tracking-widest text-center font-bold text-gray-900 outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 transition-all shadow-sm cursor-pointer" value={telInfo.phone} onChange={(e) => setTelInfo({ ...telInfo, phone: e.target.value.replace(/[^\d]/g, "").slice(0, 10) })} />
-                                </label>
-                                {showTelNumpad && (
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (<button key={num} type="button" onClick={() => setTelInfo(prev => ({ ...prev, phone: (prev.phone + num).slice(0, 10) }))} className="py-3 bg-white border border-gray-200 rounded-xl font-black text-xl hover:bg-gray-50 active:scale-95 transition-all shadow-sm text-gray-800">{num}</button>))}
-                                        <button type="button" onClick={() => setTelInfo(prev => ({ ...prev, phone: prev.phone.slice(0, -1) }))} className="py-3 bg-red-50 border border-red-100 text-red-600 rounded-xl font-black text-xl hover:bg-red-100 active:scale-95 transition-all flex items-center justify-center shadow-sm"><Delete size={24} /></button>
-                                        <button type="button" onClick={() => setTelInfo(prev => ({ ...prev, phone: (prev.phone + '0').slice(0, 10) }))} className="py-3 bg-white border border-gray-200 rounded-xl font-black text-xl hover:bg-gray-50 active:scale-95 transition-all shadow-sm text-gray-800">0</button>
-                                        <button type="button" onClick={() => setTelInfo(prev => ({ ...prev, phone: '' }))} className="py-3 bg-gray-200 border border-gray-300 text-gray-700 rounded-xl font-black text-sm uppercase hover:bg-gray-300 active:scale-95 transition-all shadow-sm">Effacer</button>
-                                    </div>
-                                )}
-                                <button onClick={handleGlovoInviteFromPOS} className="w-full mt-3 bg-yellow-400 hover:bg-yellow-500 text-black py-4 rounded-xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
-                                    <MessageCircle size={20} /> Convertir & Envoyer WhatsApp
-                                </button>
-                            </>
-                        )}
-                            
                             <label className="block text-left">
                                 <span className="text-xs font-bold text-gray-700 mb-1.5 block">Frais de Livraison (DH)</span>
                                 <div className="flex gap-2">
@@ -2455,7 +2454,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                         <button
                                             key={fee}
                                             onClick={() => setTelInfo({ ...telInfo, deliveryFee: fee })}
-                                            className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all border ${Number(telInfo.deliveryFee) === fee ? "bg-orange-500 text-white border-orange-600 shadow-md" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"}`}
+                                            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all border ${Number(telInfo.deliveryFee) === fee ? "bg-orange-500 text-white border-orange-600 shadow-md scale-105" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"}`}
                                         >
                                             {fee}
                                         </button>
@@ -2464,7 +2463,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             </label>
 
                             <div className="mt-4 flex justify-between items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                <span className="text-sm font-bold text-gray-600 uppercase tracking-widest">Total de la commande</span>
+                                <span className="text-sm font-bold text-gray-600 uppercase tracking-widest">Total commande</span>
                                 <span className="text-2xl font-black text-gray-900">
                                     {total + Number(telInfo.deliveryFee || 0)} <span className="text-sm">DH</span>
                                 </span>
@@ -2472,19 +2471,28 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
                             <button
                                 onClick={handleSendWhatsappFromPOS}
-                                className="w-full mt-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-700 hover:to-green-800 text-white py-4 rounded-xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                                className="w-full mt-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-700 hover:to-green-800 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                                Créer & Envoyer WhatsApp
+                                Créer Commande Tél & WhatsApp
                             </button>
 
                             <button
                                 onClick={handleGlovoOrderFromPOS}
-                                className="w-full mt-3 bg-yellow-400 hover:bg-yellow-500 text-black py-4 rounded-xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                                className="w-full mt-3 bg-yellow-400 hover:bg-yellow-500 text-black py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
                             >
                                 <ShoppingBag size={20} />
-                                Client Glovo (Direct)
+                                Client Glovo (Saisir Commande)
                             </button>
+                            </>
+                        )}
+
+                        {/* Section Glovo only */}
+                        {telType === 'glovo' && (
+                            <button onClick={handleGlovoInviteFromPOS} className="w-full mt-4 bg-yellow-400 hover:bg-yellow-500 text-black py-5 rounded-2xl font-black text-base uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3">
+                                <MessageCircle size={24} /> Convertir & Envoyer WhatsApp
+                            </button>
+                        )}
                         </div>
                     </div>
                 </div>

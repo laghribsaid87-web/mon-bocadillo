@@ -232,13 +232,19 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
 
     useEffect(() => {
         if (brand?.logoUrl) {
-            let link = document.querySelector("link[rel~='apple-touch-icon']");
-            if (!link) {
-                link = document.createElement('link');
-                link.rel = 'apple-touch-icon';
-                document.head.appendChild(link);
-            }
-            link.href = brand.logoUrl;
+            const addOrUpdateIcon = (relType) => {
+                let link = document.querySelector(`link[rel='${relType}']`);
+                if (!link) {
+                    link = document.createElement('link');
+                    link.rel = relType;
+                    document.head.appendChild(link);
+                }
+                link.href = brand.logoUrl;
+            };
+            addOrUpdateIcon('apple-touch-icon');
+            addOrUpdateIcon('apple-touch-icon-precomposed');
+            addOrUpdateIcon('icon');
+            addOrUpdateIcon('shortcut icon');
         }
     }, [brand?.logoUrl]);
 

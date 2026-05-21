@@ -230,17 +230,17 @@ export const openWhatsAppDirect = (phone, message) => {
         // En Logiciel Windows (.exe) :
         try {
             const { shell } = window.require('electron');
-            // Ouvre directement le logiciel WhatsApp Desktop de Windows (0 onglet Chrome !)
-            shell.openExternal(`whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`).catch(() => {
-                // Si WhatsApp Desktop n'est pas installé, on ouvre WhatsApp Web dans le vrai navigateur
-                shell.openExternal(`https://web.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(message)}`);
-            });
+            // 🔥 Ouvre UNIQUEMENT le logiciel WhatsApp Desktop de Windows (0 navigateur !)
+            shell.openExternal(`whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`);
         } catch (e) {
             window.location.href = `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`;
         }
     } else {
         // En PC (Navigateur Web normal)
         window.open(`https://web.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(message)}`, '_blank');
+        // 🔥 N-Forciw l-Navigateur y7el l-Application WhatsApp Desktop (Logiciel PC)
+        // Zero onglet web, katsifet amr direct l'application d-Windows
+        window.location.href = `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(message)}`;
     }
 };
 
