@@ -25,13 +25,34 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-const path = window.location.pathname;
-const hash = window.location.hash;
+const path = window.location.pathname.toLowerCase();
+const hash = window.location.hash.toLowerCase();
 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
                      window.matchMedia('(display-mode: fullscreen)').matches ||
                      window.matchMedia('(display-mode: minimal-ui)').matches ||
                      window.navigator.standalone || 
                      document.referrer.includes('android-app://');
+
+// Mémoriser l'interface visitée dans le navigateur (pour l'ajout manuel à l'écran d'accueil)
+if (!isStandalone) {
+  if (path.includes('/kds') || hash.includes('/kds')) {
+    localStorage.setItem('pwa_mode', 'kds');
+  } else if (path.includes('/pos') || hash.includes('/pos')) {
+    localStorage.setItem('pwa_mode', 'pos');
+  } else if (path.includes('/tv') || hash.includes('/tv')) {
+    localStorage.setItem('pwa_mode', 'tv');
+  } else if (path.includes('/idara') || hash.includes('/idara')) {
+    localStorage.setItem('pwa_mode', 'admin');
+  } else if (path.includes('/livreur') || hash.includes('/livreur')) {
+    localStorage.setItem('pwa_mode', 'livreur');
+  } else {
+    // Ne pas écraser si c'est déjà configuré pour Idara/KDS/POS !
+    if (!localStorage.getItem('pwa_mode')) {
+      localStorage.setItem('pwa_mode', 'client');
+    }
+  }
+}
+
 const pwaMode = localStorage.getItem('pwa_mode');
 
 let RootComponent = App; // Par défaut, c'est l'application Client
@@ -55,8 +76,26 @@ if (import.meta.env.VITE_APP_TYPE === 'DRIVER') {
     RootComponent = AdminApp;
   } else if (path.startsWith('/livreur') || hash.includes('/livreur')) {
     RootComponent = DriverApp;
-  } else if (isStandalone && pwaMode === 'livreur') {
-    RootComponent = DriverApp;
+  } else if (path.startsWith('/tv') || hash.includes('/tv')) {
+    RootComponent = App;
+  } else if (isStandalone && pwaMode) {
+    if (pwaMode === 'livreur') {
+      RootComponent = DriverApp;
+    } else if (['admin', 'pos', 'kds'].includes(pwaMode)) {
+      RootComponent = AdminApp;
+      if (pwaMode === 'kds' && !hash.includes('/kds') && !path.includes('/kds')) {
+          window.history.replaceState(null, '', '#/kds');
+      } else if (pwaMode === 'pos' && !hash.includes('/pos') && !path.includes('/pos')) {
+          window.history.replaceState(null, '', '#/pos');
+      } else if (pwaMode === 'admin' && !hash.includes('/idara') && !path.includes('/idara')) {
+          window.history.replaceState(null, '', '#/idara');
+      }
+    } else if (pwaMode === 'tv') {
+      RootComponent = App;
+      if (!hash.includes('/tv') && !path.includes('/tv')) {
+          window.history.replaceState(null, '', '#/tv');
+      }
+    }
   }
 }
 

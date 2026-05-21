@@ -83,6 +83,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         if (settings?.hidePosAEmporter && orderType === 'a_emporter') setOrderType('sur_place');
     }, [settings?.hidePosSurPlace, settings?.hidePosAEmporter]);
 
+    // 🔥 NOUVEAU: Mni kaykhwa l-panier (commande dazt ola tms7at), nrejj3o l-mode par défaut
+    useEffect(() => {
+        if (cart.length === 0) {
+            setOrderType(settings?.hidePosSurPlace ? 'a_emporter' : 'sur_place');
+        }
+    }, [cart.length, settings?.hidePosSurPlace]);
+
     useEffect(() => {
         if (isAdmin && adminSelectedBranch) {
             setActiveBranchId(adminSelectedBranch);
@@ -1288,7 +1295,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             const orderToPrint = { ...newOrder, id: orderNum };
             printTicketsPos(orderToPrint, brand, isPaid); 
             setCart([]); // Nkhwiw l-panier f l-blassa
-            setOrderType('sur_place'); 
+            setOrderType(settings?.hidePosSurPlace ? 'a_emporter' : 'sur_place'); 
 
             // 🚀 2. SAUVEGARDE FIREBASE EN ARRIÈRE-PLAN (Sans bloquer la caisse)
             if (isNetOnline) {
@@ -1309,10 +1316,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             // 🚀 UI INSTANTANÉE
             if (unpaidOrders.length === 1) setShowUnpaidModal(false);
             showNotify("Ticket payé w t'imprima ! ✅", "success");
-            printTicketsPos(order, brand, true, true);
+            
+            const orderToPrint = { ...order, paymentMethod: 'espece', paymentStatus: 'paye' };
+            printTicketsPos(orderToPrint, brand, true, true);
 
             // 🚀 FIREBASE EN ARRIÈRE-PLAN
-            updateStatus(order.id, order.status, { paymentStatus: 'paye' }).catch(()=>{});
+            updateStatus(order.id, order.status, { paymentStatus: 'paye', paymentMethod: 'espece' }).catch(()=>{});
         } catch (error) {
             showNotify("Erreur lors du paiement", "error");
         }
@@ -2097,7 +2106,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                             ))}
                                             </div>
                                         <button onClick={() => handlePayUnpaidTicket(o)} className="mt-2 w-full bg-green-500 text-white py-3 rounded-xl font-black text-sm hover:bg-green-600 transition-colors shadow-md flex items-center justify-center gap-2">
-                                            <Banknote size={18}/> KHALLESS W IMPRIMI
+                                            <Banknote size={18}/> Payer le tichet
                                         </button>
                                     </div>
                                 ))

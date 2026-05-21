@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { BellRing, X, Download, Truck, Ban } from 'lucide-react';
+import { BellRing, X, Download, Truck, Ban, Lock } from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, setDoc, query, where, orderBy, limit } from 'firebase/firestore';
 import { onMessage } from 'firebase/messaging';
@@ -326,6 +326,29 @@ export default function App() {
           defaultMenu={DEFAULT_MENU_ITEMS}
           loadMoreOrders={() => setOrderLimit(prev => prev + 10)}
         />
+      )}
+
+      {(profile?.isAdmin || profile?.isManager) && !sessionStorage.getItem('test_client') && (
+        <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900" style={{ fontFamily: brand?.fontFamily || "'Poppins', sans-serif" }}>
+          <div className="bg-slate-800 p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl border-2 border-slate-700">
+            <div className="w-20 h-20 bg-slate-700 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <Lock size={36} />
+            </div>
+            <h2 className="text-2xl font-black uppercase tracking-widest text-white mb-2">Espace Idara</h2>
+            <p className="text-sm font-bold text-slate-400 mb-8">Vous êtes connecté en tant qu'administrateur. L'application client est désactivée par défaut pour vous.</p>
+            <button onClick={() => {
+                localStorage.setItem('pwa_mode', 'admin');
+                const route = `/idara`;
+                window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#' + route : route;
+            }} className="w-full bg-blue-600 text-white font-black uppercase py-4 rounded-xl shadow-lg active:scale-95 transition-all mb-3">
+              Ouvrir l'Idara
+            </button>
+            <button onClick={() => { sessionStorage.setItem('test_client', 'true'); window.location.reload(); }} className="w-full bg-slate-700 text-slate-300 font-bold uppercase py-3 rounded-xl shadow-sm active:scale-95 transition-all border border-slate-600 mb-4">
+              Tester l'App Client
+            </button>
+            <button onClick={handleLogout} className="text-red-400 font-bold uppercase text-xs hover:underline">Se Déconnecter</button>
+          </div>
+        </div>
       )}
   </Suspense>
     </div>

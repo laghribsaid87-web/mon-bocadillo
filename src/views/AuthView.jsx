@@ -344,6 +344,13 @@ const proceedToGps = async (finalName, finalPhone) => {
                   </div>
               )}
             </div>
+
+            {/* Lien de secours pour les administrateurs bloqués sur l'écran client */}
+            <div className="mt-8 pt-6 border-t border-gray-100 text-center w-full">
+                <button onClick={() => { localStorage.setItem('pwa_mode', 'admin'); window.location.href = '/idara'; }} className="text-[10px] font-black text-gray-300 hover:text-gray-500 uppercase tracking-widest transition-colors">
+                    Espace Administration
+                </button>
+            </div>
         </div>
       </div>
     );

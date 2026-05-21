@@ -710,6 +710,10 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                      )}
                   </div>
                </div>
+               
+               <button onClick={() => { localStorage.setItem('pwa_mode', 'admin'); window.location.href = '/idara'; }} className="w-full mt-2 mb-4 py-3 text-gray-400 font-bold uppercase text-[10px] bg-transparent transition-colors">
+                   Ouvrir Espace Idara
+               </button>
 
                <button onClick={onLogout} className="w-full py-3 text-red-500 font-bold uppercase text-xs bg-white rounded-xl border border-red-100 shadow-sm">Déconnexion</button>
             </div>
