@@ -105,6 +105,23 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
     }, [user?.uid, info?.phone, db, appId]);
 
     useEffect(() => {
+        // 🔥 UPDATE ACTIVE ORDERS WITH GPS
+        if (info.lat && info.lng && info.phone) {
+            const activeOrds = (orders || []).filter(o => 
+                (o.phone === info.phone || o.userId === user?.uid) && 
+                !['delivered', 'rejected'].includes(o.status) && 
+                !o.lat
+            );
+            activeOrds.forEach(o => {
+                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', o.id), {
+                    lat: info.lat,
+                    lng: info.lng
+                }).catch(e => console.log("Erreur update order GPS", e));
+            });
+        }
+    }, [info.lat, info.lng, info.phone, orders, user?.uid, db, appId]);
+
+    useEffect(() => {
         if (brand?.logoUrl) {
             const addOrUpdateIcon = (relType) => {
                 let link = document.querySelector(`link[rel='${relType}']`);

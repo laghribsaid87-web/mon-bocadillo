@@ -418,17 +418,27 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                     if (!hasSent && elapsed < 25000) {
                         lastNotifSentRef.current[o.id] = true;
                         const driverData = (liveOnlineDrivers || []).find(d => d.uid === o.driverId);
-                        if (driverData && driverData.fcmToken) {
-                            try {
-                                const functions = getFunctions();
-                                const sendPush = httpsCallable(functions, 'sendMarketingPush');
-                                sendPush({
-                                    appId,
-                                    tokens: [driverData.fcmToken],
-                                    title: "🚨 NOUVELLE COMMANDE !",
-                                    body: `Zreb accepte commande #${o.orderNumber || o.id.slice(-4)} 9bel mayfout l-we9t!`
-                                });
-                            } catch(e) {}
+                        if (driverData) {
+                            if (driverData.fcmToken) {
+                                try {
+                                    const functions = getFunctions();
+                                    const sendPush = httpsCallable(functions, 'sendMarketingPush');
+                                    sendPush({
+                                        appId,
+                                        tokens: [driverData.fcmToken],
+                                        title: "🚨 NOUVELLE COMMANDE !",
+                                        body: `Zreb accepte commande #${o.orderNumber || o.id.slice(-4)} 9bel mayfout l-we9t!`
+                                    });
+                                } catch(e) {}
+                            }
+                            
+                            // 🔥 NOUVEAU: Appel MacroDroid (Webhook) bach ysonni f iPhone w Android
+                            if (driverData.phone) {
+                                try {
+                                    const webhookUrl = `https://trigger.macrodroid.com/28c4739c-b1c7-43d8-bad9-60c0cbd412d9/souni?phone=${driverData.phone}`;
+                                    fetch(webhookUrl, { mode: 'no-cors' }).catch(()=>{});
+                                } catch(e) {}
+                            }
                         }
                     }
 
@@ -437,17 +447,27 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                         if (currentTime - lastPing > 120000) { // Chaque 2 minutes
                             updateStatus(o.id, o.status, { lastManualPing: currentTime, notifiedDriver: false });
                             const driverData = (liveOnlineDrivers || []).find(d => d.uid === o.driverId);
-                            if (driverData && driverData.fcmToken) {
-                                try {
-                                    const functions = getFunctions();
-                                    const sendPush = httpsCallable(functions, 'sendMarketingPush');
-                                    sendPush({
-                                        appId,
-                                        tokens: [driverData.fcmToken],
-                                        title: "🚨 RAPPEL COMMANDE !",
-                                        body: `Zreb accepte commande #${o.orderNumber || o.id.slice(-4)} !`
-                                    });
-                                } catch(e) {}
+                            if (driverData) {
+                                if (driverData.fcmToken) {
+                                    try {
+                                        const functions = getFunctions();
+                                        const sendPush = httpsCallable(functions, 'sendMarketingPush');
+                                        sendPush({
+                                            appId,
+                                            tokens: [driverData.fcmToken],
+                                            title: "🚨 RAPPEL COMMANDE !",
+                                            body: `Zreb accepte commande #${o.orderNumber || o.id.slice(-4)} !`
+                                        });
+                                    } catch(e) {}
+                                }
+                                
+                                // 🔥 NOUVEAU: Rappel Appel MacroDroid (Kola 2 min)
+                                if (driverData.phone) {
+                                    try {
+                                        const webhookUrl = `https://trigger.macrodroid.com/28c4739c-b1c7-43d8-bad9-60c0cbd412d9/souni?phone=${driverData.phone}`;
+                                        fetch(webhookUrl, { mode: 'no-cors' }).catch(()=>{});
+                                    } catch(e) {}
+                                }
                             }
                         }
                     } else {
@@ -1409,7 +1429,9 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                                            </div>
                                                            <div className="flex flex-col">
                                                                <span className="font-bold text-gray-900 flex items-center gap-1.5">{c.name || 'Inconnu'} {isGpsOutdated && <span title="Mochkil f l'GPS" className="cursor-help text-xs">⚠️</span>}</span>
-                                                               <span className="text-[10px] text-gray-500 font-mono">{c.phone || ''}</span>
+                                                               <a href={`tel:${c.phone}`} className="text-[10px] text-blue-500 font-mono underline hover:text-blue-700 w-fit">
+                                                                   {c.phone || ''}
+                                                               </a>
                                                                {onlineData.appVersion && (
                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border w-fit mt-0.5 ${onlineData.appVersion === latestGithubVersion ? 'text-green-600 bg-green-50 border-green-200' : 'text-orange-600 bg-orange-50 border-orange-200'}`}>
                                                                        v{onlineData.appVersion} {onlineData.appVersion !== latestGithubVersion && '(Maj dispo)'}

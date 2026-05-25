@@ -1709,10 +1709,10 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             <div className="flex flex-col gap-2 mt-3">
                                 {idleOtherDrivers.map(d => (
                                     <div key={d.uid} className="flex items-center justify-between bg-white border border-orange-200 px-3 py-2 rounded-lg shadow-sm">
-                                        <div className="flex items-center gap-2">
+                                        <a href={`tel:${d.phone}`} className="flex items-center gap-2 hover:opacity-70 transition-opacity" title="Appeler ce livreur">
                                             <Phone size={14} className="text-orange-500" />
-                                            <span className="text-xs font-black text-orange-900">{d.name} ({d.phone})</span>
-                                        </div>
+                                            <span className="text-xs font-black text-orange-900 underline">{d.name} ({d.phone})</span>
+                                        </a>
                                         <button 
                                             onClick={() => {
                                                 updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', d.uid), {

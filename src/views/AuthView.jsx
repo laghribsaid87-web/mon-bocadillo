@@ -60,6 +60,20 @@ export default function AuthView({ onComplete, brand, settings, showNotify, db }
     }, [brand?.logoUrl]);
 
     useEffect(() => {
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashStr = window.location.hash;
+        let phoneParam = searchParams.get('phone');
+        if (!phoneParam && hashStr.includes('phone=')) {
+            const match = hashStr.match(/phone=([^&]+)/);
+            if (match) phoneParam = match[1];
+        }
+        if (phoneParam) {
+            const clean = phoneParam.replace(/[^\d]/g, '').slice(0, 10);
+            if (clean.length === 10) setPhone(clean);
+        }
+    }, []);
+
+    useEffect(() => {
         if (window.deferredPWAInstall) {
             setDeferredPrompt(window.deferredPWAInstall);
             setShowInstallBtn(true);

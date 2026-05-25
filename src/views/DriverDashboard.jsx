@@ -912,15 +912,32 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                                 </button>
                             </>
                         ) : (
-                            <div className="w-full h-20 rounded-2xl bg-gray-100 flex items-center justify-center border border-gray-200 mb-4 text-xs font-bold text-gray-400">
-                                <MapIcon size={16} className="mr-2 opacity-50"/> En attente du GPS...
+                            <div className="w-full flex flex-col items-center justify-center bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-4">
+                                <div className="flex items-center text-orange-600 font-black text-sm mb-3">
+                                    <MapIcon size={18} className="mr-2" /> Le client n'a pas de position GPS !
+                                </div>
+                                <div className="flex gap-2 w-full">
+                                    <a href={`tel:${o.phone}`} className="flex-1 bg-white text-gray-700 py-3 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 border border-gray-200 active:scale-95 transition-all hover:bg-gray-50"><Phone size={16}/> Appeler</a>
+                                    <button onClick={() => {
+                                        const waPhone = getWhatsAppFormat(o.phone);
+                                        const appUrl = window.location.origin + window.location.pathname;
+                                        const msgTemplate = brand.messages?.driverLocationReq || "Salam alikom, m3ak livreur dyal {brandName}.\n3afak dkhel l-had l-lien bach t-partager m3ana la position (GPS) dyalk, bach nwasal lik l-commande dyalk f a9rab wa9t.\n\n👉 *Sifet lina blastek mn hna:* {appUrl}?phone={clientPhone}";
+                                        const msg = buildMessage(msgTemplate, { brandName: brand.name || 'Restaurant', appUrl: appUrl, clientPhone: formatPhoneNumber(o.phone) });
+                                        openWhatsAppDirect(waPhone, msg);
+                                        showNotify("Demande envoyée !", "success");
+                                    }} className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 transition-all flex items-center justify-center gap-2">
+                                        <MessageCircle size={16} /> Demander Position
+                                    </button>
+                                </div>
                             </div>
                         )}
 
-                        <div className="flex gap-2">
-                            <a href={`tel:${o.phone}`} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2 border border-gray-200 active:scale-95 transition-all hover:bg-gray-200"><Phone size={16}/> Appeler</a>
-                            <button onClick={()=>sendImNearMessage(o.phone)} className="flex-[2] bg-green-500 text-white py-3 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all hover:bg-green-600"><MessageCircle size={16}/> "Ana 9rib nwsel"</button>
-                        </div>
+                        {location && o.lat && o.lng && (
+                            <div className="flex gap-2">
+                                <a href={`tel:${o.phone}`} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2 border border-gray-200 active:scale-95 transition-all hover:bg-gray-200"><Phone size={16}/> Appeler</a>
+                                <button onClick={()=>sendImNearMessage(o.phone)} className="flex-[2] bg-green-500 text-white py-3 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all hover:bg-green-600"><MessageCircle size={16}/> "Ana 9rib nwsel"</button>
+                            </div>
+                        )}
 
                         <button onClick={()=>updateStatus(o.id, 'delivered', {deliveredAtLocal: Date.now()})} className="w-full text-white py-5 rounded-2xl font-black text-base uppercase shadow-xl active:scale-95 transition-all mt-4 border-b-4 border-black/20 flex items-center justify-center gap-2" style={{backgroundColor: brand.driverColor || brand.color || '#3b82f6'}}>
                             <CheckCircle size={24}/> Commande Livrée
