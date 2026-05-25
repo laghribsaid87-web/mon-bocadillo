@@ -432,7 +432,27 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                         }
                     }
 
-                    if (elapsed > 30000) { handleReassignOrder(o, o.driverId, false, true); }
+                    if (o.isManualAssignment) {
+                        const lastPing = o.lastManualPing || o.assignedAtLocal;
+                        if (currentTime - lastPing > 120000) { // Chaque 2 minutes
+                            updateStatus(o.id, o.status, { lastManualPing: currentTime, notifiedDriver: false });
+                            const driverData = (liveOnlineDrivers || []).find(d => d.uid === o.driverId);
+                            if (driverData && driverData.fcmToken) {
+                                try {
+                                    const functions = getFunctions();
+                                    const sendPush = httpsCallable(functions, 'sendMarketingPush');
+                                    sendPush({
+                                        appId,
+                                        tokens: [driverData.fcmToken],
+                                        title: "🚨 RAPPEL COMMANDE !",
+                                        body: `Zreb accepte commande #${o.orderNumber || o.id.slice(-4)} !`
+                                    });
+                                } catch(e) {}
+                            }
+                        }
+                    } else {
+                        if (elapsed > 30000) { handleReassignOrder(o, o.driverId, false, true); }
+                    }
                 } else if (!o.driverId && (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready')) {
                     const elapsedSinceLastSearch = currentTime - (o.assignedAtLocal || o.createdAt?.seconds*1000 || 0);
                     if (elapsedSinceLastSearch > 15000) { handleReassignOrder(o, null, true, true); }

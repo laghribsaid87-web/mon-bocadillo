@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { Power, Truck, BellRing, MapPin, Navigation, Store, CheckCircle, Phone, MessageCircle, AlertTriangle, User, LogOut, Utensils, Map as MapIcon, Info, History, Check, X, Clock, Share, PlusSquare, Download } from 'lucide-react';
-import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, setDoc, onSnapshot } from 'firebase/firestore';
 import { getDatabase, ref as rtdbRef, set as rtdbSet, onValue } from 'firebase/database';
 import { getMessaging, onMessage, getToken } from 'firebase/messaging';
 import { getWhatsAppFormat, getDistance, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
@@ -76,6 +76,18 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
     const [appVersion, setAppVersion] = useState("1.0.0");
     const [latestGithubVersion, setLatestGithubVersion] = useState(null);
     const [isRtdbConnected, setIsRtdbConnected] = useState(true);
+
+    // 🔥 NOUVEAU: Listen to driver doc for help requests & return messages
+    const [driverDoc, setDriverDoc] = useState(null);
+    useEffect(() => {
+        if (!user?.uid) return;
+        const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user.uid), (docSnap) => {
+            if (docSnap.exists()) {
+                setDriverDoc(docSnap.data());
+            }
+        });
+        return () => unsub();
+    }, [user?.uid, db, appId]);
 
     // 🔥 Détection automatique de la version APK (Capacitor) et comparaison avec Github
     useEffect(() => {
@@ -381,8 +393,10 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             // Nl3boha l-merra l-wla
             playAlarm();
             
-            // N3awdoha kola 4 tewani ta ywerek "Accepter" awla "Refuser"
-            alarmInterval = setInterval(playAlarm, 4000);
+            // 🔥 NOUVEAU: N3awdoha kola 4 tewani l-les freelances (Glovo), w kola 10 tewani (10000ms) l-livreur Manuel
+            const hasStandardMissions = newMissions.some(o => !o.isManualAssignment);
+            const intervalTime = hasStandardMissions ? 4000 : 10000;
+            alarmInterval = setInterval(playAlarm, intervalTime);
         } else {
             prevMissionCountRef.current = 0;
             shortBeepPlayedRef.current = false;
@@ -845,7 +859,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                         </div>
                         
                         {/* 🔥 CHRONO 30s POUR LE LIVREUR */}
-                        {o.driverId === user?.uid && (o.assignedAtLocal || o.createdAt?.seconds) && (
+                        {o.driverId === user?.uid && !o.isManualAssignment && (o.assignedAtLocal || o.createdAt?.seconds) && (
                             <AcceptTimer assignedAt={o.assignedAtLocal || (o.createdAt?.seconds * 1000)} />
                         )}
                     </div>
@@ -1233,6 +1247,51 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     </div>
                 </div>
             )}
+
+        {/* MODAL DEMANDE D'AIDE */}
+        {driverDoc?.helpRequest && (
+            <div className="fixed inset-0 z-[5000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95">
+                    <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <AlertTriangle size={32} className="text-orange-500 animate-pulse" />
+                    </div>
+                    <h3 className="font-black text-xl text-orange-600 uppercase">🚨 Demande d'Aide !</h3>
+                    <p className="text-gray-700 font-bold text-sm">
+                        L'agence <span className="text-orange-600 font-black text-lg">{driverDoc.helpRequest.branchName}</span> est surchargée et a besoin de votre aide en urgence.
+                    </p>
+                    <div className="flex gap-3 mt-6">
+                        <button onClick={() => {
+                            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user.uid), { helpRequest: null });
+                        }} className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-black hover:bg-gray-300 transition-colors">Refuser</button>
+                        <button onClick={() => {
+                            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user.uid), { 
+                                helpRequest: null,
+                                isHelping: driverDoc.helpRequest.branchId
+                            });
+                            showNotify("Vous aidez maintenant cette agence.", "success");
+                        }} className="flex-[2] py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black shadow-md uppercase transition-colors">J'accepte d'aider</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* MODAL RETOUR AGENCE */}
+        {driverDoc?.returnMessage && (
+            <div className="fixed inset-0 z-[5000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <CheckCircle size={32} className="text-green-500" />
+                    </div>
+                    <h3 className="font-black text-xl text-green-600 uppercase">✅ Mission Accomplie !</h3>
+                    <p className="text-gray-700 font-bold text-base leading-relaxed">
+                        {driverDoc.returnMessage}
+                    </p>
+                    <button onClick={() => {
+                        updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', user.uid), { returnMessage: null });
+                    }} className="w-full py-4 mt-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black shadow-md uppercase transition-colors">Compris, je rentre</button>
+                </div>
+            </div>
+        )}
         </div>
     );
 }

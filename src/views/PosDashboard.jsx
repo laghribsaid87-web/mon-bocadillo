@@ -85,6 +85,63 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     });
     const [showUISettings, setShowUISettings] = useState(false);
 
+    // 🔥 NOUVEAU: Filtrer uniquement les livreurs qui existent vraiment dans la liste des comptes
+    const validOnlineDrivers = useMemo(() => {
+        return (onlineDrivers || []).filter(d => {
+            return (clientsList || []).some(c => c.isDriver === true && ((c.uid && c.uid === d.uid) || (d.phone && c.id === d.phone) || (c.id === d.id) || (c.id === d.uid)));
+        });
+    }, [onlineDrivers, clientsList]);
+
+    // 🔥 NOUVEAU: Calculer les commandes actives du livreur local
+    const defaultDriverActiveOrders = useMemo(() => {
+        if (!defaultPosDriver) return 0;
+        return (orders || []).filter(o => o.driverId === defaultPosDriver && !['delivered', 'rejected'].includes(o.status)).length;
+    }, [orders, defaultPosDriver]);
+
+    // 🔥 NOUVEAU: Trouver les livreurs libres d'autres agences si notre livreur est surchargé
+    const idleOtherDrivers = useMemo(() => {
+        const hasPendingOrReady = (orders || []).some(o => 
+            (o.status === 'pending' || o.status === 'ready') && 
+            o.source !== 'pos' && 
+            (activeBranchId === 'ALL' || o.nearestBranch?.id === activeBranchId)
+        );
+
+        if (defaultPosDriver && defaultDriverActiveOrders >= 2 && hasPendingOrReady) {
+            return validOnlineDrivers.filter(d => {
+                if (d.uid === defaultPosDriver) return false;
+                if (!d.isOnline) return false;
+                const dOrders = (orders || []).filter(o => o.driverId === d.uid && !['delivered', 'rejected'].includes(o.status)).length;
+                return dOrders === 0;
+            });
+        }
+        return [];
+    }, [defaultPosDriver, defaultDriverActiveOrders, orders, validOnlineDrivers, activeBranchId]);
+
+    // 🔥 NOUVEAU: Auto-release des livreurs en aide quand il n'y a plus de commandes
+    const activeHelpers = useMemo(() => validOnlineDrivers.filter(d => d.isHelping === activeBranchId), [validOnlineDrivers, activeBranchId]);
+
+    useEffect(() => {
+        if (!activeBranchId || activeBranchId === 'ALL' || activeHelpers.length === 0) return;
+
+        const branchNeedsHelp = (orders || []).some(o => 
+            ['pending', 'preparing', 'ready'].includes(o.status) && 
+            o.source !== 'pos' &&
+            o.nearestBranch?.id === activeBranchId
+        );
+
+        activeHelpers.forEach(h => {
+            const helperOrders = (orders || []).filter(o => o.driverId === h.uid && !['delivered', 'rejected'].includes(o.status));
+            
+            if (!branchNeedsHelp && helperOrders.length === 0) {
+                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', h.uid), {
+                    isHelping: null,
+                    returnMessage: "L'agence a terminé ses commandes. Garder ton agence et retourne à ton poste."
+                });
+                showNotify(`Livreur dyal aide (${h.name}) rah ghadi yrja3 poste dyalo`, "info");
+            }
+        });
+    }, [orders, activeHelpers, activeBranchId, db, appId, showNotify]);
+
     // 🔥 NOUVEAU: Fonction bach njbdo l-livreur li m-fixi f had la caisse
     const getDriverAssignmentData = () => {
         if (!defaultPosDriver) return {};
@@ -96,7 +153,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             isFreelanceDriver: dInfo.isFreelance || false,
             driverAccepted: false,
             assignedAtLocal: Date.now(),
-            notifiedDriver: false
+            notifiedDriver: false,
+            isManualAssignment: true // 🔥 INDICATEUR D'ASSIGNATION MANUELLE
         };
     };
 
@@ -362,7 +420,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             
             const isUnreachable = o.clientUnreachable;
             const hasAdminMsg = !!o.adminMessage;
-            const driverIgnoring = o.driverId && !o.driverAccepted && o.assignedAtLocal && (currentTime - o.assignedAtLocal > 45000); // 45s dl'intidar
+            const driverIgnoringTime = o.isManualAssignment ? 300000 : 45000; // 5min ola 45s
+            const driverIgnoring = o.driverId && !o.driverAccepted && o.assignedAtLocal && (currentTime - o.assignedAtLocal > driverIgnoringTime);
             const noDriverAssigned = !o.driverId && ['preparing', 'ready'].includes(o.status) && o.source !== 'pos' && o.assignedAtLocal && (currentTime - o.assignedAtLocal > 5 * 60000); // 5 d9ay9
             
             return isUnreachable || hasAdminMsg || driverIgnoring || noDriverAssigned;
@@ -1639,6 +1698,60 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 </div>
 
             <main className="flex-1 p-3 sm:p-4 md:p-8 overflow-y-auto w-full">
+                {idleOtherDrivers.length > 0 && (
+                    <div className="bg-orange-100 border-l-4 border-orange-500 p-4 mb-6 rounded-r-xl shadow-sm flex items-start gap-3 animate-in fade-in">
+                        <AlertTriangle className="text-orange-600 shrink-0 mt-0.5" size={24} />
+                        <div className="flex-1">
+                            <h4 className="text-orange-800 font-black text-sm uppercase tracking-wide">🚨 Livreur Surchargé !</h4>
+                            <p className="text-orange-700 text-xs font-bold mt-1">
+                                Votre livreur a déjà plusieurs commandes en cours. Voici des livreurs d'autres agences qui sont libres :
+                            </p>
+                            <div className="flex flex-col gap-2 mt-3">
+                                {idleOtherDrivers.map(d => (
+                                    <div key={d.uid} className="flex items-center justify-between bg-white border border-orange-200 px-3 py-2 rounded-lg shadow-sm">
+                                        <div className="flex items-center gap-2">
+                                            <Phone size={14} className="text-orange-500" />
+                                            <span className="text-xs font-black text-orange-900">{d.name} ({d.phone})</span>
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', d.uid), {
+                                                    helpRequest: {
+                                                        branchId: activeBranchId,
+                                                        branchName: (settings?.branches || []).find(b => b.id === activeBranchId)?.name || 'Caisse',
+                                                        timestamp: Date.now()
+                                                    }
+                                                });
+                                                showNotify(`Demande d'aide envoyée à ${d.name} !`, "success");
+                                            }}
+                                            className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-md text-[10px] font-black uppercase transition-colors shadow-sm"
+                                        >
+                                            Demander Aide
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeHelpers.length > 0 && (
+                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r-xl shadow-sm flex items-start gap-3 animate-in fade-in">
+                        <CheckCircle className="text-blue-600 shrink-0 mt-0.5" size={24} />
+                        <div className="flex-1">
+                            <h4 className="text-blue-800 font-black text-sm uppercase tracking-wide">🤝 Livreurs en Aide</h4>
+                            <p className="text-blue-700 text-xs font-bold mt-1">Vous pouvez maintenant leur assigner des commandes :</p>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {activeHelpers.map(h => (
+                                    <span key={h.uid} className="bg-blue-200 text-blue-900 px-3 py-1.5 rounded-md text-xs font-bold shadow-sm">
+                                        🛵 {h.name}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${posUI.cardWidth}px, 1fr))`, gap: '16px', paddingBottom: '24px' }}>
                         {filteredMenu.map((item, idx) => (
                         <div 
@@ -2243,7 +2356,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                     <p className="text-sm text-red-600 font-bold bg-red-100/50 w-fit px-3 py-1 rounded-lg">
                                         🚨 {o.adminMessage ? o.adminMessage : 
                                            o.clientUnreachable ? "Client Injoignable" : 
-                                           (o.driverId && !o.driverAccepted) ? `Livreur en attente (${o.driverName})` : 
+                                           (o.driverId && !o.driverAccepted) ? (o.isManualAssignment ? "Livreur n'a pas accepté la commande" : "Livreur n'a pas accepté (> 45s)") : 
                                            "Aucun livreur disponible !"}
                                     </p>
                                     {o.phone && (
@@ -2637,7 +2750,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                     <ShoppingBag size={20}/> Commandes Web & Téléphone ({onlineOrders.length})
                                 </h2>
                                 <p className="text-xs font-bold text-purple-600 mt-1 flex items-center gap-1">
-                                    <Truck size={14}/> {onlineDrivers.filter(d => d.isOnline).length} livreur(s) en ligne ({onlineDrivers.filter(d => d.isOnline && d.isAvailable).length} dispo)
+                                    <Truck size={14}/> {validOnlineDrivers.filter(d => d.isOnline).length} livreur(s) en ligne ({validOnlineDrivers.filter(d => d.isOnline && d.isAvailable).length} dispo)
                                 </p>
                             </div>
                             <button onClick={() => setShowOnlineOrdersModal(false)} className="p-2 bg-white rounded-full hover:bg-gray-100"><X size={20}/></button>
@@ -2702,7 +2815,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                                     >
                                                         <option value="" disabled>Assigner...</option>
                                                         <option value="ROBOT">🤖 Auto (Robot)</option>
-                                                        {(onlineDrivers || []).filter(d => d.isOnline).map(d => (
+                                                        {(validOnlineDrivers || []).filter(d => d.isOnline).map(d => (
                                                             <option key={d.uid} value={d.uid}>
                                                                 🛵 {d.name || d.phone} {d.isAvailable ? '✅' : '⏳'}
                                                             </option>
@@ -2729,24 +2842,6 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                                         showNotify("Commande marquée prête! ✅", "success");
                                                     }} className="flex-1 bg-orange-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-orange-600 transition-colors shadow-sm flex items-center justify-center gap-2">
                                                         <ChefHat size={16}/> Marquer Prête
-                                                    </button>
-                                                )}
-
-                                                {o.status === 'ready' && (
-                                                    <button onClick={() => {
-                                                        updateStatus(o.id, 'out_for_delivery');
-                                                        showNotify("Commande en route! 🛵", "success");
-                                                    }} className="flex-1 bg-blue-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-blue-600 transition-colors shadow-sm flex items-center justify-center gap-2">
-                                                        <Truck size={16}/> Marquer En Route
-                                                    </button>
-                                                )}
-
-                                                {o.status === 'out_for_delivery' && (
-                                                    <button onClick={() => {
-                                                        updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() });
-                                                        showNotify("Commande livrée! ✅", "success");
-                                                    }} className="flex-1 bg-green-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-green-600 transition-colors shadow-sm flex items-center justify-center gap-2">
-                                                        <CheckCircle size={16}/> Marquer Livrée
                                                     </button>
                                                 )}
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Lock, X, Mail, Key, ChefHat, Monitor } from 'lucide-react';
 import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, setDoc, query, orderBy, limit, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, updateDoc, serverTimestamp, setDoc, query, orderBy, limit, where, deleteDoc } from 'firebase/firestore';
 
 import { auth, db, appId, messaging } from './config/firebase';
 import { DEFAULT_BRAND, DEFAULT_SETTINGS, DEFAULT_MENU_ITEMS } from './config/constants';
@@ -228,6 +228,22 @@ function AdminAppInner() {
     return () => { unsubOrders(); unsubClients(); unsubDrivers(); };
   }, [user, profile]);
 
+  // 🔥 NETTOYAGE AUTO: Supprimer les livreurs fantômes de la base de données (anciens livreurs retirés de l'Idara)
+  useEffect(() => {
+      if (!profile?.isAdmin && !profile?.isManager) return;
+      if (clientsList.length === 0 || onlineDrivers.length === 0) return;
+      
+      const cleanupGhostDrivers = async () => {
+          onlineDrivers.forEach(async (d) => {
+              const exists = clientsList.some(c => c.isDriver === true && ((c.uid && c.uid === d.uid) || (d.phone && c.id === d.phone) || (c.id === d.id) || (c.id === d.uid)));
+              if (!exists) {
+                  try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers', d.id)); } catch (e) {}
+              }
+          });
+      };
+      cleanupGhostDrivers();
+  }, [clientsList, onlineDrivers, profile, db, appId]);
+
   const updateStatus = async (orderId, newStatus, updates = {}) => {
     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status: newStatus, updatedAt: serverTimestamp(), ...updates });
   };
@@ -250,7 +266,8 @@ function AdminAppInner() {
                 assignedAtLocal: Date.now(),
                 updatedAt: serverTimestamp(),
                 status: o.status === 'pending' ? 'preparing' : o.status,
-                notifiedDriver: false // 🔥 Nforcing sonnette 3nd livreur
+                notifiedDriver: false, // 🔥 Nforcing sonnette 3nd livreur
+                isManualAssignment: true // 🔥 INDICATEUR D'ASSIGNATION MANUELLE
              });
              if (!isRobot) showNotify("Livreur assigné manuellement ✅", "success");
              return;
