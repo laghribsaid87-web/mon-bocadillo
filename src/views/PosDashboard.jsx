@@ -2026,12 +2026,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             {/* MODAL REGLAGES D'AFFICHAGE SIMPLIFIÉ */}
             {showUISettings && (
                 <div className="fixed inset-0 z-[5000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowUISettings(false)}>
-                    <div className="bg-white rounded-3xl w-full max-w-sm flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <div className="bg-white rounded-3xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
                             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2"><Settings size={20}/> Config</h2>
                             <button onClick={() => setShowUISettings(false)} className="p-2 bg-white rounded-full hover:bg-gray-200"><X size={20}/></button>
                         </div>
-                        <div className="p-6 bg-white space-y-6">
+                        <div className="p-6 bg-white space-y-6 overflow-y-auto flex-1 no-scrollbar">
                             
                             {/* 🔥 NOUVEAU: Khtiyar L-Livreur Manuel */}
                             <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 shadow-sm mb-4">
@@ -2061,29 +2061,31 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                     <Printer size={16}/> Ticket {printAddition ? 'ON' : 'OFF'}
                                 </button>
                             </div>
-                            <div>
-                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur du Panier</span><span className="text-blue-600">{posUI.cartWidth}px</span></label>
-                                <input type="range" min="150" max="800" step="5" value={posUI.cartWidth} onChange={e => setPosUI({...posUI, cartWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
-                            </div>
-                            <div>
-                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur Boutons (Haut)</span><span className="text-blue-600">{posUI.actionBtnWidth}px</span></label>
-                                <input type="range" min="80" max="250" step="5" value={posUI.actionBtnWidth} onChange={e => setPosUI({...posUI, actionBtnWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
-                            </div>
-                            <div>
-                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Hauteur Boutons (Haut)</span><span className="text-blue-600">{posUI.actionBtnHeight}px</span></label>
-                                <input type="range" min="30" max="80" step="2" value={posUI.actionBtnHeight} onChange={e => setPosUI({...posUI, actionBtnHeight: Number(e.target.value)})} className="w-full accent-blue-600" />
-                            </div>
-                            <div>
-                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur des Produits</span><span className="text-blue-600">{posUI.cardWidth}px</span></label>
-                                <input type="range" min="100" max="400" step="5" value={posUI.cardWidth} onChange={e => setPosUI({...posUI, cardWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
-                            </div>
-                            <div>
-                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Hauteur des Produits</span><span className="text-blue-600">{posUI.cardHeight}px</span></label>
-                                <input type="range" min="100" max="500" step="5" value={posUI.cardHeight} onChange={e => setPosUI({...posUI, cardHeight: Number(e.target.value)})} className="w-full accent-blue-600" />
-                            </div>
-                            <div>
-                                <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Taille du Texte (Global)</span><span className="text-blue-600">{posUI.fontSize}px</span></label>
-                                <input type="range" min="10" max="24" step="1" value={posUI.fontSize} onChange={e => setPosUI({...posUI, fontSize: Number(e.target.value)})} className="w-full accent-blue-600" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur du Panier</span><span className="text-blue-600">{posUI.cartWidth}px</span></label>
+                                    <input type="range" min="150" max="800" step="5" value={posUI.cartWidth} onChange={e => setPosUI({...posUI, cartWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                </div>
+                                <div>
+                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur Boutons (Haut)</span><span className="text-blue-600">{posUI.actionBtnWidth}px</span></label>
+                                    <input type="range" min="80" max="250" step="5" value={posUI.actionBtnWidth} onChange={e => setPosUI({...posUI, actionBtnWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                </div>
+                                <div>
+                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Hauteur Boutons</span><span className="text-blue-600">{posUI.actionBtnHeight}px</span></label>
+                                    <input type="range" min="30" max="80" step="2" value={posUI.actionBtnHeight} onChange={e => setPosUI({...posUI, actionBtnHeight: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                </div>
+                                <div>
+                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur des Produits</span><span className="text-blue-600">{posUI.cardWidth}px</span></label>
+                                    <input type="range" min="100" max="400" step="5" value={posUI.cardWidth} onChange={e => setPosUI({...posUI, cardWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                </div>
+                                <div>
+                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Hauteur des Produits</span><span className="text-blue-600">{posUI.cardHeight}px</span></label>
+                                    <input type="range" min="100" max="500" step="5" value={posUI.cardHeight} onChange={e => setPosUI({...posUI, cardHeight: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                </div>
+                                <div>
+                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Taille du Texte</span><span className="text-blue-600">{posUI.fontSize}px</span></label>
+                                    <input type="range" min="10" max="24" step="1" value={posUI.fontSize} onChange={e => setPosUI({...posUI, fontSize: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                </div>
                             </div>
                             <button onClick={() => setPosUI(defaultPosUI)} className="w-full py-3 mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs uppercase transition-colors">Réinitialiser par défaut</button>
                             {isAdmin && headerBtnsOrder.length > 0 && (
@@ -2111,8 +2113,9 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                         </label>
                                     </div>
                                 )}
-                                
-                            <button onClick={() => setShowUISettings(false)} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm transition-colors shadow-md">Valider</button>
+                        </div>
+                        <div className="p-5 bg-gray-50 border-t border-gray-100 shrink-0">
+                            <button onClick={() => setShowUISettings(false)} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm transition-colors shadow-md">Valider et Fermer</button>
                         </div>
                     </div>
                 </div>
@@ -2605,9 +2608,14 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowOnlineOrdersModal(false)}>
                     <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[85dvh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
                         <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-purple-50">
-                            <h2 className="text-lg font-black text-purple-800 flex items-center gap-2">
-                                <ShoppingBag size={20}/> Commandes Web & Téléphone ({onlineOrders.length})
-                            </h2>
+                            <div>
+                                <h2 className="text-lg font-black text-purple-800 flex items-center gap-2">
+                                    <ShoppingBag size={20}/> Commandes Web & Téléphone ({onlineOrders.length})
+                                </h2>
+                                <p className="text-xs font-bold text-purple-600 mt-1 flex items-center gap-1">
+                                    <Truck size={14}/> {onlineDrivers.filter(d => d.isOnline).length} livreur(s) en ligne ({onlineDrivers.filter(d => d.isOnline && d.isAvailable).length} dispo)
+                                </p>
+                            </div>
                             <button onClick={() => setShowOnlineOrdersModal(false)} className="p-2 bg-white rounded-full hover:bg-gray-100"><X size={20}/></button>
                         </div>
                         <div className="p-4 flex-1 overflow-y-auto bg-gray-50 space-y-3">
@@ -2639,15 +2647,95 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                             ))}
                                             {o.orderNote && <div className="mt-2 pt-2 border-t border-gray-200 text-[10px] text-red-500">📝 Note: {o.orderNote}</div>}
                                         </div>
-                                        {o.status === 'pending' && (
-                                            <button onClick={() => {
-                                                updateStatus(o.id, 'preparing');
-                                                printTicket(o, brand);
-                                                showNotify("Commande acceptée w mchat l'KDS! ✅", "success");
-                                            }} className="mt-2 w-full bg-green-500 text-white py-3 rounded-xl font-black text-sm hover:bg-green-600 transition-colors shadow-md flex items-center justify-center gap-2">
-                                                <CheckCircle size={18}/> Accepter & Imprimer
-                                            </button>
-                                        )}
+                                        
+                                        {/* GESTION CAISSIER: LIVRAISON & STATUTS */}
+                                        <div className="mt-1 flex flex-col gap-2 border-t border-gray-100 pt-3">
+                                            {/* Affichage du Livreur */}
+                                            <div className="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-200">
+                                                <div className="flex items-center gap-2">
+                                                    <Truck size={16} className={o.driverId ? "text-green-500" : "text-gray-400"} />
+                                                    <span className="text-xs font-bold text-gray-700">
+                                                        Livreur: {o.driverId ? (o.driverName || 'Assigné') : 'Non assigné'}
+                                                        {o.driverId && !o.driverAccepted && <span className="text-[10px] text-orange-500 ml-1">(En attente...)</span>}
+                                                    </span>
+                                                </div>
+                                                
+                                                {/* Dropdown d'assignation manuelle */}
+                                                {o.status !== 'pending' && o.status !== 'delivered' && (
+                                                    <select
+                                                        className="bg-white border border-gray-300 text-xs font-bold text-gray-700 py-1.5 px-2 rounded-md outline-none max-w-[140px] truncate"
+                                                        value={o.driverId || ''}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (val === 'ROBOT') {
+                                                                handleReassignOrder(o, null, true, true);
+                                                                showNotify("Recherche automatique lancée", "info");
+                                                            } else if (val) {
+                                                                handleReassignOrder(o, val, false, true);
+                                                                showNotify("Livreur assigné manuellement", "success");
+                                                            }
+                                                        }}
+                                                    >
+                                                        <option value="" disabled>Assigner...</option>
+                                                        <option value="ROBOT">🤖 Auto (Robot)</option>
+                                                        {(onlineDrivers || []).filter(d => d.isOnline).map(d => (
+                                                            <option key={d.uid} value={d.uid}>
+                                                                🛵 {d.name || d.phone} {d.isAvailable ? '✅' : '⏳'}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
+
+                                            {/* Boutons d'actions selon le statut */}
+                                            <div className="flex gap-2">
+                                                {o.status === 'pending' && (
+                                                    <button onClick={() => {
+                                                        updateStatus(o.id, 'preparing', getDriverAssignmentData());
+                                                        printTicket(o, brand);
+                                                        showNotify("Commande acceptée w mchat l'KDS! ✅", "success");
+                                                    }} className="flex-1 bg-green-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-green-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                        <CheckCircle size={16}/> Accepter & Imprimer
+                                                    </button>
+                                                )}
+                                                
+                                                {o.status === 'preparing' && (
+                                                    <button onClick={() => {
+                                                        updateStatus(o.id, 'ready');
+                                                        showNotify("Commande marquée prête! ✅", "success");
+                                                    }} className="flex-1 bg-orange-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-orange-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                        <ChefHat size={16}/> Marquer Prête
+                                                    </button>
+                                                )}
+
+                                                {o.status === 'ready' && (
+                                                    <button onClick={() => {
+                                                        updateStatus(o.id, 'out_for_delivery');
+                                                        showNotify("Commande en route! 🛵", "success");
+                                                    }} className="flex-1 bg-blue-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-blue-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                        <Truck size={16}/> Marquer En Route
+                                                    </button>
+                                                )}
+
+                                                {o.status === 'out_for_delivery' && (
+                                                    <button onClick={() => {
+                                                        updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() });
+                                                        showNotify("Commande livrée! ✅", "success");
+                                                    }} className="flex-1 bg-green-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-green-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+                                                        <CheckCircle size={16}/> Marquer Livrée
+                                                    </button>
+                                                )}
+
+                                                <button onClick={() => {
+                                                    setConfirmDialog({
+                                                        message: "Annuler cette commande ?",
+                                                        onConfirm: () => updateStatus(o.id, 'rejected', {reason: 'Annulée par la caisse', driverPaid: false})
+                                                    });
+                                                }} className="px-3 bg-red-100 text-red-600 rounded-xl font-black hover:bg-red-200 transition-colors flex items-center justify-center">
+                                                    <X size={16}/>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 ))
                             )}

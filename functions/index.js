@@ -175,7 +175,12 @@ exports.notifyDriverOnNewOrder = functions.firestore
                 if (driverDoc.exists && driverDoc.data().fcmToken) {
                     const token = driverDoc.data().fcmToken;
                     const payload = {
-                        notification: { title: "🚨 Nouvelle Commande !", body: `Commande #${orderData.orderNumber || '...'} katsennak.`, sound: "default" },
+                        notification: { 
+                            title: "🚨 Nouvelle Commande !", 
+                            body: `Commande #${orderData.orderNumber || '...'} katsennak.`, 
+                            sound: "default",
+                            android_channel_id: "loud_alarm"
+                        },
                         data: { type: "NEW_ORDER", orderId: context.params.orderId }
                     };
                     await admin.messaging().sendToDevice(token, payload, { priority: "high", timeToLive: 60 * 60 * 24 });
@@ -189,7 +194,12 @@ exports.notifyDriverOnNewOrder = functions.firestore
 
                 if (tokens.length > 0) {
                     const payload = {
-                        notification: { title: "🚨 Commande Freelance Dispo !", body: `Commande #${orderData.orderNumber || '...'} wajda! Zreb 9bel mayhezha chi wa7ed.`, sound: "default" },
+                        notification: { 
+                            title: "🚨 Commande Freelance Dispo !", 
+                            body: `Commande #${orderData.orderNumber || '...'} wajda! Zreb 9bel mayhezha chi wa7ed.`, 
+                            sound: "default",
+                            android_channel_id: "loud_alarm"
+                        },
                         data: { type: "NEW_FREELANCE_ORDER", orderId: context.params.orderId }
                     };
                     await admin.messaging().sendToDevice(tokens, payload, { priority: "high", timeToLive: 60 * 60 * 24 });
