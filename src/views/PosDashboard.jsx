@@ -39,6 +39,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showXZModal, setShowXZModal] = useState(false);
     const [activeBranchId, setActiveBranchId] = useState(isAdmin ? (adminSelectedBranch && adminSelectedBranch !== 'ALL' ? adminSelectedBranch : 'ALL') : (managerBranchId || ''));
     const prevPendingCount = useRef(0);
+    const [currentTime, setCurrentTime] = useState(Date.now());
+
+    useEffect(() => {
+        const int = setInterval(() => setCurrentTime(Date.now()), 10000);
+        return () => clearInterval(int);
+    }, []);
 
     // 🔥 States & Refs pour le glissement (Drag & Drop)
     const dragCatRef = useRef(null);
@@ -89,7 +95,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             driverName: dInfo.name || 'Inconnu',
             isFreelanceDriver: dInfo.isFreelance || false,
             driverAccepted: false,
-            assignedAtLocal: Date.now()
+            assignedAtLocal: Date.now(),
+            notifiedDriver: false
         };
     };
 
@@ -352,9 +359,15 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const problemOrders = useMemo(() => {
         return (orders || []).filter(o => {
             if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
-            return o.clientUnreachable || (o.adminMessage && o.adminMessage.includes('PANNE'));
+            
+            const isUnreachable = o.clientUnreachable;
+            const hasAdminMsg = !!o.adminMessage;
+            const driverIgnoring = o.driverId && !o.driverAccepted && o.assignedAtLocal && (currentTime - o.assignedAtLocal > 45000); // 45s dl'intidar
+            const noDriverAssigned = !o.driverId && ['preparing', 'ready'].includes(o.status) && o.source !== 'pos' && o.assignedAtLocal && (currentTime - o.assignedAtLocal > 5 * 60000); // 5 d9ay9
+            
+            return isUnreachable || hasAdminMsg || driverIgnoring || noDriverAssigned;
         });
-    }, [orders, activeBranchId]);
+    }, [orders, activeBranchId, currentTime]);
 
     useEffect(() => {
         if (problemOrders.length > prevProblemCount.current) {
@@ -2228,7 +2241,10 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                         <span className="font-black text-red-600 text-lg">{o.total} DH</span>
                                     </div>
                                     <p className="text-sm text-red-600 font-bold bg-red-100/50 w-fit px-3 py-1 rounded-lg">
-                                        🚨 {o.adminMessage || (o.clientUnreachable ? "Client Injoignable" : "Problème signalé")}
+                                        🚨 {o.adminMessage ? o.adminMessage : 
+                                           o.clientUnreachable ? "Client Injoignable" : 
+                                           (o.driverId && !o.driverAccepted) ? `Livreur en attente (${o.driverName})` : 
+                                           "Aucun livreur disponible !"}
                                     </p>
                                     {o.phone && (
                                         <div className="flex items-center gap-2 mt-1">
@@ -2241,6 +2257,14 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                         </div>
                                     )}
                                     <div className="flex flex-wrap gap-2 mt-2">
+                                        {((o.driverId && !o.driverAccepted) || (!o.driverId && ['preparing', 'ready'].includes(o.status))) && (
+                                            <button onClick={() => {
+                                                handleReassignOrder(o, null, true, true);
+                                                showNotify("Recherche d'un autre livreur lancée", "info");
+                                            }} className="w-full px-5 py-3 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-xl font-black text-xs uppercase shadow-sm active:scale-95 transition-all border border-orange-200">
+                                                🔄 Chercher un autre livreur (Robot)
+                                            </button>
+                                        )}
                                         <button onClick={() => {
                                             updateStatus(o.id, o.status, {clientUnreachable: false, adminMessage: null});
                                             showNotify("Commande marquée comme résolue ✅", "success");
@@ -2671,8 +2695,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                                                 handleReassignOrder(o, null, true, true);
                                                                 showNotify("Recherche automatique lancée", "info");
                                                             } else if (val) {
-                                                                handleReassignOrder(o, val, false, true);
-                                                                showNotify("Livreur assigné manuellement", "success");
+                                                                // 🔥 Correction: val khas ydoz f l-paramètre l-khamess (manualTargetDriverId)
+                                                                handleReassignOrder(o, null, false, false, val);
                                                             }
                                                         }}
                                                     >

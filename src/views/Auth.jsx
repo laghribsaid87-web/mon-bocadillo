@@ -6,6 +6,7 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
   const [pin, setPin] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(localStorage.getItem('admin_remember') === 'true');
   const autoLoginAttempted = useRef(false);
 
   useEffect(() => {
@@ -44,12 +45,39 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
               } catch (e) {}
           }
       }
+
+      // 🔥 Auto-Fill Admin
+      if (type === 'admin') {
+          const savedEmail = localStorage.getItem('admin_email');
+          const savedPwdEnc = localStorage.getItem('admin_pwd_enc');
+          if (savedEmail && savedPwdEnc) {
+              setEmail(savedEmail);
+              try { 
+                  const decoded = atob(savedPwdEnc);
+                  setPassword(decoded);
+                  if (!autoLoginAttempted.current && onLogin) {
+                      autoLoginAttempted.current = true;
+                      setTimeout(() => onLogin(savedEmail, decoded), 300);
+                  }
+              } catch(e) {}
+          }
+      }
+
   }, [type, onLogin]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if(onLogin) {
       if (type === 'admin') {
+        if (rememberMe) {
+            localStorage.setItem('admin_remember', 'true');
+            localStorage.setItem('admin_email', email);
+            localStorage.setItem('admin_pwd_enc', btoa(password));
+        } else {
+            localStorage.removeItem('admin_remember');
+            localStorage.removeItem('admin_email');
+            localStorage.removeItem('admin_pwd_enc');
+        }
         onLogin(email, password);
       } else {
         localStorage.setItem('driver_auto_phone', phone);
@@ -166,7 +194,16 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
                     onChange={(e) => setPassword(e.target.value)}
                   />
             </div>
-            <div className="flex justify-end mt-2">
+            <div className="flex justify-between items-center mt-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-gray-600">Se souvenir de moi</span>
+              </label>
               <button type="button" onClick={handleResetPassword} className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors">
                 Mot de passe oublié ?
               </button>

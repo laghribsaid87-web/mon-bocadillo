@@ -27,8 +27,17 @@ jobs:
       - name: Clean compressed assets (Fix Duplicate resources)
         run: find dist -name "*.gz" -delete && find dist -name "*.br" -delete || true
 
+      - name: Extract Version
+        id: version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Sync Capacitor
         run: npx cap sync android
+
+      - name: Auto-increment Android Version
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/g" android/app/build.gradle
+          sed -i -E "s/versionName \".*\"/versionName \"${{ steps.version.outputs.VERSION }}\"/g" android/app/build.gradle
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -39,10 +48,6 @@ jobs:
       - name: Build APK (Android)
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug
-
-      - name: Extract Version
-        id: version
-        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Renommer l'APK pour la Release
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Mon-Bocadillo-Livreur-v${{ steps.version.outputs.VERSION }}.apk

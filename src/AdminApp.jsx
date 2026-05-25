@@ -26,10 +26,13 @@ function AdminAppInner() {
   const [audioObj] = useState(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
   const [kdsEmailInput, setKdsEmailInput] = useState('');
   const [kdsPasswordInput, setKdsPasswordInput] = useState('');
+  const [rememberAdmin, setRememberAdmin] = useState(localStorage.getItem('admin_remember') === 'true');
+  const [rememberKds, setRememberKds] = useState(localStorage.getItem('kds_remember') === 'true');
   
   const prevOrdersRef = useRef([]);
   const onlineDriversRef = useRef([]);
   const clientsListRef = useRef([]);
+  const autoLoginAttempted = useRef(false);
 
   useEffect(() => { onlineDriversRef.current = onlineDrivers; }, [onlineDrivers]);
   useEffect(() => { clientsListRef.current = clientsList; }, [clientsList]);
@@ -56,6 +59,37 @@ function AdminAppInner() {
     return () => {
       if (navigator.serviceWorker) navigator.serviceWorker.removeEventListener('message', handleSWMessage);
     };
+  }, []);
+
+  useEffect(() => {
+    if (autoLoginAttempted.current) return;
+    autoLoginAttempted.current = true;
+
+    const isKdsRoute = window.location.pathname.startsWith('/kds') || window.location.hash.includes('/kds');
+
+    if (isKdsRoute) {
+        const savedKdsEmail = localStorage.getItem('kds_email');
+        const savedKdsPwd = localStorage.getItem('kds_pwd_enc');
+        if (savedKdsEmail && savedKdsPwd) {
+            setKdsEmailInput(savedKdsEmail);
+            try { 
+                const decoded = atob(savedKdsPwd);
+                setKdsPasswordInput(decoded); 
+                setTimeout(() => handleKdsLogin(savedKdsEmail, decoded), 300);
+            } catch(e) {}
+        }
+    } else {
+        const savedAdminEmail = localStorage.getItem('admin_email');
+        const savedAdminPwd = localStorage.getItem('admin_pwd_enc');
+        if (savedAdminEmail && savedAdminPwd) {
+            setEmailInput(savedAdminEmail);
+            try { 
+                const decoded = atob(savedAdminPwd);
+                setPasswordInput(decoded); 
+                setTimeout(() => handleStaffLogin(savedAdminEmail, decoded), 300);
+            } catch(e) {}
+        }
+    }
   }, []);
 
   useEffect(() => {
@@ -198,11 +232,30 @@ function AdminAppInner() {
     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status: newStatus, updatedAt: serverTimestamp(), ...updates });
   };
 
-  const handleReassignOrder = async (o, rejectingDriverId = null, forceBroadcast = false, isRobot = false) => {
+  const handleReassignOrder = async (o, rejectingDriverId = null, forceBroadcast = false, isRobot = false, manualTargetDriverId = null) => {
       try {
-         let newRejectedBy = [...(o.rejectedBy || [])]; 
+         // 🔥 Si Idara demande un livreur manuellement, on vide la liste noire (rejectedBy) bach y3awd ytsifet lihom
+         let newRejectedBy = forceBroadcast ? [] : [...(o.rejectedBy || [])]; 
          if (rejectingDriverId && !newRejectedBy.includes(rejectingDriverId)) newRejectedBy.push(rejectingDriverId);
          
+         // 🔥 ASSIGNATION MANUELLE DIRECTE (DEPUIS LA CAISSE)
+         if (manualTargetDriverId) {
+             const dInfo = clientsListRef.current.find(c => c.uid === manualTargetDriverId || c.id === manualTargetDriverId);
+             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', o.id), {
+                driverId: manualTargetDriverId,
+                driverName: dInfo ? (dInfo.name || 'Inconnu') : 'Inconnu',
+                isFreelanceDriver: dInfo ? (dInfo.isFreelance || false) : false,
+                driverAccepted: false,
+                rejectedBy: newRejectedBy.filter(id => id !== manualTargetDriverId), // N7iydouh mn liste noire ila kan fiha
+                assignedAtLocal: Date.now(),
+                updatedAt: serverTimestamp(),
+                status: o.status === 'pending' ? 'preparing' : o.status,
+                notifiedDriver: false // 🔥 Nforcing sonnette 3nd livreur
+             });
+             if (!isRobot) showNotify("Livreur assigné manuellement ✅", "success");
+             return;
+         }
+
          const branch = o.nearestBranch; 
          if(!branch) return;
 
@@ -224,7 +277,7 @@ function AdminAppInner() {
          });
 
          if (!bD && newRejectedBy.length > 0) {
-             newRejectedBy = [];
+             newRejectedBy = []; // Reset liste noire ila makayn 7ed
              onlineDriversRef.current.forEach(d => {
                  const cInfo = clientsListRef.current.find(c => (c.uid && c.uid === d.uid) || (d.phone && c.id === d.phone));
                  if(isDriverOnline(d) && d.isAvailable && cInfo && cInfo.isDriver === true) {
@@ -239,7 +292,8 @@ function AdminAppInner() {
              await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', o.id), { 
                 driverId: bD, driverName: bDObj.name || 'Inconnu', isFreelanceDriver: bDObj.isFreelance || false, 
                 driverAccepted: false, rejectedBy: newRejectedBy, assignedAtLocal: Date.now(), updatedAt: serverTimestamp(), 
-                status: o.status === 'pending' ? 'preparing' : o.status 
+                status: o.status === 'pending' ? 'preparing' : o.status,
+                notifiedDriver: false // 🔥 Nforcing sonnette 3nd livreur
              }); 
              if (!isRobot || rejectingDriverId) showNotify(rejectingDriverId ? "Robo dwez l-commande l-livreur akher! 🤖" : "Livreur assigné ✅", "success"); 
          } else { 
