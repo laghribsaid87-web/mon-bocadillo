@@ -5,7 +5,7 @@ import { generateOrderNumber, printTicket, formatSansIngredient, buildMessage, o
 import { motion, AnimatePresence } from 'framer-motion';
 import { PREDEFINED_DRINKS, DEFAULT_BRAND } from '../config/constants';
 
-export default function PosDashboard({ settings, brand, db, appId, showNotify, managerBranchId, adminSelectedBranch, isAdmin, orders = [], updateStatus, handleReassignOrder, onQuit, setTab, saveSettings, hasAccess }) {
+export default function PosDashboard({ settings, brand, db, appId, showNotify, managerBranchId, adminSelectedBranch, isAdmin, orders = [], updateStatus, handleReassignOrder, onQuit, setTab, saveSettings, hasAccess, clientsList = [], onlineDrivers = [] }) {
     const [cart, setCart] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('');
 
@@ -32,6 +32,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showOnlineOrdersModal, setShowOnlineOrdersModal] = useState(false);
     const [telInfo, setTelInfo] = useState({ phone: '', deliveryFee: 0 });
     const [telType, setTelType] = useState('telephone');
+    const [defaultPosDriver, setDefaultPosDriver] = useState(() => localStorage.getItem('pos_default_driver') || '');
     
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -77,6 +78,20 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         return defaultPosUI;
     });
     const [showUISettings, setShowUISettings] = useState(false);
+
+    // 🔥 NOUVEAU: Fonction bach njbdo l-livreur li m-fixi f had la caisse
+    const getDriverAssignmentData = () => {
+        if (!defaultPosDriver) return {};
+        const dInfo = (clientsList||[]).find(c => c.uid === defaultPosDriver || c.id === defaultPosDriver);
+        if (!dInfo) return {};
+        return {
+            driverId: dInfo.uid || dInfo.id,
+            driverName: dInfo.name || 'Inconnu',
+            isFreelanceDriver: dInfo.isFreelance || false,
+            driverAccepted: false,
+            assignedAtLocal: Date.now()
+        };
+    };
 
     useEffect(() => {
         if (settings?.hidePosSurPlace && orderType === 'sur_place') setOrderType('a_emporter');
@@ -681,7 +696,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             status: "pending",
             source: "telephone",
             etaMinutes: etaMins,
-            offlineCreatedAt: Date.now()
+            offlineCreatedAt: Date.now(),
+            ...getDriverAssignmentData()
         };
 
         try {
@@ -771,7 +787,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             orderType: "a_emporter",
             paymentMethod: "espece",
             etaMinutes: 15,
-            offlineCreatedAt: Date.now()
+            offlineCreatedAt: Date.now(),
+            ...getDriverAssignmentData()
         };
 
         try {
@@ -1288,7 +1305,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 paymentMethod: 'espece',
                 nearestBranch: branch,
                 customerName: orderType === 'a_emporter' ? 'Client Emporter' : 'Client Sur Place',
-                offlineCreatedAt: Date.now()
+                offlineCreatedAt: Date.now(),
+                ...getDriverAssignmentData()
             };
 
             // 🚀 1. IMPRESSION ET RESET INSTANTANÉS (0 SECONDE D'ATTENTE)
@@ -2014,6 +2032,27 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             <button onClick={() => setShowUISettings(false)} className="p-2 bg-white rounded-full hover:bg-gray-200"><X size={20}/></button>
                         </div>
                         <div className="p-6 bg-white space-y-6">
+                            
+                            {/* 🔥 NOUVEAU: Khtiyar L-Livreur Manuel */}
+                            <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 shadow-sm mb-4">
+                                <label className="flex justify-between text-xs font-black text-blue-800 mb-2">Livreur de cette Caisse (Manuel)</label>
+                                <select
+                                    className="w-full bg-white border border-blue-300 p-3 rounded-xl text-sm font-bold text-gray-900 outline-none focus:border-blue-500 cursor-pointer shadow-sm"
+                                    value={defaultPosDriver}
+                                    onChange={(e) => {
+                                        setDefaultPosDriver(e.target.value);
+                                        localStorage.setItem('pos_default_driver', e.target.value);
+                                        showNotify(e.target.value ? "Mode Manuel Activé 🛵" : "Mode Auto Activé 🤖", "success");
+                                    }}
+                                >
+                                    <option value="">🤖 Automatique (Idara / Robot)</option>
+                                    {(clientsList||[]).filter(c => c.isDriver).map(d => (
+                                        <option key={d.id} value={d.uid || d.id}>🛵 {d.name || d.phone}</option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-blue-700 mt-2 font-bold leading-tight">Si sélectionné, toute commande Web acceptée ici sera envoyée DIRECTEMENT à ce livreur.</p>
+                            </div>
+
                             <div className="flex gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-200">
                                 <button onClick={() => setPrintCuisine(!printCuisine)} className={`flex-1 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 border ${printCuisine ? 'bg-orange-100 text-orange-700 border-orange-200 shadow-sm' : 'bg-transparent text-gray-400 border-transparent hover:bg-gray-200'}`}>
                                     <ChefHat size={16}/> Cuisine {printCuisine ? 'ON' : 'OFF'}
@@ -2408,9 +2447,9 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                     </div>
                                     <div className="flex gap-2 mt-2">
                                         <button onClick={() => {
-                                            updateStatus(o.id, 'preparing');
+                                            updateStatus(o.id, 'preparing', getDriverAssignmentData());
                                             printTicket(o, brand);
-                                            showNotify("Commande acceptée w mchat l'KDS! ✅", "success");
+                                            showNotify(defaultPosDriver ? "Commande acceptée w mchat l-livreur! 🛵" : "Commande acceptée w mchat l'KDS! ✅", "success");
                                         }} className="flex-1 bg-green-500 text-white py-3 rounded-xl font-black text-sm hover:bg-green-600 transition-colors shadow-md flex items-center justify-center gap-2">
                                             <CheckCircle size={18}/> Accepter & Imprimer
                                         </button>
@@ -2422,10 +2461,10 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             <div className="p-4 bg-white border-t border-gray-100">
                                 <button onClick={() => {
                                     pendingOnline.forEach(o => {
-                                        updateStatus(o.id, 'preparing');
+                                        updateStatus(o.id, 'preparing', getDriverAssignmentData());
                                         printTicket(o, brand);
                                     });
-                                    showNotify("Ga3 l-commandes t'acceptaw! ✅", "success");
+                                    showNotify(defaultPosDriver ? "Ga3 l-commandes mchaw l-livreur! 🛵" : "Ga3 l-commandes t'acceptaw! ✅", "success");
                                 }} className="w-full bg-red-600 text-white py-4 rounded-xl font-black text-sm hover:bg-red-700 transition-colors shadow-md uppercase flex items-center justify-center gap-2">
                                     <CheckCircle size={20}/> Tout Accepter & Imprimer
                                 </button>

@@ -9,6 +9,7 @@ import LiveTimer from '../components/LiveTimer';
 import { VAPID_KEY } from '../config/firebase';
 import { App } from '@capacitor/app';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 
@@ -279,12 +280,26 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         };
     }, [isOnline, activeOrders.length]);
 
+    // 🔥 Astuce: Ref pour le son silencieux
+    const silentAudioRef = useRef(null);
+
     const enableSound = () => {
         setIsSoundEnabled(true);
         try {
             const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
             audio.volume = 0.01;
             audio.play().catch(() => {});
+            
+            // 🔥 NOUVEAU: Garder l'audio context actif avec un silence en boucle
+            if (!silentAudioRef.current) {
+                const silentSrc = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+                const silentAudio = new Audio(silentSrc);
+                silentAudio.loop = true;
+                silentAudio.volume = 0.01;
+                silentAudio.play().catch(e => console.log("Silent audio blocked", e));
+                silentAudioRef.current = silentAudio;
+            }
+
             if (navigator.vibrate) navigator.vibrate([1]);
         } catch (e) {}
     };
@@ -295,6 +310,21 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
         if (showSetupModal) return;
 
         let alarmInterval;
+        
+        // 🔥 Demander la permission des notifications natives au démarrage
+        if (Capacitor.isNativePlatform()) {
+            LocalNotifications.requestPermissions();
+            
+            // 🔥 NOUVEAU: Créer un canal d'alerte maximale pour forcer le son et bypasser le mode "silencieux"
+            LocalNotifications.createChannel({
+                id: 'loud_alarm',
+                name: 'Alarmes de Commande',
+                description: 'Sonne très fort pour les nouvelles commandes',
+                importance: 5, // 5 = MAX (Force l'affichage et le son sur Android)
+                visibility: 1, // 1 = PUBLIC (Affiche sur l'écran de verrouillage)
+                vibration: true
+            });
+        }
 
         if (isSoundEnabled && isOnline && newMissions && newMissions.length > 0) {
             // Ila tzadet commande jdida, n-remettrou l-compteur l zero bach nl3bo sot khfif
@@ -303,7 +333,7 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
             }
             prevMissionCountRef.current = newMissions.length;
 
-            const playAlarm = () => {
+            const playAlarm = async () => {
                 try {
                     // 🔥 N-tcheckiw wach l-livreur kaychouf f l'application daba
                     const isVisible = document.visibilityState === 'visible';
@@ -320,6 +350,22 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                         }
                     } else {
                         // Tilifon f jibo awla tafi -> Sda3 en boucle 🚨
+                        
+                        // 🔥 NOUVEAU: Forcer le son natif via Capacitor Local Notifications (Technique Glovo)
+                        if (Capacitor.isNativePlatform()) {
+                            await LocalNotifications.schedule({
+                                notifications: [{
+                                    title: "🚨 COMMANDE WAJDA !",
+                                    body: "Zreb 7el l'application w accepte l-commande !",
+                                    id: 1987, // On utilise le même ID pour écraser la notif au lieu de spammer
+                                    schedule: { at: new Date(Date.now() + 100) }, // Déclencher immédiatement
+                                    actionTypeId: "",
+                                    extra: null,
+                                    channelId: 'loud_alarm' // 🔥 Utiliser le canal très fort
+                                }]
+                            });
+                        }
+
                         const audio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
                         audio.volume = 1.0;
                         audio.play().catch(e => console.log("Audio bloqué", e));
@@ -392,11 +438,30 @@ export default function DriverDashboard({ orders, user, profile, brand, updateSt
                     // 🔥 L3eb s-sot ila jat notification w l'app m7loula f wjeh l-livreur
                     if (payload.notification) {
                         try {
-                            // Hna l'application raha m7loula 100% (Foreground), donc ndiro sot khfif
-                            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-                            audio.volume = 0.3;
-                            audio.play().catch(e => {});
-                            if (navigator.vibrate) navigator.vibrate([200]);
+                            const isVisible = document.visibilityState === 'visible';
+                            // Ila kan l-livreur makhdamch f l'app, l3eb alarme b jhd
+                            const audioSrc = isVisible 
+                                ? 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg'
+                                : 'https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg';
+                            
+                            if (!isVisible && Capacitor.isNativePlatform()) {
+                                LocalNotifications.schedule({
+                                    notifications: [{
+                                        title: payload.notification.title || "🚨 COMMANDE !",
+                                        body: payload.notification.body || "Nouvelle commande à accepter",
+                                        id: new Date().getTime(),
+                                        schedule: { at: new Date(Date.now() + 100) },
+                                        channelId: 'loud_alarm' // 🔥 Utiliser le canal très fort
+                                    }]
+                                });
+                            }
+
+                            const notifAudio = new Audio(audioSrc);
+                            notifAudio.volume = isVisible ? 0.3 : 1.0;
+                            notifAudio.play().catch(e => {});
+                            if (navigator.vibrate) {
+                                isVisible ? navigator.vibrate([200]) : navigator.vibrate([800, 400, 800, 400, 800]);
+                            }
                         } catch(e) {}
                     }
                 });

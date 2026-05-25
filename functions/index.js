@@ -375,3 +375,129 @@ exports.verifyOrderSecurity = functions.firestore
         
         return null;
     });
+
+// 10. Webhook API Glovo (Pour recevoir les commandes en temps réel)
+exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
+    if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+    }
+
+    try {
+        const glovoOrder = req.body;
+        
+        if (!glovoOrder || !glovoOrder.order_id) {
+            res.status(400).send('Bad Request');
+            return;
+        }
+
+        const appId = "mon-bocadillo-menu";
+
+        // 🔥 MAPPING DES AGENCES (Glovo Store ID -> Mon Bocadillo Branch)
+        const GLOVO_STORES_MAP = {
+            "370282": { id: "laymoune", name: "Laymoune" },
+            "249396": { id: "oum_rabii", name: "Oum Rabii" }
+        };
+
+        const glovoStoreId = glovoOrder.store_id ? glovoOrder.store_id.toString() : "";
+        const assignedBranch = GLOVO_STORES_MAP[glovoStoreId] || { id: "laymoune", name: "Laymoune" };
+
+        const newOrder = {
+            userId: "glovo",
+            orderNumber: glovoOrder.order_code || glovoOrder.order_id.toString().slice(-4),
+            customerName: glovoOrder.customer?.name || "Client Glovo",
+            phone: glovoOrder.customer?.phone_number || "GLOVO",
+            address: glovoOrder.delivery_address?.label || "Commande Glovo",
+            nearestBranch: assignedBranch,
+            source: "glovo",
+            orderType: "a_emporter",
+            // 🔥 Hada howa s-ster li beddelna bach yferrez l-Espèce 3la l-Prépayé
+            paymentMethod: glovoOrder.payment_method === 'CASH' ? 'espece' : 'glovo',
+            status: "pending", 
+            total: glovoOrder.estimated_total_price / 100, 
+            subtotal: glovoOrder.estimated_total_price / 100,
+            deliveryFee: 0,
+            items: (glovoOrder.products || []).map(p => {
+                let selectedSans = [];
+                let selectedExtras = [];
+                
+                if (p.attributes && Array.isArray(p.attributes)) {
+                    p.attributes.forEach(attr => {
+                        if (attr.name.toLowerCase().includes('sans')) {
+                            selectedSans.push(attr.name.replace(/sans/i, '').trim());
+                        } else {
+                            selectedExtras.push({ name: attr.name, price: (attr.price || 0) / 100 });
+                        }
+                    });
+                }
+
+                return {
+                    id: p.id,
+                    name: p.name,
+                    qty: p.quantity,
+                    price: p.price / 100,
+                    selectedSans: selectedSans,
+                    selectedExtras: selectedExtras
+                };
+            }),
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await db.collection("artifacts").doc(appId)
+                .collection("public").doc("data")
+                .collection("orders").doc(glovoOrder.order_id.toString())
+                .set(newOrder);
+
+        res.status(200).send('OK');
+    } catch (error) {
+        console.error("Erreur Webhook Glovo:", error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// 11. Informer Glovo mli l-restaurant y-accepter awla y-wjed l-commande
+exports.syncStatusToGlovo = functions.firestore
+    .document('artifacts/{appId}/public/data/orders/{orderId}')
+    .onUpdate(async (change, context) => {
+        const newData = change.after.data();
+        const oldData = change.before.data();
+
+        // Vérifier wach l-commande dyal Glovo w wach l-Statut tbeddel
+        if (newData.source !== 'glovo' || newData.status === oldData.status) return null;
+
+        const glovoOrderId = context.params.orderId;
+        let glovoStatus = "";
+
+        // 1 = Mli la Caisse t-accepter -> "ACCEPTED"
+        if (newData.status === 'preparing') glovoStatus = "ACCEPTED";
+        // 2 = Mli l-Cuisine t-wjed -> "READY_FOR_PICKUP"
+        else if (newData.status === 'ready') glovoStatus = "READY_FOR_PICKUP";
+        else return null;
+
+        // N3rfo l-Store ID dyal l-Agence li daret l-Action
+        const storeIdMap = {
+            "laymoune": "370282",
+            "oum_rabii": "249396"
+        };
+        const branchId = newData.nearestBranch?.id || "laymoune";
+        const glovoStoreId = storeIdMap[branchId];
+
+        // ⚠️ HAD L-TOKEN GHADI Y3TIH LIK L-ACCOUNT MANAGER DYAL GLOVO
+        const GLOVO_API_TOKEN = "VOTRE_TOKEN_API_GLOVO_ICI";
+
+        if (glovoStatus && glovoStoreId) {
+            try {
+                const response = await fetch(`https://api.glovoapp.com/webhook/stores/${glovoStoreId}/orders/${glovoOrderId}/replace_status`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Authorization': `Basic ${Buffer.from(GLOVO_API_TOKEN).toString('base64')}`,
+                        'Content-Type': 'application/json' 
+                    },
+                    body: JSON.stringify({ status: glovoStatus })
+                });
+            } catch (error) {
+                console.error("Erreur de synchronisation avec Glovo:", error);
+            }
+        }
+        return null;
+    });

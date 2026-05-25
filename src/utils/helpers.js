@@ -131,6 +131,14 @@ export const printTicket = async (o, brand) => {
     return `<tr><td style="padding: 4px 0; vertical-align: top;"><b>${i.qty}x ${baseName}</b>${finalOptionsHtml}</td><td style="text-align: right; vertical-align: top; padding-top: 4px;">${(i.price * i.qty).toFixed(2)} DH</td></tr>`;
     }).join('');
     const orderTypeHtml = o.orderType ? `<h3 style="margin: 5px 0; border: 1px solid #000; padding: 4px; text-transform: uppercase;">${o.orderType.replace('_', ' ')}</h3>` : '';
+    
+    let glovoHtml = '';
+    if (o.source === 'glovo') {
+        const isCash = o.paymentMethod === 'espece' || o.paymentMethod === 'cash';
+        const glovoTag = isCash ? '🛑 GLOVO : À ENCAISSER (ESPÈCE)' : '✅ GLOVO : PAYÉE EN LIGNE';
+        glovoHtml = `<h2 style="margin: 5px 0; border: 2px dashed #000; padding: 6px; text-transform: uppercase; font-size: 16px; font-weight: 900;">${glovoTag}</h2>`;
+    }
+
     const noteHtml = o.orderNote ? `<div class="divider"></div><p class="left bold" style="font-size: 11px; color: #000;">📝 NOTE CUISINE:</p><p class="left" style="font-size: 11px; font-style: italic;">${o.orderNote}</p>` : '';
     const paymentHtml = o.paymentMethod ? `<p class="left bold" style="font-size: 12px; margin-top: 5px;">Mode de paiement: ${o.paymentMethod.toUpperCase()}</p>` : '';
     
