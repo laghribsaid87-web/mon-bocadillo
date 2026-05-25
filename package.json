@@ -3,7 +3,7 @@
   "description": "Caisse Mon Bocadillo Management Application",
   "author": "Mon Bocadillo",
   "private": true,
-  "version": "1.0.44",
+  "version": "1.0.45",
   "type": "module",
   "main": "public/electron.cjs",
   "scripts": {
@@ -29,6 +29,7 @@
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/app": "^8.1.0",
+    "@capacitor/local-notifications": "^8.2.0",
     "@capacitor/push-notifications": "^8.0.4",
     "electron-updater": "^6.8.3"
   },
