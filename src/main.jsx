@@ -9,6 +9,7 @@ window.L = window.L || L;
 const App = lazy(() => import('./App.jsx'));
 const AdminApp = lazy(() => import('./AdminApp.jsx'));
 const DriverApp = lazy(() => import('./DriverApp.jsx'));
+const ManagerAchatsApp = lazy(() => import('./ManagerAchatsApp.jsx'));
 
 // 🔥 NOUVEAU: Capture globale de l'événement PWA (bach mayzgelhach React)
 window.deferredPWAInstall = null;
@@ -45,6 +46,8 @@ if (!isStandalone) {
     localStorage.setItem('pwa_mode', 'admin');
   } else if (path.includes('/livreur') || hash.includes('/livreur')) {
     localStorage.setItem('pwa_mode', 'livreur');
+  } else if (path.includes('/achats') || hash.includes('/achats')) {
+    localStorage.setItem('pwa_mode', 'achats');
   } else {
     // Ne pas écraser si c'est déjà configuré pour Idara/KDS/POS !
     if (!localStorage.getItem('pwa_mode')) {
@@ -76,11 +79,18 @@ if (import.meta.env.VITE_APP_TYPE === 'DRIVER') {
     RootComponent = AdminApp;
   } else if (path.startsWith('/livreur') || hash.includes('/livreur')) {
     RootComponent = DriverApp;
+  } else if (path.startsWith('/achats') || hash.includes('/achats')) {
+    RootComponent = ManagerAchatsApp;
   } else if (path.startsWith('/tv') || hash.includes('/tv')) {
     RootComponent = App;
   } else if (isStandalone && pwaMode) {
     if (pwaMode === 'livreur') {
       RootComponent = DriverApp;
+    } else if (pwaMode === 'achats') {
+      RootComponent = ManagerAchatsApp;
+      if (!hash.includes('/achats') && !path.includes('/achats')) {
+          window.history.replaceState(null, '', '#/achats');
+      }
     } else if (['admin', 'pos', 'kds'].includes(pwaMode)) {
       RootComponent = AdminApp;
       if (pwaMode === 'kds' && !hash.includes('/kds') && !path.includes('/kds')) {

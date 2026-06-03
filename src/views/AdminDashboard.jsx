@@ -4,7 +4,7 @@ import {
     X, Menu, Check, CheckCircle, Minus, Clock, Printer, AlertTriangle, ChevronRight, Search, Mic, MicOff,
     Download, Ban, Trash2, User, Edit3, Settings, Zap, ImageIcon, Type, AlignLeft, 
     MessageCircle, Utensils, MousePointer2, Plus, ShoppingBag, Home, MapPin, Navigation, ChefHat, Monitor,
-    TrendingUp, DollarSign, Award, BarChart3, Database, Activity, Calculator
+    TrendingUp, DollarSign, Award, BarChart3, Database, Activity, Calculator, FileText, BookOpen
 } from 'lucide-react';
 import { doc, setDoc, addDoc, collection, serverTimestamp, getDoc, deleteDoc, updateDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -21,6 +21,8 @@ const AdminHistory = lazy(() => import('../components/admin/AdminHistory'));
 const AdminActiveOrders = lazy(() => import('../components/admin/AdminActiveOrders'));
 const AdminMaintenance = lazy(() => import('../components/admin/AdminMaintenance'));
 const PosDashboard = lazy(() => import('./PosDashboard'));
+const AchatInventaire = lazy(() => import('./AchatInventaire'));
+const FicheTechnique = lazy(() => import('./FicheTechnique'));
 
 export default function AdminDashboard({ role, managerBranchId, orders, updateStatus, clientsList, onlineDrivers, settings, brand, setBrand, saveSettings, db, showNotify, handleReassignOrder, printTicket, defaultMenu, onLogout, appId }) {
     const [tab, setTab] = useState('active'); 
@@ -307,11 +309,15 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
     // 🔥 GESTION DES ACCÈS PAR AGENCE (MANAGER)
     const myBranch = role === 'manager' ? (settings?.branches || DEFAULT_BRANCHES).find(b => b.id === managerBranchId) : null;
     const myModules = myBranch?.modules || ['pos', 'kds', 'tv', 'active', 'problems', 'standard', 'history', 'drivers', 'maps', 'clients', 'pos_drawer', 'pos_history', 'pos_reports', 'pos_delete'];
-    const hasAccess = (modId) => role === 'admin' || myModules.includes(modId);
+    const hasAccess = (modId) => {
+        if (role === 'admin') return true;
+        if (modId === 'achat_inventaire' && myModules.includes('history')) return true;
+        return myModules.includes(modId);
+    };
 
     useEffect(() => {
         if (role === 'manager' && !hasAccess(tab)) {
-            const availableTabs = ['active', 'pos', 'standard', 'history', 'drivers', 'maps', 'clients', 'problems'];
+            const availableTabs = ['active', 'pos', 'standard', 'history', 'achat_inventaire', 'drivers', 'maps', 'clients', 'problems'];
             const firstAvailable = availableTabs.find(m => hasAccess(m));
             if (firstAvailable) setTab(firstAvailable);
         }
@@ -969,6 +975,8 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                 {renderNavItem({ id: "clients", icon: <Users size={20}/>, label: "Livreurs & Comptes", hidden: !hasAccess('clients') })}
                 {renderNavItem({ id: "avis", icon: <Star size={20}/>, label: "Avis clients", hidden: role === 'manager' })}
                 {renderNavItem({ id: "config", icon: <Palette size={20}/>, label: "Éditeur Visuel", hidden: role === 'manager' })}
+                {renderNavItem({ id: "achat_inventaire", icon: <FileText size={20}/>, label: "Achats & Inventaire", hidden: role !== 'admin' && !hasAccess('history') })}
+                {renderNavItem({ id: "fiches_techniques", icon: <BookOpen size={20}/>, label: "Fiches Techniques", hidden: role === 'manager' })}
                 {renderNavItem({ id: "maintenance", icon: <Database size={20}/>, label: "Maintenance", hidden: role === 'manager' })}
             </div>
             <div className="p-4 border-t border-slate-700/50 shrink-0"><button onClick={onLogout} className="flex items-center gap-3 text-slate-400 font-bold hover:text-red-400 w-full p-2 transition-colors"><LogOut size={20}/> Se déconnecter</button></div>
@@ -982,7 +990,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
             <header className="bg-[#1e293b] h-20 border-b border-slate-700/50 flex items-center justify-between px-4 md:px-8 shadow-sm shrink-0">
                 <div className="flex items-center gap-4">
                     <button className="md:hidden p-2 text-slate-400 hover:bg-slate-800 rounded-md transition-colors" onClick={() => setIsSidebarOpen(true)}><Menu size={20}/></button>
-                    <h2 className="font-bold text-lg hidden md:block text-slate-200 capitalize">{tab === 'active' ? 'Commandes' : tab === 'config' ? 'Éditeur Visuel Live' : tab === 'analytics' ? 'Analyses & Stats' : tab === 'glovo_report' ? 'Rapport Glovo' : tab}</h2>
+                    <h2 className="font-bold text-lg hidden md:block text-slate-200 capitalize">{tab === 'active' ? 'Commandes' : tab === 'config' ? 'Éditeur Visuel Live' : tab === 'analytics' ? 'Analyses & Stats' : tab === 'glovo_report' ? 'Rapport Glovo' : tab === 'achat_inventaire' ? 'Achats & Inventaire' : tab === 'fiches_techniques' ? 'Fiches Techniques' : tab}</h2>
                     <h2 className="font-bold text-lg hidden md:block text-slate-200 capitalize select-none" onDoubleClick={() => {
                         if (role === 'admin' && !isSpyVisible) {
                             const code = window.prompt("Code secret :");
@@ -2140,6 +2148,18 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                             safeOrders={safeOrders}
                             clientsList={clientsList}
                         />
+                    </div>
+                )}
+
+                {tab === 'achat_inventaire' && (
+                    <div className="animate-in fade-in w-full h-full overflow-y-auto">
+                        <AchatInventaire db={db} appId={appId} profile={{ id: role, managerBranchId: role === 'manager' ? managerBranchId : (adminSelectedBranch === 'ALL' ? (settings?.branches?.[0]?.id || '') : adminSelectedBranch) }} brand={brand} showNotify={showNotify} />
+                    </div>
+                )}
+
+                {tab === 'fiches_techniques' && role === 'admin' && (
+                    <div className="animate-in fade-in w-full h-full overflow-y-auto">
+                        <FicheTechnique db={db} appId={appId} defaultMenu={settings?.menuItems || defaultMenu || []} showNotify={showNotify} />
                     </div>
                 )}
                 </Suspense>

@@ -417,6 +417,16 @@ export default function AdminConfig({
                                      <span className="text-xs font-black text-gray-900 block mb-1.5">Nom du Restaurant</span>
                                      <input id="edit-brandName" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-400 outline-none transition-all ${activeEditZone === 'brandName' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.name || ''} onChange={e=>setBrand({...brand, name: e.target.value})} onFocus={()=>setActiveEditZone('brandName')} />
                                  </label>
+                                 <label className="block sm:col-span-2 md:col-span-1 border border-gray-200 rounded-xl p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors">
+                                     <div className="flex flex-col">
+                                         <span className="text-sm font-bold text-gray-900 flex items-center gap-2">📺 Écran TV (Client)</span>
+                                         <span className="text-[10px] text-gray-500 font-medium">Activer ou désactiver l'écran pour économiser le quota Firebase.</span>
+                                     </div>
+                                     <div className="relative inline-flex items-center cursor-pointer">
+                                         <input type="checkbox" className="sr-only peer" checked={brand.isTvEnabled !== false} onChange={e=>setBrand({...brand, isTvEnabled: e.target.checked})} />
+                                         <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                                     </div>
+                                 </label>
                                  <label className="block">
                                      <span className="text-xs font-black text-gray-900 block mb-1.5">Annonce Promo (Bandeau en haut)</span>
                                      <input id="edit-promoMsg" className={`w-full bg-white border px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 placeholder-gray-400 outline-none transition-all ${activeEditZone === 'promoMsg' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-300 hover:border-gray-400'}`} value={brand.promoMsg || ''} onChange={e=>setBrand({...brand, promoMsg: e.target.value})} onFocus={()=>setActiveEditZone('promoMsg')} />

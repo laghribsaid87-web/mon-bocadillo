@@ -166,6 +166,15 @@ export default function App() {
 
   // 🔥 Route directe vers l'Écran TV (Support Electron w Web)
   if (window.location.pathname === '/tv' || window.location.hash.includes('/tv')) {
+    if (brand && brand.isTvEnabled === false) {
+      return (
+        <div className="h-screen flex items-center justify-center bg-black text-white font-bold text-2xl flex-col gap-4">
+           <span>📺 L'Écran TV est actuellement désactivé.</span>
+           <span className="text-sm text-gray-500 font-normal">Activez-le depuis l'Idara (Admin) pour reprendre l'affichage.</span>
+        </div>
+      );
+    }
+    
     return (
       <Suspense fallback={<div className="h-screen flex items-center justify-center bg-gray-900 text-white font-bold">Chargement de l'Écran TV...</div>}>
         <ClientScreen brand={brand} db={db} appId={appId} />

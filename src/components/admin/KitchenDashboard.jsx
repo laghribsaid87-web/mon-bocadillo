@@ -4,6 +4,7 @@ import { doc, updateDoc, collection, query, where, orderBy, limit, getDocs, star
 import { db, appId } from '../../config/firebase';
 import { formatSansIngredient } from '../../utils/helpers';
 import LiveTimer from '../LiveTimer';
+import { io } from 'socket.io-client';
 
 export default function KitchenDashboard({ activeOrders, updateStatus, printTicket, brand, settings, profile }) {
     // État pour cocher/rayer les articles préparés individuellement
@@ -25,6 +26,43 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     const [compactMode, setCompactMode] = useState(false);
     const [showStockModal, setShowStockModal] = useState(false);
     const [selectedBranchId, setSelectedBranchId] = useState('');
+
+    // 🔥 Jdid: Local WebSocket Server
+    const [posLocalIp, setPosLocalIp] = useState(() => localStorage.getItem('posLocalIp') || 'localhost');
+    const [showIpConfig, setShowIpConfig] = useState(false);
+    const [localOrders, setLocalOrders] = useState([]);
+    const [wsConnected, setWsConnected] = useState(false);
+    const localSocketRef = useRef(null);
+
+    useEffect(() => {
+        if (!posLocalIp) return;
+        
+        const socket = io(`http://${posLocalIp}:3001`, { transports: ['websocket', 'polling'] });
+        localSocketRef.current = socket;
+
+        socket.on('connect', () => setWsConnected(true));
+        socket.on('disconnect', () => setWsConnected(false));
+        
+        socket.on('kds_new_order', (order) => {
+            setLocalOrders(prev => {
+                if (prev.some(o => o.id === order.id || o.orderNumber === order.orderNumber)) return prev;
+                return [...prev, order];
+            });
+        });
+
+        socket.on('kds_status_updated', (data) => {
+            if (data.status === 'ready' || data.status === 'delivered') {
+                setLocalOrders(prev => prev.filter(o => o.id !== data.id && o.orderNumber !== data.orderNumber));
+            } else {
+                setLocalOrders(prev => prev.map(o => (o.id === data.id || o.orderNumber === data.orderNumber) ? { ...o, status: data.status } : o));
+            }
+        });
+
+        return () => {
+            socket.disconnect();
+            localSocketRef.current = null;
+        };
+    }, [posLocalIp]);
 
     useEffect(() => {
         if (!selectedBranchId) {
@@ -103,13 +141,23 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     
     // Utilisation de useMemo pour éviter de recalculer les listes à chaque tick du timer ou autre state
     const { preparingOrders } = useMemo(() => {
-        const preparing = (activeOrders || [])
+        const preparingFirebase = (activeOrders || [])
             .filter(o => o.status === 'preparing' || o.status === 'pending')
             .filter(o => selectedBranchId === 'ALL' || o.nearestBranch?.id === selectedBranchId)
             .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
             
-        return { preparingOrders: preparing };
-    }, [activeOrders, selectedBranchId]);
+        // Filtrer les doublons au cas où la commande est à la fois en local et sur firebase
+        const fbIds = new Set(preparingFirebase.map(o => o.orderNumber));
+        const preparingLocal = localOrders.filter(o => !fbIds.has(o.orderNumber));
+
+        const allPreparing = [...preparingLocal, ...preparingFirebase].sort((a, b) => {
+            const timeA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : (a.offlineCreatedAt || Date.now());
+            const timeB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : (b.offlineCreatedAt || Date.now());
+            return timeA - timeB;
+        });
+
+        return { preparingOrders: allPreparing };
+    }, [activeOrders, selectedBranchId, localOrders]);
 
     // Effet pour jouer un son de sonnette lors d'une nouvelle commande
     useEffect(() => {
@@ -198,8 +246,18 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
 
     // Marquer toute la commande comme prête
     const markOrderAsReady = (orderId) => {
-        const order = preparingOrders.find(o => o.id === orderId);
-        updateStatus(orderId, 'ready'); // On l'envoie vers 'ready' pour qu'elle s'affiche sur l'Écran Client (TV)
+        const order = preparingOrders.find(o => o.id === orderId || o.orderNumber === orderId);
+        if (order) {
+            // Si c'est une commande locale (WiFi), on émet l'event au WebSocket
+            if (localSocketRef.current && wsConnected && (order.source === 'pos' || order.orderType === 'sur_place' || order.orderType === 'a_emporter')) {
+                localSocketRef.current.emit('update_local_status', { id: order.id, orderNumber: order.orderNumber, status: 'ready' });
+                // On met à jour l'état local immédiatement
+                setLocalOrders(prev => prev.filter(o => o.id !== orderId && o.orderNumber !== orderId));
+            }
+            
+            // Toujours mettre à jour sur Firebase (pour l'écran TV et la caisse)
+            updateStatus(order.id, 'ready'); 
+        }
     };
 
     // Fonction pour lire la commande à haute voix (TTS)
@@ -323,6 +381,28 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                     <button onClick={() => setShowStockModal(true)} className="bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-red-400 px-4 py-2.5 rounded-2xl font-bold text-sm flex items-center gap-2 border border-neutral-800 transition-all shadow-sm" title="Rupture de Stock">
                         <PackageX size={18}/>
                     </button>
+                    
+                    {/* Bouton Config IP KDS */}
+                    <button onClick={() => setShowIpConfig(!showIpConfig)} className={`px-4 py-2.5 rounded-2xl font-bold text-sm flex items-center gap-2 border transition-all shadow-sm ${wsConnected ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`} title="Configurer IP Caisse">
+                        <Monitor size={18}/> {wsConnected ? 'Lié (WiFi)' : 'Déconnecté'}
+                    </button>
+                    
+                    {showIpConfig && (
+                        <div className="absolute top-20 right-8 bg-neutral-900 p-4 rounded-2xl border border-neutral-800 shadow-xl z-50 animate-in fade-in slide-in-from-top-4">
+                            <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-widest">Adresse IP de la Caisse</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    value={posLocalIp} 
+                                    onChange={e => setPosLocalIp(e.target.value)} 
+                                    className="bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white outline-none w-40 text-sm font-bold text-center placeholder-neutral-500" 
+                                    placeholder="192.168..." 
+                                />
+                                <button onClick={() => { localStorage.setItem('posLocalIp', posLocalIp); setShowIpConfig(false); }} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors">OK</button>
+                            </div>
+                            <p className="text-[10px] text-neutral-500 mt-2 italic max-w-[200px]">Tapez 'localhost' si KDS est sur le même ordinateur, ou l'IP WiFi de la caisse.</p>
+                        </div>
+                    )}
                     <button 
                         onClick={() => {
                             if ('speechSynthesis' in window) {

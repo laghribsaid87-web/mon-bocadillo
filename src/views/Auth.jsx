@@ -79,7 +79,7 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
             localStorage.removeItem('admin_pwd_enc');
         }
         onLogin(email, password);
-      } else {
+      } else if (type === 'livreur' || type === 'manager') {
         localStorage.setItem('driver_auto_phone', phone);
         localStorage.setItem('driver_auto_pin_enc', btoa(pin));
         onLogin(phone, pin);
@@ -118,12 +118,12 @@ export default function Auth({ onLogin, onResetPassword, loading, type = 'admin'
         </div>
 
         <h2 className="text-xl font-bold text-gray-900 mb-2">
-            {type === 'livreur' ? 'Espace Livreur' : 'Espace Administration'}
+            {type === 'livreur' ? 'Espace Livreur' : type === 'manager' ? 'Espace Gérant' : 'Espace Administration'}
         </h2>
         <p className="text-sm text-gray-500 mb-8 w-full">Connectez-vous à votre espace pour continuer.</p>
 
         <form onSubmit={handleSubmit} className="space-y-5 w-full text-left">
-          {type === 'livreur' ? (
+          {type === 'livreur' || type === 'manager' ? (
             <>
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-gray-700 block">Numéro de téléphone</label>

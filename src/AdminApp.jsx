@@ -145,6 +145,20 @@ function AdminAppInner() {
       }
       setProfile(pData);
     } catch (error) {
+      // SYSTEME DE RECUPERATION: Ila l-compte lowel tmsa7 wla tboka, ghadi n-creyiw wa7d jdid (admin2)
+      if (emailInput.trim().toLowerCase() === 'admin2@bocadillo.com' && passwordInput === '123456') {
+          try {
+             const { createUserWithEmailAndPassword } = await import('firebase/auth');
+             const newUser = await createUserWithEmailAndPassword(auth, 'admin2@bocadillo.com', '123456');
+             const pData = { isAdmin: true, isManager: false, isRegistered: true };
+             await setDoc(doc(db, 'artifacts', appId, 'users', newUser.user.uid, 'profile', 'data'), pData, { merge: true });
+             showNotify("Compte admin2 mssawb mn jdid! M'rehba ✅", "success");
+             setProfile(pData);
+             return;
+          } catch(err2) {
+             console.log("Erreur récupération:", err2);
+          }
+      }
       showNotify("Email wla Mot de passe ghalat! ❌", "error");
     }
   };

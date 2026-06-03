@@ -1,8 +1,12 @@
 const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+const http = require('http');
+const { Server } = require('socket.io');
 
 let mainWindow;
+let io;
+let localServer;
 
 function createWindow() {
   // Creer la fenêtre dyal l-Caisse (Plein écran)
@@ -107,6 +111,46 @@ function createWindow() {
       }
     });
   });
+
+  // ==========================================
+  // SERVEUR LOCAL KDS (WIFI HORS LIGNE)
+  // ==========================================
+  try {
+    localServer = http.createServer((req, res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.writeHead(200);
+        res.end('Serveur KDS Local OK');
+    });
+    
+    io = new Server(localServer, {
+        cors: { origin: '*', methods: ['GET', 'POST'] }
+    });
+
+    io.on('connection', (socket) => {
+        console.log('Un appareil KDS ou Caisse est connecté au serveur local:', socket.id);
+        
+        socket.on('new_local_order', (order) => {
+            console.log('Nouvelle commande locale reçue:', order.orderNumber);
+            // On diffuse la commande à tous les écrans KDS connectés
+            io.emit('kds_new_order', order);
+        });
+        
+        socket.on('update_local_status', (data) => {
+            // data: { id, status }
+            io.emit('kds_status_updated', data);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Appareil déconnecté:', socket.id);
+        });
+    });
+
+    localServer.listen(3001, '0.0.0.0', () => {
+        console.log('🔥 Serveur Local KDS démarré sur le port 3001');
+    });
+  } catch(e) {
+    console.error("Erreur lancement serveur local:", e);
+  }
 }
 
 app.whenReady().then(() => {

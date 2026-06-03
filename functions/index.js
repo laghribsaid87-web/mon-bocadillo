@@ -511,3 +511,62 @@ exports.syncStatusToGlovo = functions.firestore
         }
         return null;
     });
+
+// 12. Extraction des données d'un reçu/facture via l'IA (OCR - Gemini / Vision)
+exports.scanReceiptWithAI = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'User must be logged in');
+    
+    const { imageBase64, mimeType } = data;
+    if (!imageBase64) {
+        throw new functions.https.HttpsError('invalid-argument', 'Image is required');
+    }
+
+    try {
+        const { GoogleGenerativeAI } = require("@google/generative-ai");
+        
+        // ⚠️ HNA 7ET L-API KEY DYALEK DIRECTEMENT (L-cle khass ybda b AIzaSy...)
+        const apiKey = process.env.GEMINI_API_KEY || ""; 
+        
+        if (!apiKey || apiKey === "VOTRE_API_KEY_GEMINI_ICI") {
+            return { success: false, error: "Khassk t-modifier l-fichier functions/index.js w t7et l-API key dyalek s7i7a." };
+        }
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+        // Mss7o l-header dyal base64 image (data:image/jpeg;base64,...)
+        const base64Data = imageBase64.split(',')[1] || imageBase64;
+
+        const prompt = `Tu es un assistant comptable pour un restaurant au Maroc.
+Analyse cette facture ou ce bon d'achat et extrais les produits.
+Renvoie UNIQUEMENT un objet JSON valide avec cette structure stricte (pas de markdown, pas de texte autour) :
+{
+  "fournisseur": "Nom du fournisseur, supermarché ou magasin (ou Inconnu)",
+  "items": [
+    { "name": "Nom produit", "qty": nombre, "price": prix unitaire, "total": total pour le produit }
+  ],
+  "total": total général de la facture
+}`;
+
+        const result = await model.generateContent([
+            prompt,
+            { inlineData: { data: base64Data, mimeType: mimeType || "image/jpeg" } }
+        ]);
+
+        const responseText = result.response.text();
+        
+        // Nn9iw r-reponse mn markdown (```json ... ```)
+        let cleanText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        
+        const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Format JSON non trouvé dans la réponse de l'IA");
+        
+        const parsedData = JSON.parse(jsonMatch[0]);
+        
+        return { success: true, ...parsedData };
+
+    } catch (error) {
+        console.error("Erreur OCR AI:", error);
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});

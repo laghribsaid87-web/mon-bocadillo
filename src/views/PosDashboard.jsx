@@ -1,9 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings, MessageCircle, Truck, Phone } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
+import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings, MessageCircle, Truck, Phone, FileText } from 'lucide-react';
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot, query, where } from 'firebase/firestore';
 import { generateOrderNumber, printTicket, formatSansIngredient, buildMessage, openWhatsAppDirect } from '../utils/helpers';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PREDEFINED_DRINKS, DEFAULT_BRAND } from '../config/constants';
+import AchatInventaire from './AchatInventaire';
+import { io } from 'socket.io-client';
+
+let localSocket = null;
 
 export default function PosDashboard({ settings, brand, db, appId, showNotify, managerBranchId, adminSelectedBranch, isAdmin, orders = [], updateStatus, handleReassignOrder, onQuit, setTab, saveSettings, hasAccess, clientsList = [], onlineDrivers = [] }) {
     const [cart, setCart] = useState([]);
@@ -37,6 +41,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [showXZModal, setShowXZModal] = useState(false);
+    const [showAchatsModal, setShowAchatsModal] = useState(false);
+    const [achatsToday, setAchatsToday] = useState([]);
     const [activeBranchId, setActiveBranchId] = useState(isAdmin ? (adminSelectedBranch && adminSelectedBranch !== 'ALL' ? adminSelectedBranch : 'ALL') : (managerBranchId || ''));
     const prevPendingCount = useRef(0);
     const [currentTime, setCurrentTime] = useState(Date.now());
@@ -45,6 +51,38 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         const int = setInterval(() => setCurrentTime(Date.now()), 10000);
         return () => clearInterval(int);
     }, []);
+
+    useEffect(() => {
+        if (!localSocket) {
+            localSocket = io('http://localhost:3001', { transports: ['websocket', 'polling'] });
+        }
+        return () => {
+            if (localSocket) {
+                localSocket.disconnect();
+                localSocket = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!activeBranchId || activeBranchId === 'ALL') return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const qAchats = query(
+            collection(db, 'artifacts', appId, 'public', 'data', 'achats'),
+            where('branchId', '==', activeBranchId)
+        );
+        const unsub = onSnapshot(qAchats, (snap) => {
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const todayList = list.filter(a => {
+                const dateStr = a.date || (a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
+                return dateStr === todayStr;
+            });
+            setAchatsToday(todayList);
+        });
+        return () => unsub();
+    }, [activeBranchId, db, appId]);
+
+    const totalAchats = useMemo(() => achatsToday.reduce((sum, a) => sum + (Number(a.total) || 0), 0), [achatsToday]);
 
     // 🔥 States & Refs pour le glissement (Drag & Drop)
     const dragCatRef = useRef(null);
@@ -871,6 +909,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 saveOfflineOrder(newOrder);
             }
             
+            if (localSocket) localSocket.emit('new_local_order', newOrder);
+            
             printTicketsPos(newOrder, brand); // Impression auto
             setShowStandardModal(false);
             setTelInfo({ phone: '', deliveryFee: 0 });
@@ -1396,6 +1436,11 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             } else {
                 saveOfflineOrder(newOrder);
             }
+
+            // 🚀 3. EMIT VERS KDS LOCAL (WIFI HORS LIGNE)
+            if (localSocket) {
+                localSocket.emit('new_local_order', newOrder);
+            }
         } catch (error) {
             showNotify("W9e3 mochkil f tsjal dyal l-commande", "error");
         }
@@ -1452,7 +1497,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         const branch = (settings?.branches || []).find(b => b.id === activeBranchId);
         const itemsHtml = dailyItemsList.map(([name, qty]) => `<div style="display:flex; justify-content:space-between;"><span>${qty}x ${name}</span><span></span></div>`).join('');
         
-        const repartitionHtml = isAdmin ? `\n            <p style="text-align:left; font-weight:bold; margin:5px 0;">Répartition C.A :</p>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Sur Place (Caisse):</span><span>${caPos} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Livraison (App):</span><span>${caApp} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Standard (Tél):</span><span>${caTel} DH</span></div>\n            <hr style="border-top:1px dashed #000; margin:10px 0;"/>\n` : '';
+        const repartitionHtml = isAdmin ? `\n            <p style="text-align:left; font-weight:bold; margin:5px 0;">Répartition C.A :</p>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Sur Place (Caisse):</span><span>${caPos} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Livraison (App):</span><span>${caApp} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Standard (Tél):</span><span>${caTel} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Achats (Dépenses):</span><span>-${totalAchats} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:bold;"><span>Net (Espèce - Achats):</span><span>${caPos - totalAchats} DH</span></div>\n            <hr style="border-top:1px dashed #000; margin:10px 0;"/>\n` : '';
         
         const html = `<html><head><title>Rapport ${type}</title></head>
         <body style="font-family:monospace; padding:10px; font-size:14px; color:#000; text-align:center;">
@@ -1918,6 +1963,9 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         )}
                         {!settings?.hidePosReports && (!hasAccess || hasAccess('pos_reports')) && (
                             <button onClick={() => setShowXZModal(true)} className="flex-1 py-2 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><ClipboardList size={16}/><span>Rapports</span></button>
+                        )}
+                        {(!hasAccess || hasAccess('achat_inventaire')) && (
+                            <button onClick={() => setShowAchatsModal(true)} className="flex-1 py-2 bg-green-50 hover:bg-green-100 border border-green-100 text-green-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><FileText size={16}/><span>Achats</span></button>
                         )}
                     </div>
                     {!settings?.hidePosBluetooth && (
@@ -2508,6 +2556,16 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                         <span className="text-sm font-black text-orange-600">{isAdmin ? `${caTel} DH` : '***'}</span>
                                     </div>
                                 </div>
+                                <div className="grid grid-cols-2 gap-2 border-t border-gray-100 mt-2 pt-2">
+                                    <div className="flex flex-col items-center bg-red-50 p-2 rounded-xl">
+                                        <span className="text-[10px] text-red-500 uppercase font-bold">Achats (Dépenses)</span>
+                                        <span className="text-sm font-black text-red-600">{isAdmin ? `-${totalAchats} DH` : '***'}</span>
+                                    </div>
+                                    <div className="flex flex-col items-center bg-green-50 p-2 rounded-xl">
+                                        <span className="text-[10px] text-green-600 uppercase font-bold">Net (Espèce - Achats)</span>
+                                        <span className="text-sm font-black text-green-700">{isAdmin ? `${caPos - totalAchats} DH` : '***'}</span>
+                                    </div>
+                                </div>
                             </div>
                             <div className="bg-white p-4 rounded-2xl border border-gray-200 max-h-48 overflow-y-auto shadow-sm">
                                 <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Détails des ventes</h4>
@@ -2524,6 +2582,19 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 <button onClick={() => printReport('Z')} className="w-full py-3 bg-red-100 text-red-600 font-bold rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-red-200 text-sm shadow-sm"><Power size={18}/> Clôture Z</button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL ACHATS DEPUIS LA CAISSE */}
+            {showAchatsModal && (
+                <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex flex-col animate-in fade-in">
+                    <div className="bg-white p-4 flex justify-between items-center border-b border-gray-100 shadow-sm z-[201]">
+                        <h2 className="text-lg font-black text-gray-900 flex items-center gap-2"><FileText size={24} className="text-blue-500"/> Achats & Dépenses (Caisse)</h2>
+                        <button onClick={() => setShowAchatsModal(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X size={20}/></button>
+                    </div>
+                    <div className="flex-1 overflow-auto bg-gray-50 relative z-[200]">
+                        <AchatInventaire db={db} appId={appId} profile={{ id: 'pos', managerBranchId: activeBranchId }} brand={brand} showNotify={showNotify} />
                     </div>
                 </div>
             )}

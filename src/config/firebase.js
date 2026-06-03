@@ -4,7 +4,7 @@ import { getAuth } from 'firebase/auth';
 import { getMessaging, isSupported } from 'firebase/messaging';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAE5KH9KkeN22zCvv6Jx_BBBg3JJv-eaZA",
+  apiKey: "AIzaSyBcQDTGG0vsKRtK6B233Wuc4YM1_Gta-7Y",
   authDomain: "mon-bocadillo-menu.firebaseapp.com",
   projectId: "mon-bocadillo-menu",
   storageBucket: "mon-bocadillo-menu.firebasestorage.app",

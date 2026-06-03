@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Truck, Download, Ban, User, Trash2, X, CheckSquare, MessageCircle, Star, BellRing } from 'lucide-react';
+import { Search, Truck, Download, Ban, User, Trash2, X, CheckSquare, MessageCircle, Star, BellRing, Store } from 'lucide-react';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
@@ -292,11 +292,35 @@ export default function AdminClients({
                                            {!c.isDriver ? (
                                                <div className="flex flex-col items-start gap-1">
                                                    <div className="flex items-center gap-2">
-                                                       <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-gray-100 text-gray-600 border border-gray-200">Client</span>
+                                                       <span className={`inline-flex items-center px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${c.isManager ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>{c.isManager ? 'Gérant Achats' : 'Client'}</span>
                                                        {c.isInactive && <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-orange-50 text-orange-600 border border-orange-200" title="Aucune activité depuis plus de 30 jours">Inactif</span>}
                                                        {!c.isInactive && c.totalOrders >= 5 && <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-green-50 text-green-600 border border-green-200" title="Client Fidèle">Fidèle</span>}
                                                        {!c.isInactive && c.totalOrders > 0 && c.totalOrders < 5 && <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-blue-50 text-blue-600 border border-blue-200" title="Occasionnel">Occasionnel</span>}
                                                    </div>
+                                                   {c.isManager && (
+                                                       <div className="flex flex-col mt-2 gap-1 w-full border-t border-gray-50 pt-2">
+                                                           <div className="flex items-center gap-2">
+                                                               <span className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-black bg-yellow-50 text-yellow-800 border border-yellow-200 shadow-sm">
+                                                                   🔑 Code : {c.otp || 'N/A'}
+                                                               </span>
+                                                               <button onClick={async() => { const newOtp = Math.floor(1000 + Math.random() * 9000).toString(); await setDoc(doc(db,'artifacts',appId,'public','data','clients',c.id), {otp: newOtp, otpVerified: false}, {merge:true}); if(c.uid) await setDoc(doc(db,'artifacts',appId,'users',c.uid,'profile','data'), {otp: newOtp, otpVerified: false}, {merge:true}); showNotify("Code jdid t-généra! 🔄", "success"); }} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md text-[10px] font-bold transition-all shadow-sm" title="Générer un nouveau code">
+                                                                   🔄 Bdel
+                                                               </button>
+                                                           </div>
+                                                           {c.otp && (
+                                                               <button 
+                                                                   onClick={() => {
+                                                                       const msg = `Salam ${c.name}, mar7ba bik m3ana! L-code de confirmation dyalek bach tdkhol l'application dyal L'Achats howa: *${c.otp}* . Dkhol l had lien: https://www.monbocadillo.ma/#/achats`;
+                                                                       const waLink = `https://wa.me/${c.phone?.replace(/^0/, '212')}?text=${encodeURIComponent(msg)}`;
+                                                                       window.open(waLink, '_blank');
+                                                                   }}
+                                                                   className="mt-1 bg-green-500 hover:bg-green-600 text-white w-max px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-sm flex items-center gap-1"
+                                                               >
+                                                                   📱 Envoyer WhatsApp
+                                                               </button>
+                                                           )}
+                                                       </div>
+                                                   )}
                                                    <span className="text-[9px] font-bold text-gray-400 mt-1">Créé le: {c.createdDate}</span>
                                                </div>
                                            ) : (
@@ -356,6 +380,7 @@ export default function AdminClients({
                                                {!c.isDriver ? (
                                                    <>
                                                        {role === 'admin' && <button onClick={async()=>{await setDoc(doc(db,'artifacts',appId,'public','data','clients',c.id), {blocked: !c.blocked}, {merge:true}); if(c.uid) await setDoc(doc(db,'artifacts',appId,'users',c.uid,'profile','data'), {blocked: !c.blocked}, {merge:true}); showNotify(c.blocked ? "Débloqué ✅" : "Bloqué 🚫", "success");}} className={`p-3 rounded-xl transition-all shadow-sm ${c.blocked ? 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200' : 'bg-gray-50 text-gray-400 hover:text-orange-500 hover:bg-orange-50 border border-gray-200'}`} title={c.blocked ? 'Débloquer' : 'Bloquer'}><Ban size={18}/></button>}
+                                                       <button onClick={async()=>{ const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString(); await setDoc(doc(db,'artifacts',appId,'public','data','clients',c.id), {isManager: true, otp: generatedOtp, otpVerified: false}, {merge:true}); if(c.uid) await setDoc(doc(db,'artifacts',appId,'users',c.uid,'profile','data'), {isManager: true, otp: generatedOtp, otpVerified: false}, {merge:true}); showNotify("Wella Gérant! 👨‍💼", "success");}} className="p-3 bg-gray-50 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all shadow-sm border border-gray-200" title="Rendre Gérant Achats"><Store size={18}/></button>
                                                        <button onClick={async()=>{ const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString(); await setDoc(doc(db,'artifacts',appId,'public','data','clients',c.id), {isDriver: true, isFreelance: false, driverSince: Date.now(), otp: generatedOtp, otpVerified: false}, {merge:true}); if(c.uid) await setDoc(doc(db,'artifacts',appId,'users',c.uid,'profile','data'), {isDriver: true, isFreelance: false, driverSince: Date.now(), otp: generatedOtp, otpVerified: false}, {merge:true}); showNotify("Wella Livreur! 🛵", "success");}} className="p-3 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shadow-sm border border-gray-200" title="Rendre Livreur"><Truck size={18}/></button>
                                                    {role === 'admin' && <button onClick={() => setPointsModal({ show: true, client: c, adjust: 0 })} className="p-3 bg-yellow-50 text-yellow-600 hover:bg-yellow-100 rounded-xl transition-all shadow-sm border border-yellow-200" title="Gérer les points"><Star size={18}/></button>}
                                                        {role === 'admin' && <button onClick={async()=>{if(window.confirm('Msa7 Client?')){await deleteDoc(doc(db,'artifacts',appId,'public','data','clients',c.id)); showNotify("Tmsa7 ✅", "success");}}} className="p-3 bg-gray-50 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shadow-sm border border-gray-200" title="Supprimer"><Trash2 size={18}/></button>}
