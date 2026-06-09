@@ -18,17 +18,42 @@ object NetworkClient {
     suspend fun sendOrderData(telephoneEcran: String, contenuEcran: String) {
         withContext(Dispatchers.IO) {
             try {
-                // Structure of Firestore REST document
-                val json = JSONObject().apply {
-                    put("fields", JSONObject().apply {
-                        put("telephoneEcran", JSONObject().put("stringValue", telephoneEcran))
-                        put("contenuEcran", JSONObject().put("stringValue", contenuEcran))
-                        put("source", JSONObject().put("stringValue", "godroid_automator_app"))
-                    })
+                // Structure of Firestore REST document for an order
+                val jsonStr = """
+                {
+                  "fields": {
+                    "source": { "stringValue": "glovo" },
+                    "status": { "stringValue": "preparing" },
+                    "orderNumber": { "stringValue": "GLOVO-APP" },
+                    "items": {
+                      "arrayValue": {
+                        "values": [
+                          {
+                            "mapValue": {
+                              "fields": {
+                                "name": { "stringValue": "COMMANDE GLOVO (Voir Tablette)" },
+                                "qty": { "integerValue": "1" },
+                                "price": { "integerValue": "0" }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "nearestBranch": {
+                      "mapValue": {
+                        "fields": {
+                          "id": { "stringValue": "laymoune" }
+                        }
+                      }
+                    },
+                    "orderNote": { "stringValue": "TELEPHONE:\n$telephoneEcran\n\nCONTENU:\n$contenuEcran" }
+                  }
                 }
+                """.trimIndent()
 
                 val mediaType = "application/json; charset=utf-8".toMediaType()
-                val body = json.toString().toRequestBody(mediaType)
+                val body = jsonStr.toRequestBody(mediaType)
 
                 val request = Request.Builder()
                     .url(FIRESTORE_URL)
