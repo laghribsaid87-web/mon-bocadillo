@@ -3,8 +3,7 @@ name: Build GoDroid Automator APK
 on:
   push:
     branches:
-      - main
-      - master
+      - godroid-automator-app
 
 jobs:
   build-android:
