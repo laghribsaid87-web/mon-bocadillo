@@ -39,14 +39,7 @@
                 <span class="text-[10px] font-normal opacity-80 mt-1">Pour les téléphones Android</span>
             </a>
 
-            <!-- Bouton APK (Automator) -->
-            <a id="btn-automator" href="#" class="flex flex-col items-center justify-center w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-2xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-95" style="display: none;">
-                <div class="flex items-center gap-2 text-lg">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                    GoDroid Automator
-                </div>
-                <span class="text-[10px] font-normal opacity-80 mt-1">Application d'Automatisation Glovo</span>
-            </a>
+
 
             <!-- Section Caisse (Windows) -->
             <div class="flex gap-2">
@@ -118,13 +111,6 @@
 
                     if (automatorRelease && automatorRelease.assets) {
                         versionStr += " | Automator: " + automatorRelease.tag_name;
-                        automatorRelease.assets.forEach(asset => {
-                            const name = asset.name.toLowerCase();
-                            if (name.endsWith('.apk')) {
-                                document.getElementById('btn-automator').href = asset.browser_download_url;
-                                document.getElementById('btn-automator').style.display = 'flex';
-                            }
-                        });
                     }
 
                     document.getElementById('version-text').innerText = versionStr;

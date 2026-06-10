@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GoDroid Automator - Mon Bocadillo</title>
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #111827; }
+    </style>
+</head>
+<body class="min-h-[100dvh] flex flex-col items-center justify-center p-6 text-center text-white">
+    
+    <div class="bg-gray-900 max-w-sm w-full rounded-[2rem] shadow-2xl p-8 border border-gray-800">
+        <div class="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(37,99,235,0.3)] animate-pulse">
+            <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+        </div>
+
+        <h1 class="text-2xl font-black uppercase tracking-widest mb-2 text-white">GoDroid Automator</h1>
+        <p class="text-sm font-bold text-gray-400 mb-8">Robot d'automatisation Glovo</p>
+
+        <!-- Loading State -->
+        <div id="loading" class="text-gray-400 mb-8 flex flex-col items-center justify-center gap-2">
+            <div class="w-8 h-8 border-4 border-gray-700 border-t-blue-500 rounded-full animate-spin"></div>
+            <span class="text-xs mt-2">Recherche de la dernière version...</span>
+        </div>
+
+        <!-- Bouton (Caché par défaut) -->
+        <div id="buttons" class="space-y-4 hidden flex-col w-full">
+            <a id="btn-automator" href="#" class="w-full flex flex-col items-center justify-center bg-blue-600 hover:bg-blue-500 text-white font-black uppercase py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 text-sm tracking-wider">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Télécharger l'APK
+                </div>
+            </a>
+            
+            <p id="version-text" class="text-xs text-gray-500 font-mono mt-4"></p>
+        </div>
+        
+        <p class="mt-6 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+            ⚠️ Réservé à l'administration Mon Bocadillo
+        </p>
+    </div>
+
+    <script>
+        fetch('https://api.github.com/repos/laghribsaid87-web/mon-bocadillo/releases')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('buttons').classList.remove('hidden');
+                document.getElementById('buttons').classList.add('flex');
+                
+                if (data && data.length > 0) {
+                    let automatorRelease = data.find(r => r.tag_name && r.tag_name.startsWith('v2.'));
+
+                    if (automatorRelease && automatorRelease.assets) {
+                        document.getElementById('version-text').innerText = "Dernière version : " + automatorRelease.tag_name;
+                        automatorRelease.assets.forEach(asset => {
+                            const name = asset.name.toLowerCase();
+                            if (name.endsWith('.apk')) {
+                                document.getElementById('btn-automator').href = asset.browser_download_url;
+                            }
+                        });
+                    }
+                }
+            }).catch(err => { console.error("API error:", err); document.getElementById('loading').innerText = "Erreur de connexion."; });
+    </script>
+</body>
+</html>
