@@ -81,7 +81,7 @@ object NetworkClient {
                         if (inlinePriceMatch != null) {
                             val p = inlinePriceMatch.groupValues[1].replace(",", ".").toDoubleOrNull() ?: 0.0
                             currentItem.put("price", p)
-                            name = name.replace(inlinePriceMatch.value, "").trim()
+                            name = name.replace(inlinePriceMatch.value, "").replace("--", "").trim()
                         } else if (i < lines.size) {
                             val nextLine = lines[i]
                             val priceMatch = Regex("([0-9]+[.,]?[0-9]*)\\s*(MAD|DH|DHS)", RegexOption.IGNORE_CASE).find(nextLine)
@@ -105,7 +105,10 @@ object NetworkClient {
                         }
                         
                         if (optionsBuffer.isNotEmpty()) {
-                            name = name + "\n" + optionsBuffer.joinToString("\n")
+                            val cleanOptions = optionsBuffer.map { it.replace("--", "").trim() }.filter { it.isNotEmpty() }
+                            if (cleanOptions.isNotEmpty()) {
+                                name = name + "\n" + cleanOptions.joinToString("\n")
+                            }
                         }
                         
                         currentItem.put("name", name)

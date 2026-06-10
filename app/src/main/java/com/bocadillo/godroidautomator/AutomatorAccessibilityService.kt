@@ -450,9 +450,19 @@ class AutomatorAccessibilityService : AccessibilityService() {
         })
         
         val sb = java.lang.StringBuilder()
-        for (item in nodesList) {
-            // Include everything, we rely on Regex to parse items
-            sb.append(item.second).append("\n")
+        if (nodesList.isNotEmpty()) {
+            var currentY = nodesList[0].first.top
+            for (item in nodesList) {
+                if (kotlin.math.abs(item.first.top - currentY) < 20) {
+                    if (sb.isNotEmpty() && !sb.endsWith("\n")) {
+                        sb.append(" ")
+                    }
+                    sb.append(item.second)
+                } else {
+                    sb.append("\n").append(item.second)
+                    currentY = item.first.top
+                }
+            }
         }
         return sb.toString()
     }
