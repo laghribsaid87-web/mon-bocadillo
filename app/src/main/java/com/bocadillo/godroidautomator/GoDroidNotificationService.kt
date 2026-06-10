@@ -23,12 +23,15 @@ class GoDroidNotificationService : NotificationListenerService() {
 
         Journal.log("Notif reçue: pkg=$packageName, app=$appName, titre=$title")
 
-        // Trigger on any notification from the target app, or specifically "goDroid" as per user request
-        if (packageName.contains("deliveryhero.rps") || packageName.contains("godroid", ignoreCase = true)
-            || appName.contains("goDroid", ignoreCase = true) || appName.contains("Glovo", ignoreCase = true)
-            || title.contains("Nouvelle commande", ignoreCase = true) || title.contains("goDroid", ignoreCase = true)
-            || title.contains("Commande", ignoreCase = true)) {
-            
+        // Trigger on target app notifications ONLY if it's an actual order
+        val isTargetApp = packageName.contains("deliveryhero.rps") || packageName.contains("godroid", ignoreCase = true) ||
+                          appName.contains("goDroid", ignoreCase = true) || appName.contains("Glovo", ignoreCase = true)
+        
+        val isOrderNotification = title.contains("Nouvelle commande", ignoreCase = true) || 
+                                  title.contains("Commande", ignoreCase = true) ||
+                                  text.contains("Nouvelle commande", ignoreCase = true)
+
+        if (isTargetApp && isOrderNotification) {
             Journal.log("MATCH! Réveil de l'Automator...")
             
             // Send an explicit broadcast to AutomatorAccessibilityService
