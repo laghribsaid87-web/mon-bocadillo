@@ -21,6 +21,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private val coroutineScope = CoroutineScope(Dispatchers.Default + Job())
     private var isSequenceRunning = false
     private val sequenceMutex = kotlinx.coroutines.sync.Mutex()
+    private val processedReadyOrders = mutableSetOf<String>()
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -69,8 +70,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         // 2. Normal check for Ready Orders
                         val readyOrders = NetworkClient.checkReadyOrders()
                         for (order in readyOrders) {
-                            sequenceMutex.withLock {
-                                startReadySequence(order.orderNumber, order.documentId)
+                            if (!processedReadyOrders.contains(order.documentId)) {
+                                processedReadyOrders.add(order.documentId)
+                                sequenceMutex.withLock {
+                                    startReadySequence(order.orderNumber, order.documentId)
+                                }
                             }
                         }
                     }
@@ -293,11 +297,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 4. Wait 1.5 seconds for details to load
             delay(1500)
 
-            // 5. Read screen content -> ContenuEcran (First screen has Order Items)
-            Journal.log("Lecture ContenuEcran...")
-            val screenWidth = resources.displayMetrics.widthPixels
-            var contenuEcran = extractOrderDetailsText(rootInActiveWindow, screenWidth)
-            Journal.log("Texte lu: ${contenuEcran.length} charactères")
+            // 5. Skip ContenuEcran read here
 
             // 6. Wait 1 second
             delay(1000)
@@ -323,13 +323,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 12. Wait 2 seconds for the confirmation screen
             delay(2000)
 
-            // 13. Read screen content -> TelephoneEcran (Second screen has Phone Number and Name)
-            // Here the user says "KATBAN LIH NUMERO W LE NOM DE CLIENT". We just need right-side text.
-            Journal.log("Lecture TelephoneEcran...")
-            var telephoneEcran = extractOrderDetailsText(rootInActiveWindow, screenWidth)
-            Journal.log("Texte lu: ${telephoneEcran.length} charactères")
+            // 13. Read full details (Items, Price, Order Num) on confirmation screen
+            Journal.log("Lecture détails de la commande...")
+            val screenWidth = resources.displayMetrics.widthPixels
+            var contenuEcran = extractOrderDetailsText(rootInActiveWindow, screenWidth)
+            Journal.log("Texte lu: ${contenuEcran.length} charactères")
+            
+            // Backend takes TelephoneEcran, we send the same content as it contains everything
+            var telephoneEcran = contenuEcran
 
-            // 14. Click "Annuler" (usually to go back from confirmation if we want to extract without sending yet? Wait, the original code had Annuler then Accepter. We keep it as is.)
+            // 14. Click "Annuler"
             Journal.log("Clic sur '$labelAnnuler'")
             clickByText(labelAnnuler)
 
@@ -484,8 +487,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val drawerNodes = root.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
                     if (drawerNodes.isNotEmpty()) {
                         val toolbar = drawerNodes[0]
-                        if (toolbar.childCount > 0 && toolbar.getChild(0).isClickable) {
-                            toolbar.getChild(0).performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        if (toolbar.childCount > 0) {
+                            val firstChild = toolbar.getChild(0)
+                            if (firstChild != null && firstChild.isClickable) {
+                                firstChild.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            }
                         }
                     } else {
                         clickByText("Menu")
