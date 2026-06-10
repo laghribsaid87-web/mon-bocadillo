@@ -18,6 +18,14 @@ object NetworkClient {
     suspend fun sendOrderData(telephoneEcran: String, contenuEcran: String) {
         withContext(Dispatchers.IO) {
             try {
+                // The Firestore REST URL must point to the correct collection
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/orders"
+                
+                // Format the text strings safely
+                val formattedPhone = telephoneEcran.replace("\"", "\\\"").replace("\n", " ")
+                val formattedContent = contenuEcran.replace("\"", "\\\"").replace("\n", " ")
+                val finalNote = "TELEPHONE: $formattedPhone\n\nCONTENU: $formattedContent"
+
                 // Structure of Firestore REST document for an order
                 val jsonStr = """
                 {
@@ -31,7 +39,7 @@ object NetworkClient {
                           {
                             "mapValue": {
                               "fields": {
-                                "name": { "stringValue": "COMMANDE GLOVO (Voir Tablette)" },
+                                "name": { "stringValue": "COMMANDE GLOVO" },
                                 "qty": { "integerValue": "1" },
                                 "price": { "integerValue": "0" }
                               }
@@ -40,14 +48,14 @@ object NetworkClient {
                         ]
                       }
                     },
+                    "orderNote": { "stringValue": "$finalNote" },
                     "nearestBranch": {
                       "mapValue": {
                         "fields": {
                           "id": { "stringValue": "laymoune" }
                         }
                       }
-                    },
-                    "orderNote": { "stringValue": "TELEPHONE:\n$telephoneEcran\n\nCONTENU:\n$contenuEcran" }
+                    }
                   }
                 }
                 """.trimIndent()
