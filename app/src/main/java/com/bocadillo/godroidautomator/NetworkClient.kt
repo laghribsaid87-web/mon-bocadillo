@@ -42,6 +42,102 @@ object NetworkClient {
                 formatter.timeZone = java.util.TimeZone.getTimeZone("UTC")
                 val createdAt = formatter.format(java.util.Date())
 
+                val lines = contenuEcran.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+                
+                var parsedItemsJsonArray = ""
+                
+                try {
+                    val itemsList = mutableListOf<JSONObject>()
+                    var i = 0
+                    
+                    while (i < lines.size) {
+                        val line = lines[i]
+                        val qtyMatch = Regex("^([0-9]+)\$").find(line)
+                        
+                        if (qtyMatch != null && i + 1 < lines.size) {
+                            val qtyStr = qtyMatch.groupValues[1]
+                            val qty = qtyStr.toIntOrNull() ?: 1
+                            val name = lines[i+1]
+                            
+                            val currentItem = JSONObject()
+                            currentItem.put("name", name)
+                            currentItem.put("qty", qty)
+                            currentItem.put("price", 0.0)
+                            
+                            val optionsBuffer = mutableListOf<String>()
+                            i += 2
+                            
+                            if (i < lines.size) {
+                                val nextLine = lines[i]
+                                val itemPriceRegex = Regex("([0-9]+[.,]?[0-9]*)\\s*(MAD|DH|DHS)", RegexOption.IGNORE_CASE)
+                                val priceMatch = itemPriceRegex.find(nextLine)
+                                if (priceMatch != null) {
+                                    val p = priceMatch.groupValues[1].replace(",", ".").toDoubleOrNull() ?: 0.0
+                                    currentItem.put("price", p)
+                                    i++
+                                }
+                            }
+                            
+                            while (i < lines.size) {
+                                val optLine = lines[i]
+                                if (Regex("^([0-9]+)\$").matches(optLine)) break 
+                                if (Regex("(?i).*(MAD|DH|DHS).*").matches(optLine) && !optLine.startsWith("--")) break
+                                
+                                optionsBuffer.add(optLine)
+                                i++
+                            }
+                            
+                            if (optionsBuffer.isNotEmpty()) {
+                                currentItem.put("name", name + " (" + optionsBuffer.joinToString(", ") + ")")
+                            }
+                            
+                            itemsList.add(currentItem)
+                            continue 
+                        }
+                        i++
+                    }
+                    
+                    if (itemsList.isNotEmpty()) {
+                        parsedItemsJsonArray = itemsList.map { item ->
+                            """
+                            {
+                              "mapValue": {
+                                "fields": {
+                                  "name": { "stringValue": "${item.getString("name").replace("\"", "\\\"")}" },
+                                  "qty": { "integerValue": "${item.getInt("qty")}" },
+                                  "price": { "doubleValue": ${item.getDouble("price")} }
+                                }
+                              }
+                            }
+                            """.trimIndent()
+                        }.joinToString(",")
+                    } else {
+                        parsedItemsJsonArray = """
+                            {
+                              "mapValue": {
+                                "fields": {
+                                  "name": { "stringValue": "COMMANDE GLOVO" },
+                                  "qty": { "integerValue": "1" },
+                                  "price": { "doubleValue": $extractedTotal }
+                                }
+                              }
+                            }
+                        """.trimIndent()
+                    }
+                } catch (e: Exception) {
+                    parsedItemsJsonArray = """
+                        {
+                          "mapValue": {
+                            "fields": {
+                              "name": { "stringValue": "COMMANDE GLOVO" },
+                              "qty": { "integerValue": "1" },
+                              "price": { "doubleValue": $extractedTotal }
+                            }
+                          }
+                        }
+                    """.trimIndent()
+                }
+
                 // Structure of Firestore REST document for an order
                 val jsonStr = """
                 {
@@ -54,15 +150,7 @@ object NetworkClient {
                     "items": {
                       "arrayValue": {
                         "values": [
-                          {
-                            "mapValue": {
-                              "fields": {
-                                "name": { "stringValue": "COMMANDE GLOVO" },
-                                "qty": { "integerValue": "1" },
-                                "price": { "doubleValue": $extractedTotal }
-                              }
-                            }
-                          }
+                          $parsedItemsJsonArray
                         ]
                       }
                     },

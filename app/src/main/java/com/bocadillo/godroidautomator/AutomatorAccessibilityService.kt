@@ -423,28 +423,45 @@ class AutomatorAccessibilityService : AccessibilityService() {
     }
     
     private fun extractOrderDetailsText(node: AccessibilityNodeInfo?, screenWidth: Int): String {
-        if (node == null) return ""
-        val sb = java.lang.StringBuilder()
+        val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
+        collectTextNodes(node, nodesList)
         
+        // Sort by Y (top) first, then X (left). Give a 20px tolerance for Y to group same-line items.
+        nodesList.sortWith(Comparator { a, b ->
+            val yDiff = a.first.top - b.first.top
+            if (Math.abs(yDiff) < 20) {
+                a.first.left.compareTo(b.first.left)
+            } else {
+                yDiff.compareTo(0)
+            }
+        })
+        
+        val sb = java.lang.StringBuilder()
+        for (item in nodesList) {
+            // Ignore nodes on the left 30% of the screen (Sidebar)
+            if (item.first.left >= screenWidth * 0.30) {
+                sb.append(item.second).append("\n")
+            }
+        }
+        return sb.toString()
+    }
+    
+    private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<Pair<android.graphics.Rect, String>>) {
+        if (node == null) return
         val rect = android.graphics.Rect()
         node.getBoundsInScreen(rect)
+        val text = node.text?.toString()?.trim()
+        val desc = node.contentDescription?.toString()?.trim()
         
-        // Ignore nodes on the left 35% of the screen (Sidebar)
-        if (rect.left >= screenWidth * 0.30) {
-            val text = node.text?.toString()?.trim()
-            if (!text.isNullOrEmpty()) {
-                sb.append(text).append("\n")
-            }
-            val desc = node.contentDescription?.toString()?.trim()
-            if (!desc.isNullOrEmpty()) {
-                sb.append(desc).append("\n")
-            }
+        if (!text.isNullOrEmpty()) {
+            list.add(Pair(rect, text))
+        } else if (!desc.isNullOrEmpty()) {
+            list.add(Pair(rect, desc))
         }
         
         for (i in 0 until node.childCount) {
-            sb.append(extractOrderDetailsText(node.getChild(i), screenWidth))
+            collectTextNodes(node.getChild(i), list)
         }
-        return sb.toString()
     }
 
     private suspend fun startCancellationCheckSequence() {
