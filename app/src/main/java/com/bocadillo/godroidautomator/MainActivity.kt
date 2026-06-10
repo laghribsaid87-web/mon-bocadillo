@@ -48,6 +48,14 @@ class MainActivity : AppCompatActivity() {
             textSize = 16f
             setPadding(0, 32, 0, 0)
         }
+        
+        val btnSettings = Button(this).apply {
+            text = "Paramètres de Texte (Boutons Glovo)"
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+            }
+        }
+        layout.addView(btnSettings)
         val btnClear = Button(this).apply {
             text = "Vider le Journal"
             setOnClickListener { Journal.clear() }
