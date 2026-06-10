@@ -429,7 +429,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         // Sort by Y (top) first, then X (left). Give a 20px tolerance for Y to group same-line items.
         nodesList.sortWith(Comparator { a, b ->
             val yDiff = a.first.top - b.first.top
-            if (Math.abs(yDiff) < 20) {
+            if (kotlin.math.abs(yDiff) < 20) {
                 a.first.left.compareTo(b.first.left)
             } else {
                 yDiff.compareTo(0)
