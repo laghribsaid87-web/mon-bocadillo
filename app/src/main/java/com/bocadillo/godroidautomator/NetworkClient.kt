@@ -60,15 +60,16 @@ object NetworkClient {
                     .post(body)
                     .build()
 
-                Log.d("NetworkClient", "Sending POST to Firestore...")
+                Journal.log("Envoi POST vers KDS (Firestore)...")
                 val response = client.newCall(request).execute()
                 
                 if (response.isSuccessful) {
-                    Log.d("NetworkClient", "Successfully sent to Firestore! Response: ${response.body?.string()}")
+                    Journal.log("Succès! KDS a répondu OK.")
                 } else {
-                    Log.e("NetworkClient", "Error sending to Firestore: ${response.code} - ${response.body?.string()}")
+                    Journal.log("Erreur KDS: ${response.code} - ${response.body?.string()}")
                 }
             } catch (e: Exception) {
+                Journal.log("Exception réseau: ${e.message}")
                 Log.e("NetworkClient", "Exception in sendOrderData", e)
             }
         }

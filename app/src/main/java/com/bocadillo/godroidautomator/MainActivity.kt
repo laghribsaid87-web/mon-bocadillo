@@ -46,8 +46,42 @@ class MainActivity : AppCompatActivity() {
             textSize = 16f
             setPadding(0, 32, 0, 0)
         }
-        layout.addView(instructions)
+        val btnClear = Button(this).apply {
+            text = "Vider le Journal"
+            setOnClickListener { Journal.clear() }
+        }
+        layout.addView(btnClear)
+
+        val logTitle = TextView(this).apply {
+            text = "\nJournal Système:"
+            textSize = 18f
+            setPadding(0, 32, 0, 8)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+        }
+        layout.addView(logTitle)
+
+        val logView = TextView(this).apply {
+            text = "En attente d'événements..."
+            textSize = 12f
+            setPadding(16, 16, 16, 16)
+            setBackgroundColor(android.graphics.Color.parseColor("#EEEEEE"))
+        }
+
+        val scrollView = android.widget.ScrollView(this).apply {
+            addView(logView)
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        layout.addView(scrollView)
         
         setContentView(layout)
+
+        androidx.lifecycle.lifecycleScope.launchWhenStarted {
+            Journal.logs.collect { logsList ->
+                logView.text = if (logsList.isEmpty()) "Journal vide" else logsList.joinToString("\n")
+            }
+        }
     }
 }

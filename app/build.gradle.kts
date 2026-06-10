@@ -41,4 +41,5 @@ dependencies {
     
     // Coroutines for async tasks
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
 }

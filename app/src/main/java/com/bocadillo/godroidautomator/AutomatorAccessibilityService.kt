@@ -23,7 +23,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.bocadillo.godroidautomator.START_SEQUENCE") {
-                Log.d("AutoService", "Received START_SEQUENCE broadcast")
+                Journal.log("Broadcast reçu: START_SEQUENCE")
                 if (!isSequenceRunning) {
                     startAutomationSequence()
                 } else {
@@ -61,7 +61,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         isSequenceRunning = true
         coroutineScope.launch {
             try {
-                Log.d("AutoService", "--- STARTING AUTOMATION SEQUENCE ---")
+                Journal.log("=== DEBUT DE L'AUTOMATISATION ===")
 
                 // 1. Launch goDroid
                 var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
@@ -84,57 +84,58 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 if (launchIntent != null) {
                     launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                     startActivity(launchIntent)
-                    Log.d("AutoService", "Launched goDroid app: $targetPackage")
+                    Journal.log("Ouverture de l'app: $targetPackage")
                 } else {
-                    Log.e("AutoService", "goDroid app not found on device")
+                    Journal.log("ERREUR: App goDroid introuvable !")
                 }
 
                 // 2. Wait 2 seconds
                 delay(2000)
 
                 // 3. Click "mins"
-                Log.d("AutoService", "Clicking 'mins'")
-                clickByText("mins")
+                Journal.log("Clic sur 'mins'")
+                val minsClicked = clickByText("mins")
+                if (!minsClicked) Journal.log("Attention: 'mins' introuvable")
 
                 // 4. Wait 1 second
                 delay(1000)
 
                 // 5. Read screen content -> TelephoneEcran
-                Log.d("AutoService", "Reading TelephoneEcran")
+                Journal.log("Lecture TelephoneEcran...")
                 var telephoneEcran = extractAllText(rootInActiveWindow)
-                Log.d("AutoService", "TelephoneEcran length: \${telephoneEcran.length}")
+                Journal.log("Texte lu: ${telephoneEcran.length} charactères")
 
                 // 6. Wait 1 second
                 delay(1000)
 
                 // 7. Click "Modifier"
-                Log.d("AutoService", "Clicking 'Modifier'")
+                Journal.log("Clic sur 'Modifier'")
                 clickByText("Modifier")
 
                 // 8. Wait 1 second
                 delay(1000)
 
                 // 9. Click ID com.deliveryhero.rps.restaurantandroidapp:id/checkbox
-                Log.d("AutoService", "Clicking checkbox ID")
+                Journal.log("Clic sur Checkbox")
                 clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
 
                 // 10. Wait 1 second
                 delay(1000)
 
                 // 11. Click "Continuer"
-                Log.d("AutoService", "Clicking 'Continuer'")
+                Journal.log("Clic sur 'Continuer'")
                 clickByText("Continuer")
 
                 // 12. Wait 2 seconds
                 delay(2000)
 
                 // 13. Read screen content -> ContenuEcran
-                Log.d("AutoService", "Reading ContenuEcran")
+                Journal.log("Lecture ContenuEcran...")
                 var contenuEcran = extractAllText(rootInActiveWindow)
-                Log.d("AutoService", "ContenuEcran length: \${contenuEcran.length}")
+                Journal.log("Texte lu: ${contenuEcran.length} charactères")
 
                 // 14. Click "Annuler"
-                Log.d("AutoService", "Clicking 'Annuler'")
+                Journal.log("Clic sur 'Annuler'")
                 clickByText("Annuler")
 
                 // 15. Text manipulation: Replace \n with |||
@@ -142,21 +143,22 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 contenuEcran = contenuEcran.replace("\n", "|||")
 
                 // 16. Send HTTP Request
-                Log.d("AutoService", "Sending POST request to Firestore")
+                Journal.log("Lancement requête HTTP...")
                 NetworkClient.sendOrderData(telephoneEcran, contenuEcran)
 
                 // 17. Click "Accepter la commande"
                 delay(1000)
-                Log.d("AutoService", "Clicking 'Accepter la commande'")
+                Journal.log("Clic sur 'Accepter la commande'")
                 clickByText("Accepter la commande")
 
                 // 18. Click "Confirmer" (Wait a bit for the dialog)
                 delay(1000)
-                Log.d("AutoService", "Clicking 'Confirmer'")
+                Journal.log("Clic sur 'Confirmer'")
                 clickByText("Confirmer")
 
-                Log.d("AutoService", "--- AUTOMATION SEQUENCE COMPLETED ---")
+                Journal.log("=== AUTOMATISATION TERMINEE ===")
             } catch (e: Exception) {
+                Journal.log("ERREUR FATALE: ${e.message}")
                 Log.e("AutoService", "Error in sequence", e)
             } finally {
                 isSequenceRunning = false

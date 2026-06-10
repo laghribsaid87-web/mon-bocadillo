@@ -21,7 +21,7 @@ class GoDroidNotificationService : NotificationListenerService() {
             // Ignore
         }
 
-        Log.d("GoDroidNotif", "Notification received: package=$packageName, appName=$appName, title=$title")
+        Journal.log("Notif reçue: pkg=$packageName, app=$appName, titre=$title")
 
         // Trigger on any notification from the target app, or specifically "goDroid" as per user request
         if (packageName.contains("deliveryhero.rps") || packageName.contains("godroid", ignoreCase = true)
@@ -29,7 +29,7 @@ class GoDroidNotificationService : NotificationListenerService() {
             || title.contains("Nouvelle commande", ignoreCase = true) || title.contains("goDroid", ignoreCase = true)
             || title.contains("Commande", ignoreCase = true)) {
             
-            Log.d("GoDroidNotif", "Matched goDroid notification! Waking up Automator...")
+            Journal.log("MATCH! Réveil de l'Automator...")
             
             // Send an explicit broadcast to AutomatorAccessibilityService
             val intent = Intent("com.bocadillo.godroidautomator.START_SEQUENCE")
