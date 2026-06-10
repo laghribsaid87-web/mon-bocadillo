@@ -76,21 +76,19 @@
                 document.getElementById('buttons').classList.add('flex');
                 
                 if (data && data.length > 0) {
-                    // Trouver la dernière release Livreur (commence par v1.)
-                    let livreurRelease = data.find(r => r.tag_name && r.tag_name.startsWith('v1.'));
-                    // Trouver la dernière release Automator (commence par v2.)
-                    let automatorRelease = data.find(r => r.tag_name && r.tag_name.startsWith('v2.'));
+                    // Trouver la première release qui contient l'APK Livreur
+                    let livreurRelease = data.find(r => r.assets && r.assets.some(a => a.name.toLowerCase().includes('livreur')));
 
                     let versionStr = "";
 
                     if (livreurRelease && livreurRelease.assets) {
-                        versionStr += "Livreur: " + livreurRelease.tag_name;
+                        versionStr += "Version Livreur : " + livreurRelease.tag_name;
                         let exe64Url = '';
                         let exe32Url = '';
                         
                         livreurRelease.assets.forEach(asset => {
                             const name = asset.name.toLowerCase();
-                            if (name.endsWith('.apk')) {
+                            if (name.includes('livreur') && name.endsWith('.apk')) {
                                 document.getElementById('btn-apk').href = asset.browser_download_url;
                             }
                             if (name.endsWith('.exe')) {
@@ -107,10 +105,6 @@
                         
                         if (exe32Url) document.getElementById('btn-exe-32').href = exe32Url;
                         else document.getElementById('btn-exe-32').style.display = 'none';
-                    }
-
-                    if (automatorRelease && automatorRelease.assets) {
-                        versionStr += " | Automator: " + automatorRelease.tag_name;
                     }
 
                     document.getElementById('version-text').innerText = versionStr;
