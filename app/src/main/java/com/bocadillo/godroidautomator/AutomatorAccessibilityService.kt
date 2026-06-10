@@ -153,7 +153,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Journal.log("ERREUR FATALE: ${e.message}")
         } finally {
-            isSequenceRunning     private var lastTriggerTime = 0L
+            isSequenceRunning = false
+        }
+    }
+
+    private var lastTriggerTime = 0L
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
