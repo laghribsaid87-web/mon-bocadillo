@@ -26,8 +26,8 @@ object NetworkClient {
                 val orderMatch = orderRegex.find(contenuEcran) ?: orderRegex.find(telephoneEcran)
                 val orderNumber = orderMatch?.groupValues?.get(1) ?: "GLOVO-APP"
 
-                // 2. Extract Exact Total Price
-                val priceRegex = Regex("([0-9]+[.,][0-9]{2})\\s*MAD")
+                // 2. Extract Exact Total Price (Supports MAD, DH, DHS, dhs)
+                val priceRegex = Regex("([0-9]+[.,]?[0-9]*)\\s*(MAD|DH|DHS)", RegexOption.IGNORE_CASE)
                 val priceMatches = priceRegex.findAll(contenuEcran).toList()
                 val extractedTotalString = priceMatches.lastOrNull()?.groupValues?.get(1)?.replace(",", ".") ?: "0.0"
                 val extractedTotal = extractedTotalString.toDoubleOrNull() ?: 0.0

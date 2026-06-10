@@ -153,12 +153,61 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Journal.log("ERREUR FATALE: ${e.message}")
         } finally {
-            isSequenceRunning = false
+            isSequenceRunning     private var lastTriggerTime = 0L
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+        
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val labelMins = getLabel("btn_mins", "mins")
+            val root = rootInActiveWindow ?: return
+            
+            if (isSequenceRunning) return
+            
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastTriggerTime < 10000) return // Debounce 10 seconds
+            
+            val node = findNodeWithTextRecursively(labelMins, root)
+            if (node != null && isNodeClickable(node)) {
+                Journal.log("Détection visuelle de '$labelMins'")
+                lastTriggerTime = currentTime
+                coroutineScope.launch {
+                    sequenceMutex.withLock {
+                        if (!isSequenceRunning) {
+                            startAutomationSequence()
+                        }
+                    }
+                }
+            }
         }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // We do not need to react to every event, we drive the sequence asynchronously
+    private fun isNodeClickable(node: AccessibilityNodeInfo?): Boolean {
+        var current = node
+        while (current != null) {
+            if (current.isClickable) return true
+            current = current.parent
+        }
+        return false
+    }
+
+    private fun findNodeWithTextRecursively(text: String, node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        
+        val nodeText = node.text?.toString() ?: ""
+        val nodeDesc = node.contentDescription?.toString() ?: ""
+        
+        // Exact match or ends with to avoid partial matches
+        if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || 
+            nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true)) {
+            return node
+        }
+
+        for (i in 0 until node.childCount) {
+            val childNode = findNodeWithTextRecursively(text, node.getChild(i))
+            if (childNode != null) return childNode
+        }
+        return null
     }
 
     override fun onInterrupt() {
@@ -219,14 +268,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 3. Click "mins"
             Journal.log("Clic sur '$labelMins'")
             val minsClicked = clickByText(labelMins)
-            if (!minsClicked) Journal.log("Attention: '$labelMins' introuvable")
+            if (!minsClicked) {
+                Journal.log("Attention: '$labelMins' introuvable")
+                // Retry once
+                delay(1000)
+                clickByText(labelMins)
+            }
 
-            // 4. Wait 1 second
-            delay(1000)
+            // 4. Wait 1.5 seconds for details to load
+            delay(1500)
 
             // 5. Read screen content -> ContenuEcran (First screen has Order Items)
             Journal.log("Lecture ContenuEcran...")
-            var contenuEcran = extractAllText(rootInActiveWindow)
+            val screenWidth = resources.displayMetrics.widthPixels
+            var contenuEcran = extractOrderDetailsText(rootInActiveWindow, screenWidth)
             Journal.log("Texte lu: ${contenuEcran.length} charactères")
 
             // 6. Wait 1 second
@@ -250,37 +305,35 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Clic sur '$labelContinuer'")
             clickByText(labelContinuer)
 
-            // 12. Wait 2 seconds
+            // 12. Wait 2 seconds for the confirmation screen
             delay(2000)
 
             // 13. Read screen content -> TelephoneEcran (Second screen has Phone Number and Name)
+            // Here the user says "KATBAN LIH NUMERO W LE NOM DE CLIENT". We just need right-side text.
             Journal.log("Lecture TelephoneEcran...")
-            var telephoneEcran = extractAllText(rootInActiveWindow)
+            var telephoneEcran = extractOrderDetailsText(rootInActiveWindow, screenWidth)
             Journal.log("Texte lu: ${telephoneEcran.length} charactères")
 
-            // 14. Click "Annuler"
+            // 14. Click "Annuler" (usually to go back from confirmation if we want to extract without sending yet? Wait, the original code had Annuler then Accepter. We keep it as is.)
             Journal.log("Clic sur '$labelAnnuler'")
             clickByText(labelAnnuler)
 
-            // 15. Removed Text Manipulation (Handled cleanly in NetworkClient)
-
-            // 16. Send HTTP Request
+            // 15. Send HTTP Request
             Journal.log("Lancement requête HTTP...")
             NetworkClient.sendOrderData(telephoneEcran, contenuEcran)
 
-            // 17. Click "Accepter la commande"
+            // 16. Click "Accepter la commande"
             delay(1000)
             Journal.log("Clic sur '$labelAccepter'")
             clickByText(labelAccepter)
 
-            // 18. Check for "payer en espèces" dialog and click "Confirmer"
-            delay(1500)
+            // 17. Check for "payer en espèces" dialog and click "Confirmer"
+            delay(2000)
             val dialogText = extractAllText(rootInActiveWindow)
-            if (dialogText.contains("payer en espèces", ignoreCase = true)) {
-                Journal.log("Alerte Glovo: Le coursier doit payer en espèces")
+            if (dialogText.contains("payer en espèces", ignoreCase = true) || dialogText.contains("Confirmer", ignoreCase = true)) {
+                Journal.log("Alerte Glovo détectée, clic sur '$labelConfirmer'")
+                clickByText(labelConfirmer)
             }
-            Journal.log("Clic sur '$labelConfirmer'")
-            clickByText(labelConfirmer)
 
             Journal.log("=== AUTOMATISATION TERMINEE ===")
         } catch (e: Exception) {
@@ -347,6 +400,31 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
         for (i in 0 until node.childCount) {
             sb.append(extractAllText(node.getChild(i)))
+        }
+        return sb.toString()
+    }
+    
+    private fun extractOrderDetailsText(node: AccessibilityNodeInfo?, screenWidth: Int): String {
+        if (node == null) return ""
+        val sb = java.lang.StringBuilder()
+        
+        val rect = android.graphics.Rect()
+        node.getBoundsInScreen(rect)
+        
+        // Ignore nodes on the left 35% of the screen (Sidebar)
+        if (rect.left >= screenWidth * 0.30) {
+            val text = node.text?.toString()?.trim()
+            if (!text.isNullOrEmpty()) {
+                sb.append(text).append("\n")
+            }
+            val desc = node.contentDescription?.toString()?.trim()
+            if (!desc.isNullOrEmpty()) {
+                sb.append(desc).append("\n")
+            }
+        }
+        
+        for (i in 0 until node.childCount) {
+            sb.append(extractOrderDetailsText(node.getChild(i), screenWidth))
         }
         return sb.toString()
     }
