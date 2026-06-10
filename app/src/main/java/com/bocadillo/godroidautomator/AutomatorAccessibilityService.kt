@@ -451,10 +451,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
         
         val sb = java.lang.StringBuilder()
         for (item in nodesList) {
-            // Ignore nodes on the left 30% of the screen (Sidebar)
-            if (item.first.left >= screenWidth * 0.30) {
-                sb.append(item.second).append("\n")
-            }
+            // Include everything, we rely on Regex to parse items
+            sb.append(item.second).append("\n")
         }
         return sb.toString()
     }
