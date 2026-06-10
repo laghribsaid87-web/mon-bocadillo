@@ -7,6 +7,8 @@ import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -78,7 +80,7 @@ class MainActivity : AppCompatActivity() {
         
         setContentView(layout)
 
-        androidx.lifecycle.lifecycleScope.launchWhenStarted {
+        lifecycleScope.launch {
             Journal.logs.collect { logsList ->
                 logView.text = if (logsList.isEmpty()) "Journal vide" else logsList.joinToString("\n")
             }
