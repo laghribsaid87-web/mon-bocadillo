@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings, MessageCircle, Truck, Phone, FileText } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings, MessageCircle, Truck, Phone, FileText, Bike } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot, query, where } from 'firebase/firestore';
 import { generateOrderNumber, printTicket, formatSansIngredient, buildMessage, openWhatsAppDirect } from '../utils/helpers';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,6 +25,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showHeldCarts, setShowHeldCarts] = useState(false);
     const [showUnpaidModal, setShowUnpaidModal] = useState(false);
     const [showReadyPosModal, setShowReadyPosModal] = useState(false); // Jdid: Modal Commandes Prêtes
+    const [showGlovoModal, setShowGlovoModal] = useState(false); // Modal Commandes Glovo
     const [showConfirmToutDonner, setShowConfirmToutDonner] = useState(false); // Jdid: Modal Custom Confirmation
     const [confirmDialog, setConfirmDialog] = useState(null);
     const [printCuisine, setPrintCuisine] = useState(true);
@@ -35,7 +36,6 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showPendingModal, setShowPendingModal] = useState(false);
     const [showOnlineOrdersModal, setShowOnlineOrdersModal] = useState(false);
     const [telInfo, setTelInfo] = useState({ phone: '', deliveryFee: 0 });
-    const [telType, setTelType] = useState('telephone');
     const [defaultPosDriver, setDefaultPosDriver] = useState(() => localStorage.getItem('pos_default_driver') || '');
     
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
@@ -84,13 +84,31 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     const totalAchats = useMemo(() => achatsToday.reduce((sum, a) => sum + (Number(a.total) || 0), 0), [achatsToday]);
 
-    // 🔥 States & Refs pour le glissement (Drag & Drop)
+    const triggerGlovoVerification = async () => {
+        try {
+            await setDoc(doc(db, "artifacts", appId, "public", "data", "settings", "glovo_trigger"), {
+                action: "VERIFY_CANCELLATIONS",
+                isHandled: false,
+                timestamp: Date.now()
+            });
+            toast.success("Vérification des annulations lancée sur la tablette Glovo !");
+            
+            // Ouvrir la page des rapports
+            const route = '/glovo-reports';
+            window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
+        } catch (error) {
+            console.error("Error triggering glovo:", error);
+            toast.error("Erreur de lancement de vérification");
+        }
+    };
+
+    // 📱 States & Refs pour le glissement (Drag & Drop)
     const dragCatRef = useRef(null);
     const dropCatRef = useRef(null);
     const dragItemRef = useRef(null);
     const dropItemRef = useRef(null);
     
-    const defaultHeaderButtons = ['commandes_web', 'non_payes', 'problemes', 'suivi', 'pretes', 'tv', 'standard', 'kds'];
+    const defaultHeaderButtons = ['commandes_web', 'non_payes', 'problemes', 'suivi', 'pretes', 'glovo_ready', 'glovo_verify', 'tv', 'standard', 'kds'];
     
     // 🔥 Ordre des boutons (Drag & Drop Flex)
     const [headerBtnsOrder, setHeaderBtnsOrder] = useState(settings?.headerBtnsOrder || []);
@@ -324,14 +342,15 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     branchId: activeBranchId,
                     isOnline: true,
                     updatedAt: serverTimestamp(),
-                    deviceType: isDesktop ? "Logiciel Caisse (Windows)" : "Navigateur Web"
+                    deviceType: isDesktop ? "Logiciel Caisse (Windows)" : "Navigateur Web",
+                    defaultDriverId: defaultPosDriver || null
                 }, {merge: true});
             } catch(e) {}
         };
         savePosStatus();
         const interval = setInterval(savePosStatus, 60000); // Toutes les minutes
         return () => clearInterval(interval);
-    }, [activeBranchId, db, appId]);
+    }, [activeBranchId, db, appId, defaultPosDriver]);
 
     // 🔥 NOUVEAU: Écouter l'événement pour installer la PWA (POS / KDS / IDARA sur Tablette)
     useEffect(() => {
@@ -455,6 +474,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const problemOrders = useMemo(() => {
         return (orders || []).filter(o => {
             if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
+            if (o.source === 'glovo') return false;
             
             const isUnreachable = o.clientUnreachable;
             const hasAdminMsg = !!o.adminMessage;
@@ -653,10 +673,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     // 🔥 Les Commandes li Jayin mn l-App Client
     const onlineOrders = (orders || []).filter(o => {
-        if (o.source === 'pos') return false;
+        if (o.source === 'pos' || o.source === 'glovo') return false;
         if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
         return ['pending', 'preparing', 'ready', 'out_for_delivery'].includes(o.status);
     });
+
+    const readyGlovoOrders = (orders || []).filter(o => o.source === 'glovo' && (activeBranchId === 'ALL' || o.nearestBranch?.id === activeBranchId) && o.status === 'ready');
     const pendingOnline = onlineOrders.filter(o => o.status === 'pending');
     const readyPosOrders = (orders || []).filter(o => o.source === 'pos' && (activeBranchId === 'ALL' || o.nearestBranch?.id === activeBranchId) && o.status === 'ready');
 
@@ -725,6 +747,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             const t = Number(o.total) || 0;
             if (o.source === 'pos') cPos += t;
             else if (o.source === 'telephone') cTel += t;
+            else if (o.source === 'glovo' && o.paymentMethod === 'espece') cPos += t;
             else cApp += t;
 
             (o.items || []).forEach(i => { 
@@ -838,85 +861,6 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             console.error(error);
             showNotify("W9e3 mochkil f tsjal dyal l-commande", "error");
         }
-    };
-
-    // 🔥 NOUVEAU: Invitation Glovo mn l-Caisse
-    const handleGlovoInviteFromPOS = async () => {
-        if (!telInfo.phone) return showNotify("Numéro darouri!", "error");
-        if (activeBranchId === 'ALL') return showNotify("Khtar agence!", "error");
-        const cleanPh = telInfo.phone.replace(/[^\d]/g, "").slice(0, 10);
-        if (!/^(06|07)\d{8}$/.test(cleanPh)) return showNotify("Numéro invalide (doit commencer par 06 ou 07)", "error");
-
-        const waPhone = cleanPh.startsWith("0") ? "212" + cleanPh.substring(1) : cleanPh;
-        const appUrl = window.location.origin + window.location.pathname;
-        const msgTemplate = brand?.messages?.glovoInvite || DEFAULT_BRAND.messages.glovoInvite;
-        const msgBody = buildMessage(msgTemplate, { brandName: (brand?.name || '').toUpperCase(), appUrl: appUrl });
-
-        try {
-            if (isNetOnline) {
-                const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', cleanPh);
-                const snap = await getDoc(clientRef);
-                if (!snap.exists()) {
-                    await setDoc(clientRef, { phone: cleanPh, source: 'glovo', isDriver: false, blocked: false, createdAt: serverTimestamp() });
-                } else {
-                    await setDoc(clientRef, { source: 'glovo' }, { merge: true });
-                }
-            }
-            openWhatsAppDirect(waPhone, msgBody);
-            showNotify("Invitation WhatsApp t7ellat w t-sjel l-client! ✅", "success");
-            setTelInfo({ phone: '', deliveryFee: 0 });
-            setShowTelNumpad(false);
-        } catch (error) { showNotify("Erreur lors de l'enregistrement", "error"); }
-    };
-
-    // 🔥 NOUVEAU: Commande Glovo Direct mn l-Caisse
-    const handleGlovoOrderFromPOS = async () => {
-        if (cart.length === 0) {
-            return showNotify("Veuillez d'abord ajouter un produit au panier.", "error");
-        }
-        if (activeBranchId === 'ALL') return showNotify("Khtar agence!", "error");
-
-        let deliveryCost = Number(telInfo.deliveryFee) || 0;
-        let totalToPay = total + deliveryCost; 
-        let orderNum = generateOrderNumber();
-        const branch = (settings?.branches || []).find(b => b.id === activeBranchId) || null;
-
-        const newOrder = {
-            userId: "glovo",
-            orderNumber: orderNum,
-            customerName: "Client Glovo",
-            phone: "GLOVO",
-            address: "Commande Glovo",
-            nearestBranch: branch,
-            items: cart,
-            total: totalToPay,
-            deliveryFee: deliveryCost,
-            subtotal: total,
-            status: "preparing", // Dkhoul direct l-Kuzina (KDS)
-            source: "glovo",
-            orderType: "a_emporter",
-            paymentMethod: "espece",
-            etaMinutes: 15,
-            offlineCreatedAt: Date.now(),
-            ...getDriverAssignmentData()
-        };
-
-        try {
-            if (isNetOnline) {
-                await addDoc(collection(db, "artifacts", appId, "public", "data", "orders"), { ...newOrder, createdAt: serverTimestamp() });
-                showNotify("Commande Glovo ajoutée et envoyée à la cuisine! ✅", "success");
-            } else {
-                saveOfflineOrder(newOrder);
-            }
-            
-            if (localSocket) localSocket.emit('new_local_order', newOrder);
-            
-            printTicketsPos(newOrder, brand); // Impression auto
-            setShowStandardModal(false);
-            setTelInfo({ phone: '', deliveryFee: 0 });
-            setShowTelNumpad(false);
-            setCart([]); 
-        } catch (error) { showNotify("W9e3 mochkil f tsjal dyal l-commande", "error"); }
     };
 
     const handleEditCartItemOptions = (cartItem) => {
@@ -1550,7 +1494,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             onDragOver: e => e.preventDefault(),
         } : {};
         const cursorClass = isAdmin ? 'cursor-move' : '';
-            const baseClass = `relative flex items-center justify-center gap-1.5 px-2 rounded-xl font-bold transition-all text-[11px] sm:text-sm shadow-sm shrink-0 ${cursorClass}`;
+            const baseClass = `relative flex items-center justify-center gap-2 px-3 rounded-2xl font-bold transition-all duration-300 text-xs sm:text-sm shadow-sm hover:shadow-[0_4px_12px_-4px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 shrink-0 border border-transparent ${cursorClass}`;
 
         switch(btnId) {
             case 'commandes_web':
@@ -1568,8 +1512,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 );
             case 'non_payes':
                 return (
-                        <button key={btnId} {...dragProps} onClick={() => setShowUnpaidModal(true)} className={`${baseClass} ${unpaidOrders.length > 0 ? 'bg-red-600 text-white hover:bg-red-700 border-red-700 animate-pulse' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200'}`} style={{ width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
-                        <Banknote size={18} /> <span className="hidden sm:inline">Non Payés</span>
+                    <button key={btnId} {...dragProps} onClick={() => setShowUnpaidModal(true)} className={`${baseClass} ${unpaidOrders.length > 0 ? 'bg-red-600 text-white hover:bg-red-700 border-red-700 animate-pulse' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200'}`} style={{ width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
+                        <Banknote size={18} /> <span className="hidden sm:inline">Ticket Non Payé</span>
                         {unpaidOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md animate-bounce">{unpaidOrders.length}</span>}
                     </button>
                 );
@@ -1584,7 +1528,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </button>
                 );
             case 'suivi':
-                const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSuiviTxtColor || '';
+const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSuiviTxtColor || '';
                     const suiviStyle = suiviBg ? { backgroundColor: suiviBg, color: suiviTxt || '#ffffff', borderColor: suiviBg, width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={suiviStyle} onClick={() => setShowOnlineOrdersModal(true)} className={`${baseClass} ${onlineOrders.length > 0 ? 'bg-purple-500 text-white hover:bg-purple-600 border-purple-600' : (suiviBg ? '' : 'bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100')}`}>
@@ -1593,12 +1537,25 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </button>
                 );
             case 'pretes':
-                const preteBg = brand?.btnPosPretesColor || ''; const preteTxt = brand?.btnPosPretesTxtColor || '';
+                const preteBg = brand?.btnPosPreteColor || ''; const preteTxt = brand?.btnPosPreteTxtColor || '';
                     const preteStyle = preteBg ? { backgroundColor: preteBg, color: preteTxt || '#ffffff', borderColor: preteBg, width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` } : { width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` };
                 return (
                     <button key={btnId} {...dragProps} style={preteStyle} onClick={() => setShowReadyPosModal(true)} className={`${baseClass} ${readyPosOrders.length > 0 ? 'bg-green-500 text-white animate-pulse border border-green-600' : (preteBg ? '' : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100')}`}>
                         <CheckCircle size={18} /> <span className="hidden sm:inline">{brand?.texts?.btnPretes || 'Prêtes (Servir)'}</span>
                         {readyPosOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{readyPosOrders.length}</span>}
+                    </button>
+                );
+            case 'glovo_ready':
+                return (
+                    <button key={btnId} {...dragProps} onClick={() => setShowGlovoModal(true)} className={`${baseClass} ${readyGlovoOrders.length > 0 ? 'text-black animate-pulse shadow-lg font-black' : 'bg-yellow-50 border border-yellow-200 text-yellow-700 hover:bg-yellow-100'}`} style={{ width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px`, backgroundColor: readyGlovoOrders.length > 0 ? brand.color || '#FFC244' : undefined, borderColor: readyGlovoOrders.length > 0 ? brand.color || '#FFC244' : undefined }}>
+                        <Bike size={20} /> <span className="hidden sm:inline">Prêtes (Glovo)</span>
+                        {readyGlovoOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-black text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{readyGlovoOrders.length}</span>}
+                    </button>
+                );
+            case 'glovo_verify':
+                return (
+                    <button key={btnId} {...dragProps} onClick={triggerGlovoVerification} className={`${baseClass} bg-red-50 border border-red-200 text-red-700 hover:bg-red-100`} style={{ width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
+                        <RefreshCw size={18} /> <span className="hidden sm:inline">Vérifier Annulées (Glovo)</span>
                     </button>
                 );
             case 'tv':
@@ -1636,39 +1593,64 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         }
     };
 
+    const theme = brand?.posTheme || 'light';
+    const isDark = theme === 'dark';
+    const isNavy = theme === 'navy';
+
+    // Variables de Thème
+    const mainBg = isDark ? 'bg-neutral-900' : isNavy ? 'bg-slate-50' : 'bg-[#f4f7f6]';
+    const mainTextColor = isDark ? '#ffffff' : isNavy ? '#0f172a' : (brand?.posTextColor || brand?.textColor || '#1e293b');
+    const headerClasses = isDark ? 'bg-neutral-800/95 border-neutral-700 text-white shadow-md' : isNavy ? 'bg-[#0f172a]/95 border-slate-800 text-white shadow-md' : 'bg-white/80 backdrop-blur-xl border-gray-100/80 text-gray-900 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)]';
+    const logoBg = isDark ? 'bg-gradient-to-br from-neutral-700 to-neutral-600' : isNavy ? 'bg-gradient-to-br from-blue-600 to-blue-500' : 'bg-gradient-to-br from-gray-900 to-gray-700';
+    const catBgActive = brand?.posColor || brand?.color || (isDark ? '#e5e5e5' : isNavy ? '#0f172a' : '#0f172a');
+    const catTextActive = isDark && !brand?.posColor ? '#000000' : '#ffffff';
+    const catClassesInactive = isDark ? 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white border-neutral-700' : isNavy ? 'bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900 border-slate-200' : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 border-gray-100 hover:border-gray-200';
+    const cardBg = isDark ? 'bg-neutral-800 border-neutral-700 hover:border-neutral-500 text-white shadow-lg' : isNavy ? 'bg-white border-slate-200 shadow-sm text-slate-900' : 'bg-white shadow-[0_8px_24px_-12px_rgba(0,0,0,0.08)] border-transparent hover:border-gray-200 text-gray-800';
+    const cardImgBg = isDark ? 'bg-neutral-700/50' : isNavy ? 'bg-slate-100/50' : 'bg-gray-50/50';
+    const titleColor = isDark ? 'text-white' : 'text-gray-800';
+    const priceColor = isDark && !brand?.posColor ? '#ffffff' : (brand?.posColor || brand?.color || '#0f172a');
+    const cartSidebarClasses = isDark ? 'bg-neutral-900 border-neutral-800' : isNavy ? 'bg-white border-slate-200' : 'bg-white shadow-[-20px_0_40px_-20px_rgba(0,0,0,0.08)] border-gray-100';
+    const cartHeaderClasses = isDark ? 'bg-neutral-900/90 border-neutral-800 text-white' : isNavy ? 'bg-white/90 border-slate-100 text-slate-900' : 'bg-white/90 border-gray-100/80 text-gray-900';
+    const cartItemBg = isDark ? 'bg-neutral-800 border-neutral-700 hover:bg-neutral-700 text-white shadow-none' : isNavy ? 'bg-white border-slate-100 hover:shadow-md' : 'bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border-gray-100/80 hover:shadow-[0_8px_20px_-8px_rgba(0,0,0,0.1)]';
+    const cartQtyBg = isDark ? 'bg-neutral-700 text-white' : isNavy ? 'bg-slate-50 text-slate-900 border-slate-200' : 'bg-[#f4f7f6] text-gray-800 border-gray-200/50';
+    const cartTotalBg = isDark ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-gray-100';
+    const iconColor = isDark || isNavy ? 'text-white' : 'text-gray-900';
+
     return (
         <div 
-            className="flex flex-col h-[100dvh] md:h-full w-full md:flex-row overflow-hidden relative font-sans" 
-            style={{ fontFamily: brand?.fontFamily || "'Plus Jakarta Sans', sans-serif", backgroundColor: brand?.posBgColor || brand?.bgColor || '#f8fafc', color: brand?.posTextColor || brand?.textColor || '#0f172a' }}
+            className={`flex flex-col h-[100dvh] md:h-full w-full md:flex-row overflow-hidden relative font-sans ${mainBg}`} 
+            style={{ fontFamily: brand?.fontFamily || "'Inter', 'Plus Jakarta Sans', sans-serif", color: mainTextColor }}
         >
 
             {/* MAIN CONTENT (LEFT) */}
             <div className="flex-1 flex flex-col h-full w-full overflow-hidden relative">
-                <header className="px-3 sm:px-4 py-2 shadow-sm flex items-center justify-between z-10 shrink-0 w-full gap-2 sm:gap-4" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff', color: brand?.posColor || brand?.color || '#4f46e5' }}>
+                <header className={`px-4 sm:px-6 py-3 flex items-center justify-between z-10 shrink-0 w-full gap-2 sm:gap-4 border-b ${headerClasses}`}>
                     
                     {/* LEFT: LOGO */}
-                    <div className="flex items-center gap-2 shrink-0">
-                        <ShoppingCart size={22} className="sm:w-6 sm:h-6 font-black text-lg sm:text-xl"/> 
+                    <div className="flex items-center gap-3 shrink-0">
+                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-md ${logoBg}`}>
+                            <ShoppingBasket size={22} className="font-black"/> 
+                        </div>
                         <div className="flex flex-col justify-center">
-                            <span className="font-black text-lg sm:text-xl truncate max-w-[120px] sm:max-w-[200px] leading-tight">
+                            <span className="font-black text-lg sm:text-xl truncate max-w-[120px] sm:max-w-[200px] leading-tight tracking-tight">
                                 {brand?.texts?.posAppTitle || brand?.name || 'Mon Bocadillo'}
                             </span>
-                            {activeBranchId && activeBranchId !== 'ALL' && (
-                            <span className="text-[10px] md:text-xs font-black text-gray-500 uppercase tracking-widest leading-tight">
+                            {activeBranchId && activeBranchId !== 'ALL' && !isAdmin && (
+                            <span className={`text-[10px] md:text-xs font-bold uppercase tracking-widest leading-tight ${isDark ? 'text-neutral-400' : 'text-gray-400'}`}>
                                 Caisse {(settings?.branches || []).find(b => b.id === activeBranchId)?.name || ''}
                             </span>
                             )}
+                            {isAdmin && (
+                                <select
+                                    value={activeBranchId}
+                                    onChange={(e) => setActiveBranchId(e.target.value)}
+                                    className={`mt-1 border px-1 py-0.5 rounded-lg text-[10px] sm:text-xs font-bold outline-none cursor-pointer w-fit ${isDark ? 'bg-neutral-800 border-neutral-600 text-white' : isNavy ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-gray-100 border-gray-200 text-gray-700'}`}
+                                >
+                                    <option value="ALL">Toutes les agences</option>
+                                    {(settings?.branches || []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                </select>
+                            )}
                         </div>
-                        {isAdmin && (
-                            <select
-                                value={activeBranchId}
-                                onChange={(e) => setActiveBranchId(e.target.value)}
-                                className="ml-2 bg-gray-100 border border-gray-200 text-gray-700 px-2 py-1 rounded-lg text-xs sm:text-sm font-bold outline-none cursor-pointer"
-                            >
-                                <option value="ALL">Toutes les agences</option>
-                                {(settings?.branches || []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                            </select>
-                        )}
                     </div>
                     
                     {/* MIDDLE: BUTTONS (SCROLLABLE SINGLE LINE) */}
@@ -1722,8 +1704,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </div>
                 </header>
                 
-                <div className="border-b border-gray-100 p-2 sm:p-4 overflow-x-auto no-scrollbar shrink-0 w-full" style={{ backgroundColor: brand?.posHeaderColor || brand?.headerColor || '#ffffff' }}>
-                    <div className="flex gap-2 w-max items-center">
+                <div className="pt-5 pb-3 px-4 sm:px-6 overflow-x-auto no-scrollbar shrink-0 w-full bg-transparent">
+                    <div className="flex gap-3 w-max items-center">
                         {categories.map((cat, idx) => (
                             <button 
                                 key={cat} 
@@ -1733,8 +1715,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 onDragEnd={handleCatDragEnd}
                                 onDragOver={e => e.preventDefault()}
                                 onClick={() => setSelectedCategory(cat)} 
-                                className={`px-4 sm:px-6 rounded-full sm:rounded-2xl font-bold sm:font-black transition-all whitespace-nowrap text-xs sm:text-base flex items-center justify-center ${displayCategory === cat ? 'text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'} ${isAdmin ? 'cursor-move' : ''}`} 
-                                style={{ minWidth: `${posUI.catWidth}px`, height: `${posUI.catHeight}px`, backgroundColor: displayCategory === cat ? (brand?.posColor || brand?.color || '#4f46e5') : undefined }}
+                                className={`px-5 sm:px-7 rounded-full font-bold transition-all duration-300 whitespace-nowrap text-sm sm:text-[15px] flex items-center justify-center border-2 ${displayCategory === cat ? 'shadow-[0_8px_16px_-6px_rgba(0,0,0,0.3)] scale-105 border-transparent' : catClassesInactive} ${isAdmin ? 'cursor-move' : ''}`} 
+                                style={displayCategory === cat ? { minWidth: `${posUI.catWidth}px`, height: `${posUI.catHeight}px`, backgroundColor: catBgActive, color: catTextActive } : { minWidth: `${posUI.catWidth}px`, height: `${posUI.catHeight}px` }}
                             >
                                 {cat}
                             </button>
@@ -1797,7 +1779,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </div>
                 )}
 
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${posUI.cardWidth}px, 1fr))`, gap: '16px', paddingBottom: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${posUI.cardWidth}px, 1fr))`, gap: '18px', paddingBottom: '32px' }}>
                         {filteredMenu.map((item, idx) => (
                         <div 
                             key={item.id} 
@@ -1813,25 +1795,25 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 }
                                 handleProductClick(item, false);
                             }} 
-                            className={`relative bg-white rounded-2xl sm:rounded-[2rem] p-3 sm:p-4 flex flex-col items-center justify-between gap-3 sm:gap-4 shadow-sm border overflow-hidden transition-colors ${item.outOfStock ? 'opacity-60 grayscale cursor-not-allowed border-red-200' : 'cursor-pointer hover:bg-gray-50 border-gray-100'} ${isAdmin ? 'cursor-move' : ''}`}
+                            className={`group relative rounded-3xl p-3 sm:p-4 flex flex-col items-center justify-between gap-3 sm:gap-4 border overflow-hidden transition-all duration-300 ${cardBg} ${item.outOfStock ? 'opacity-60 grayscale cursor-not-allowed border-red-200' : 'cursor-pointer hover:-translate-y-1'} ${isAdmin ? 'cursor-move' : ''}`}
                             style={{ minHeight: `${posUI.cardHeight}px` }}
                         >
-                            <div className="w-full flex items-center justify-center bg-gray-50/50 rounded-xl sm:rounded-2xl overflow-hidden relative" style={{ height: `${posUI.imgHeight}px` }}>
+                            <div className={`w-full flex items-center justify-center rounded-2xl overflow-hidden relative transition-transform duration-300 group-hover:scale-105 ${cardImgBg}`} style={{ height: `${posUI.imgHeight}px` }}>
                                 {item.outOfStock && (
-                                    <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-20">
-                                        <span className="bg-red-500 text-white font-black text-xs sm:text-sm px-3 py-1.5 rounded-full shadow-lg transform -rotate-12 border-2 border-white">RUPTURE</span>
+                                    <div className={`absolute inset-0 flex items-center justify-center z-20 ${isDark ? 'bg-black/70' : 'bg-white/70 backdrop-blur-sm'}`}>
+                                        <span className={`font-black text-xs sm:text-sm px-4 py-1.5 rounded-full shadow-lg transform -rotate-12 border-2 tracking-widest ${isDark ? 'bg-red-600 text-white border-red-500' : 'bg-red-500 text-white border-white'}`}>RUPTURE</span>
                                     </div>
                                 )}
                                 {typeof item.img === 'string' && (item.img.startsWith('http') || item.img.startsWith('data:image')) ? (
-                                    <img src={item.img} loading="lazy" className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" alt={item.name}/>
+                                    <img src={item.img} loading="lazy" className={`w-full h-full object-contain drop-shadow-sm ${isDark ? '' : 'mix-blend-multiply'}`} alt={item.name}/>
                                 ) : (
                                     <span className="text-6xl sm:text-7xl">{item.img}</span>
                                 )}
                             </div>
                             <div className="w-full text-left space-y-1 px-1">
-                                <h3 className="font-black text-gray-800 text-sm sm:text-lg leading-tight line-clamp-2">{item.name}</h3>
-                                <p className="font-black text-lg sm:text-2xl tracking-tighter" style={{ color: item.outOfStock ? '#9ca3af' : (brand?.posColor || brand?.color || '#f59e0b') }}>
-                                    {item.price} <span className="text-[10px] sm:text-xs text-gray-400 font-bold uppercase tracking-widest">DH</span>
+                                <h3 className={`font-bold text-sm sm:text-base leading-tight line-clamp-2 tracking-tight ${titleColor}`}>{item.name}</h3>
+                                <p className="font-black text-lg sm:text-xl tracking-tighter" style={{ color: item.outOfStock ? '#9ca3af' : priceColor }}>
+                                    {item.price} <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-neutral-400' : 'text-gray-400'}`}>DH</span>
                                 </p>
                             </div>
                         </div>
@@ -1860,11 +1842,11 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             )}
 
             {/* CART SIDEBAR (RIGHT) */}
-            <aside className={`${isMobileCartOpen ? 'fixed inset-0 z-[100] flex bg-white/95 w-full' : 'hidden md:flex'} bg-white/80 md:backdrop-blur-2xl shadow-[-10px_0_40px_rgba(0,0,0,0.03)] flex-col h-full md:z-20 border-l border-white/60 shrink-0`} style={{ width: isMobileCartOpen ? '100%' : `${posUI.cartWidth}px` }}>
-                <div className="p-4 sm:p-6 md:p-8 flex justify-between items-center border-b border-gray-100/50 sticky top-0 z-10 bg-white/50 backdrop-blur-md">
-                    <div className="font-black text-xl sm:text-2xl flex items-center gap-3 text-gray-900 tracking-tight">
-                        <ShoppingBag size={28} style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}/> 
-                        <span className="hidden xl:inline">{brand?.texts?.posTabOrder || 'Commande'}</span>
+            <aside className={`${isMobileCartOpen ? 'fixed inset-0 z-[100] flex w-full' : 'hidden md:flex'} flex-col h-full md:z-20 shrink-0 relative ${cartSidebarClasses}`} style={{ width: isMobileCartOpen ? '100%' : `${posUI.cartWidth}px` }}>
+                <div className={`p-5 sm:p-7 md:p-8 flex justify-between items-center border-b sticky top-0 z-10 backdrop-blur-xl ${cartHeaderClasses}`}>
+                    <div className="font-black text-xl sm:text-2xl flex items-center gap-3 tracking-tight">
+                        <ShoppingBag size={26} className={iconColor} /> 
+                        <span className="hidden xl:inline tracking-tighter">Commande</span>
                     </div>
                     <div className="flex items-center gap-2">
                         {(!settings?.hidePosSurPlace || !settings?.hidePosAEmporter) && (
@@ -1889,35 +1871,35 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 no-scrollbar" style={{ zoom: cart.length > 6 ? Math.max(0.65, 1 - (cart.length - 6) * 0.05) : 1 }}>
+                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 no-scrollbar" style={{ zoom: cart.length > 6 ? Math.max(0.7, 1 - (cart.length - 6) * 0.05) : 1 }}>
                     <AnimatePresence>
                         {cart.length === 0 ? (
-                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 flex flex-col items-center justify-center text-gray-300 h-full mt-20 gap-4">
-                                <ShoppingBag size={80} strokeWidth={1} className="opacity-20"/>
-                                <p className="font-medium text-lg tracking-wide uppercase">Panier vide</p>
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 flex flex-col items-center justify-center h-full mt-20 gap-4" style={{ color: isDark ? '#525252' : '#d1d5db' }}>
+                                <ShoppingBag size={64} strokeWidth={1} className="opacity-20"/>
+                                <p className="font-bold text-sm tracking-widest uppercase opacity-60">Panier vide</p>
                             </motion.div>
                         ) : (
                             cart.map((item, idx) => (
-                                <motion.div key={`${item.id}-${idx}`} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }} onClick={() => setEditCartItem(item)} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all">
-                                    <div className="flex items-center justify-center bg-gray-100 rounded-lg px-2.5 py-1.5 shrink-0 border border-gray-200">
-                                        <span className="font-black text-sm text-gray-800">{item.qty}x</span>
+                                <motion.div key={`${item.id}-${idx}`} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }} onClick={() => setEditCartItem(item)} className={`p-4 rounded-2xl border flex items-center gap-4 cursor-pointer transition-all duration-300 group ${cartItemBg}`}>
+                                    <div className={`flex items-center justify-center rounded-xl px-3 py-2 shrink-0 border transition-colors ${cartQtyBg}`}>
+                                        <span className={`font-black text-sm tracking-tight ${titleColor}`}>{item.qty}x</span>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-gray-900 text-sm leading-tight truncate">{item.name.split(' (Sans')[0]}</h4>
+                                        <h4 className={`font-bold text-sm leading-tight truncate tracking-tight ${titleColor}`}>{item.name.split(' (Sans')[0]}</h4>
                                         {item.name.includes(' (Sans') && (
-                                            <div className="text-[10px] text-red-500 font-bold tracking-wide uppercase mt-0.5 line-clamp-2">
+                                            <div className="text-[10px] text-red-500 font-bold tracking-wide uppercase mt-1 line-clamp-2">
                                                 {item.name.split(' (Sans ')[1].replace(')', '').split(', ').map((opt, oIdx) => <span key={oIdx}>- {formatSansIngredient(opt)} </span>)}
                                             </div>
                                         )}
                                         {item.isCombo && item.comboChoices && item.comboChoices.map((c, cIdx) => (
-                                            <div key={cIdx} className="text-[10px] text-gray-600 font-bold mt-1 pl-2 border-l-2 border-orange-400">
+                                            <div key={cIdx} className="text-[10px] text-gray-500 font-bold mt-1.5 pl-2.5 border-l-[3px] border-orange-400/60">
                                                 🔹 {c.name}
                                                 {c.removables?.length > 0 && <span className="text-red-500 uppercase ml-1">(SANS: {c.removables.join(', ')})</span>}
                                                 {c.selectedOption && <span className="text-blue-600 ml-1">({c.selectedOption})</span>}
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="font-black text-sm sm:text-base tracking-tighter shrink-0" style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}>
+                                    <div className="font-black text-base tracking-tighter shrink-0" style={{ color: brand?.posColor || brand?.color || '#0f172a' }}>
                                         {item.price * item.qty}
                                     </div>
                                 </motion.div>
@@ -1927,28 +1909,27 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 </div>
 
                 {/* CONTROLES DU BAS (Plus compact pour petits ecrans) */}
-                <div className="p-3 sm:p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100/50 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] shrink-0 z-20 overflow-y-auto max-h-[50dvh]">
-                    <div className="flex justify-between items-end mb-3">
-                        <span className="text-gray-400 font-bold uppercase tracking-widest text-xs">{brand?.texts?.posTotal || 'Total à payer'}</span>
-                        <span className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tighter leading-none">{total} <span className="text-lg sm:text-xl tracking-normal" style={{ color: brand?.posColor || brand?.color || '#f59e0b' }}>DH</span></span>
+                <div className={`p-5 sm:p-6 backdrop-blur-xl border-t shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.05)] shrink-0 z-20 overflow-y-auto max-h-[50dvh] ${cartTotalBg}`}>
+                    <div className="flex justify-between items-end mb-4">
+                        <span className={`font-bold uppercase tracking-widest text-xs ${isDark ? 'text-neutral-400' : 'text-gray-400'}`}>{brand?.texts?.posTotal || 'Total à payer'}</span>
+                        <span className={`text-4xl sm:text-5xl font-black tracking-tighter leading-none ${titleColor}`}>{total} <span className={`text-xl sm:text-2xl tracking-tight font-bold ${isDark ? 'text-neutral-500' : 'text-gray-400'}`}>DH</span></span>
                     </div>
 
-                    <div className="flex gap-2 mb-3">
+                    <div className="flex gap-3 mb-4">
                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => {
                             if (cart.length === 0) return;
                             setHeldCarts(prev => [...prev, { id: Date.now(), time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), cart: [...cart], orderType, total }]);
                             setCart([]);
                             showNotify("Commande mise en attente 🕒", "info");
-                            showNotify("Panier mis en attente 🕒", "info");
-                        }} disabled={cart.length === 0} className="w-14 h-14 bg-orange-50 text-orange-500 border border-orange-100 rounded-xl font-black disabled:opacity-50 flex flex-col items-center justify-center gap-1 shadow-sm hover:bg-orange-100 shrink-0">
-                            <Clock size={20}/>
+                        }} disabled={cart.length === 0} className={`w-16 h-16 rounded-2xl font-black disabled:opacity-40 flex flex-col items-center justify-center gap-1 shadow-sm shrink-0 transition-colors ${cartQtyBg} border`} style={{ borderColor: isDark ? '#404040' : '#e5e7eb' }}>
+                            <Clock size={22}/>
                         </motion.button>
                         
                         <div className="flex-1 flex gap-3">
-                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(true)} disabled={cart.length === 0} className="flex-1 rounded-xl font-black text-lg md:text-xl text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-lg transition-colors hover:opacity-90 bg-green-500 py-4">
-                                <Banknote size={24}/> PAYER
+                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(true)} disabled={cart.length === 0} className="flex-1 rounded-2xl font-black text-xl md:text-2xl text-white disabled:opacity-30 disabled:shadow-none flex items-center justify-center gap-2 shadow-[0_8px_20px_-8px_rgba(34,197,94,0.5)] transition-all hover:opacity-90 bg-gradient-to-r from-green-500 to-green-600 py-4">
+                                <Banknote size={26}/> PAYER
                             </motion.button>
-                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(false)} disabled={cart.length === 0} className="flex-[0.8] rounded-xl font-black text-lg md:text-xl text-white disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 shadow-lg transition-colors hover:opacity-90 bg-orange-500 py-4">
+                            <motion.button whileHover={cart.length > 0 ? { scale: 1.02 } : {}} whileTap={cart.length > 0 ? { scale: 0.98 } : {}} onClick={() => handleEncaissement(false)} disabled={cart.length === 0} className="flex-[0.8] rounded-2xl font-black text-lg md:text-xl text-white disabled:opacity-30 disabled:shadow-none flex items-center justify-center gap-2 shadow-[0_8px_20px_-8px_rgba(249,115,22,0.5)] transition-all hover:opacity-90 bg-gradient-to-r from-orange-400 to-orange-500 py-4">
                                 NON PAYÉ
                             </motion.button>
                         </div>
@@ -1981,17 +1962,17 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
             {/* MODAL EDIT CART ITEM (Qte / Supprimer) */}
             {editCartItem && (
-                <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setEditCartItem(null)}>
-                    <div className="bg-white rounded-3xl w-full max-w-sm flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                        <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-                            <h2 className="text-lg font-black text-gray-900">{editCartItem.name.split(' (Sans')[0]}</h2>
-                            <button onClick={() => setEditCartItem(null)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X size={20}/></button>
+                <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setEditCartItem(null)}>
+                    <div className="bg-white rounded-[2rem] w-full max-w-sm flex flex-col overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
+                            <h2 className="text-xl font-black text-gray-900 tracking-tight">{editCartItem.name.split(' (Sans')[0]}</h2>
+                            <button onClick={() => setEditCartItem(null)} className="p-2.5 bg-gray-50 text-gray-400 rounded-full hover:bg-gray-100 hover:text-gray-600 transition-colors"><X size={20}/></button>
                         </div>
-                        <div className="p-6 flex flex-col items-center gap-6 bg-gray-50">
-                            <div className="flex items-center gap-6 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm">
-                                <button onClick={() => updateCartItemQty(editCartItem, -1)} className="w-14 h-14 bg-gray-50 rounded-xl shadow-sm flex items-center justify-center text-3xl font-black text-gray-600 hover:text-blue-600 border border-gray-100">-</button>
-                                <span className="text-3xl font-black w-10 text-center">{editCartItem.qty}</span>
-                                <button onClick={() => updateCartItemQty(editCartItem, 1)} className="w-14 h-14 bg-gray-50 rounded-xl shadow-sm flex items-center justify-center text-3xl font-black text-gray-600 hover:text-blue-600 border border-gray-100">+</button>
+                        <div className="p-6 flex flex-col items-center gap-5 bg-[#f8fafc]">
+                            <div className="flex items-center gap-6 bg-white p-3 rounded-2xl shadow-sm border border-gray-100">
+                                <button onClick={() => updateCartItemQty(editCartItem, -1)} className="w-14 h-14 bg-gray-50 rounded-xl flex items-center justify-center text-3xl font-black text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-colors">-</button>
+                                <span className="text-4xl font-black w-12 text-center text-gray-900 tracking-tighter">{editCartItem.qty}</span>
+                                <button onClick={() => updateCartItemQty(editCartItem, 1)} className="w-14 h-14 bg-gray-50 rounded-xl flex items-center justify-center text-3xl font-black text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-colors">+</button>
                             </div>
                             {(() => {
                                 const originalItem = menuItems.find(i => i.id === editCartItem.id);
@@ -2003,13 +1984,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 );
                                 if (!showBtn) return null;
                                 return (
-                                    <button onClick={() => handleEditCartItemOptions(editCartItem)} className="w-full py-4 bg-white border border-blue-200 hover:bg-blue-50 text-blue-600 font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm">
+                                    <button onClick={() => handleEditCartItemOptions(editCartItem)} className="w-full py-4 mt-2 bg-white border border-blue-200 hover:border-blue-300 hover:bg-blue-50/50 text-blue-600 font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm">
                                         ⚙️ Modifier Options / Sans
                                     </button>
                                 );
                             })()}
                             {(!hasAccess || hasAccess('pos_delete')) && (
-                                <button onClick={() => { deleteFromCart(editCartItem.id, editCartItem.name); setEditCartItem(null); }} className="w-full py-4 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-black rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"><Trash2 size={20}/> Supprimer du panier</button>
+                                <button onClick={() => { deleteFromCart(editCartItem.id, editCartItem.name); setEditCartItem(null); }} className="w-full py-4 mt-1 bg-red-50/50 border border-red-200 hover:bg-red-50 hover:border-red-300 text-red-600 font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"><Trash2 size={20}/> Supprimer du panier</button>
                             )}
                         </div>
                     </div>
@@ -2199,13 +2180,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
             {/* MODAL REGLAGES D'AFFICHAGE SIMPLIFIÉ */}
             {showUISettings && (
-                <div className="fixed inset-0 z-[5000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowUISettings(false)}>
-                    <div className="bg-white rounded-3xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-                            <h2 className="text-lg font-black text-gray-900 flex items-center gap-2"><Settings size={20}/> Config</h2>
-                            <button onClick={() => setShowUISettings(false)} className="p-2 bg-white rounded-full hover:bg-gray-200"><X size={20}/></button>
+                <div className="fixed inset-0 z-[5000] bg-black/40 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setShowUISettings(false)}>
+                    <div className="bg-white rounded-[2rem] w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
+                            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2 tracking-tight"><Settings size={22}/> Configuration Caisse</h2>
+                            <button onClick={() => setShowUISettings(false)} className="p-2.5 bg-gray-50 text-gray-400 rounded-full hover:bg-gray-100 hover:text-gray-600 transition-colors"><X size={20}/></button>
                         </div>
-                        <div className="p-6 bg-white space-y-6 overflow-y-auto flex-1 no-scrollbar">
+                        <div className="p-6 bg-[#f8fafc] space-y-6 overflow-y-auto flex-1 no-scrollbar">
                             
                             {/* 🔥 NOUVEAU: Khtiyar L-Livreur Manuel */}
                             <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 shadow-sm mb-4">
@@ -2227,69 +2208,73 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                                 <p className="text-[10px] text-blue-700 mt-2 font-bold leading-tight">Si sélectionné, toute commande Web acceptée ici sera envoyée DIRECTEMENT à ce livreur.</p>
                             </div>
 
-                            <div className="flex gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-200">
-                                <button onClick={() => setPrintCuisine(!printCuisine)} className={`flex-1 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 border ${printCuisine ? 'bg-orange-100 text-orange-700 border-orange-200 shadow-sm' : 'bg-transparent text-gray-400 border-transparent hover:bg-gray-200'}`}>
-                                    <ChefHat size={16}/> Cuisine {printCuisine ? 'ON' : 'OFF'}
+                            <div className="flex gap-3 p-2 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                                <button onClick={() => setPrintCuisine(!printCuisine)} className={`flex-1 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 border ${printCuisine ? 'bg-orange-50 text-orange-600 border-orange-200 shadow-[0_2px_10px_-3px_rgba(249,115,22,0.2)]' : 'bg-transparent text-gray-400 border-transparent hover:bg-gray-50'}`}>
+                                    <ChefHat size={18}/> Cuisine {printCuisine ? 'ON' : 'OFF'}
                                 </button>
-                                <button onClick={() => setPrintAddition(!printAddition)} className={`flex-1 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 border ${printAddition ? 'bg-blue-100 text-blue-700 border-blue-200 shadow-sm' : 'bg-transparent text-gray-400 border-transparent hover:bg-gray-200'}`}>
-                                    <Printer size={16}/> Ticket {printAddition ? 'ON' : 'OFF'}
+                                <button onClick={() => setPrintAddition(!printAddition)} className={`flex-1 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 border ${printAddition ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-[0_2px_10px_-3px_rgba(59,130,246,0.2)]' : 'bg-transparent text-gray-400 border-transparent hover:bg-gray-50'}`}>
+                                    <Printer size={18}/> Ticket {printAddition ? 'ON' : 'OFF'}
                                 </button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur du Panier</span><span className="text-blue-600">{posUI.cartWidth}px</span></label>
-                                    <input type="range" min="150" max="800" step="5" value={posUI.cartWidth} onChange={e => setPosUI({...posUI, cartWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                                <div className="space-y-1.5">
+                                    <label className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest"><span>Largeur Panier</span><span className="text-gray-900 bg-gray-100 px-1.5 rounded">{posUI.cartWidth}px</span></label>
+                                    <input type="range" min="150" max="800" step="5" value={posUI.cartWidth} onChange={e => setPosUI({...posUI, cartWidth: Number(e.target.value)})} className="w-full accent-gray-900 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
                                 </div>
-                                <div>
-                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur Boutons (Haut)</span><span className="text-blue-600">{posUI.actionBtnWidth}px</span></label>
-                                    <input type="range" min="80" max="250" step="5" value={posUI.actionBtnWidth} onChange={e => setPosUI({...posUI, actionBtnWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                <div className="space-y-1.5">
+                                    <label className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest"><span>Largeur Boutons</span><span className="text-gray-900 bg-gray-100 px-1.5 rounded">{posUI.actionBtnWidth}px</span></label>
+                                    <input type="range" min="80" max="250" step="5" value={posUI.actionBtnWidth} onChange={e => setPosUI({...posUI, actionBtnWidth: Number(e.target.value)})} className="w-full accent-gray-900 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
                                 </div>
-                                <div>
-                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Hauteur Boutons</span><span className="text-blue-600">{posUI.actionBtnHeight}px</span></label>
-                                    <input type="range" min="30" max="80" step="2" value={posUI.actionBtnHeight} onChange={e => setPosUI({...posUI, actionBtnHeight: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                <div className="space-y-1.5">
+                                    <label className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest"><span>Hauteur Boutons</span><span className="text-gray-900 bg-gray-100 px-1.5 rounded">{posUI.actionBtnHeight}px</span></label>
+                                    <input type="range" min="30" max="80" step="2" value={posUI.actionBtnHeight} onChange={e => setPosUI({...posUI, actionBtnHeight: Number(e.target.value)})} className="w-full accent-gray-900 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
                                 </div>
-                                <div>
-                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Largeur des Produits</span><span className="text-blue-600">{posUI.cardWidth}px</span></label>
-                                    <input type="range" min="100" max="400" step="5" value={posUI.cardWidth} onChange={e => setPosUI({...posUI, cardWidth: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                <div className="space-y-1.5">
+                                    <label className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest"><span>Largeur Produits</span><span className="text-gray-900 bg-gray-100 px-1.5 rounded">{posUI.cardWidth}px</span></label>
+                                    <input type="range" min="100" max="400" step="5" value={posUI.cardWidth} onChange={e => setPosUI({...posUI, cardWidth: Number(e.target.value)})} className="w-full accent-gray-900 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
                                 </div>
-                                <div>
-                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Hauteur des Produits</span><span className="text-blue-600">{posUI.cardHeight}px</span></label>
-                                    <input type="range" min="100" max="500" step="5" value={posUI.cardHeight} onChange={e => setPosUI({...posUI, cardHeight: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                <div className="space-y-1.5">
+                                    <label className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest"><span>Hauteur Produits</span><span className="text-gray-900 bg-gray-100 px-1.5 rounded">{posUI.cardHeight}px</span></label>
+                                    <input type="range" min="100" max="500" step="5" value={posUI.cardHeight} onChange={e => setPosUI({...posUI, cardHeight: Number(e.target.value)})} className="w-full accent-gray-900 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
                                 </div>
-                                <div>
-                                    <label className="flex justify-between text-xs font-bold text-gray-600 mb-2"><span>Taille du Texte</span><span className="text-blue-600">{posUI.fontSize}px</span></label>
-                                    <input type="range" min="10" max="24" step="1" value={posUI.fontSize} onChange={e => setPosUI({...posUI, fontSize: Number(e.target.value)})} className="w-full accent-blue-600" />
+                                <div className="space-y-1.5">
+                                    <label className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest"><span>Taille Texte</span><span className="text-gray-900 bg-gray-100 px-1.5 rounded">{posUI.fontSize}px</span></label>
+                                    <input type="range" min="10" max="24" step="1" value={posUI.fontSize} onChange={e => setPosUI({...posUI, fontSize: Number(e.target.value)})} className="w-full accent-gray-900 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
                                 </div>
                             </div>
-                            <button onClick={() => setPosUI(defaultPosUI)} className="w-full py-3 mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs uppercase transition-colors">Réinitialiser par défaut</button>
-                            {isAdmin && headerBtnsOrder.length > 0 && (
-                                <button onClick={handleResetPositions} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs uppercase transition-colors">↺ Réinitialiser l'ordre des boutons</button>
-                            )}
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <button onClick={() => setPosUI(defaultPosUI)} className="flex-1 py-3.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold rounded-xl text-xs uppercase tracking-widest transition-all shadow-sm">Réinitialiser par défaut</button>
+                                {isAdmin && headerBtnsOrder.length > 0 && (
+                                    <button onClick={handleResetPositions} className="flex-1 py-3.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold rounded-xl text-xs uppercase tracking-widest transition-all shadow-sm">↺ Réinitialiser l'ordre des boutons</button>
+                                )}
+                            </div>
                                 
                                 {isAdmin && (
-                                    <div className="space-y-3 border-t border-gray-100 pt-4 mt-4">
-                                        <h3 className="text-sm font-black text-gray-800 mb-2">Activer / Désactiver les boutons :</h3>
-                                        <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                                            <span className="text-xs font-bold text-gray-700">Bouton "Sur Place"</span>
-                                            <input type="checkbox" checked={!settings?.hidePosSurPlace} onChange={(e) => saveSettings({...settings, hidePosSurPlace: !e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer" />
-                                        </label>
-                                        <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                                            <span className="text-xs font-bold text-gray-700">Bouton "À Emporter"</span>
-                                            <input type="checkbox" checked={!settings?.hidePosAEmporter} onChange={(e) => saveSettings({...settings, hidePosAEmporter: !e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer" />
-                                        </label>
-                                        <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                                            <span className="text-xs font-bold text-gray-700">Connecter Imprimante BT</span>
-                                            <input type="checkbox" checked={!settings?.hidePosBluetooth} onChange={(e) => saveSettings({...settings, hidePosBluetooth: !e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer" />
-                                        </label>
-                                        <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                                            <span className="text-xs font-bold text-gray-700">Tiroir / Historique / Rapports</span>
-                                            <input type="checkbox" checked={!settings?.hidePosTiroir} onChange={(e) => saveSettings({...settings, hidePosTiroir: !e.target.checked, hidePosHistory: !e.target.checked, hidePosReports: !e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer" />
-                                        </label>
+                                    <div className="space-y-3 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mt-4">
+                                        <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">Activer / Désactiver les boutons (Admin)</h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <label className="flex items-center justify-between p-3.5 bg-[#f8fafc] rounded-xl cursor-pointer hover:bg-gray-100 transition-colors border border-gray-100">
+                                                <span className="text-xs font-bold text-gray-700">Bouton "Sur Place"</span>
+                                                <input type="checkbox" checked={!settings?.hidePosSurPlace} onChange={(e) => saveSettings({...settings, hidePosSurPlace: !e.target.checked})} className="w-5 h-5 accent-gray-900 cursor-pointer" />
+                                            </label>
+                                            <label className="flex items-center justify-between p-3.5 bg-[#f8fafc] rounded-xl cursor-pointer hover:bg-gray-100 transition-colors border border-gray-100">
+                                                <span className="text-xs font-bold text-gray-700">Bouton "À Emporter"</span>
+                                                <input type="checkbox" checked={!settings?.hidePosAEmporter} onChange={(e) => saveSettings({...settings, hidePosAEmporter: !e.target.checked})} className="w-5 h-5 accent-gray-900 cursor-pointer" />
+                                            </label>
+                                            <label className="flex items-center justify-between p-3.5 bg-[#f8fafc] rounded-xl cursor-pointer hover:bg-gray-100 transition-colors border border-gray-100">
+                                                <span className="text-xs font-bold text-gray-700">Connecter Imprimante BT</span>
+                                                <input type="checkbox" checked={!settings?.hidePosBluetooth} onChange={(e) => saveSettings({...settings, hidePosBluetooth: !e.target.checked})} className="w-5 h-5 accent-gray-900 cursor-pointer" />
+                                            </label>
+                                            <label className="flex items-center justify-between p-3.5 bg-[#f8fafc] rounded-xl cursor-pointer hover:bg-gray-100 transition-colors border border-gray-100">
+                                                <span className="text-xs font-bold text-gray-700">Tiroir / Historique / Rapports</span>
+                                                <input type="checkbox" checked={!settings?.hidePosTiroir} onChange={(e) => saveSettings({...settings, hidePosTiroir: !e.target.checked, hidePosHistory: !e.target.checked, hidePosReports: !e.target.checked})} className="w-5 h-5 accent-gray-900 cursor-pointer" />
+                                            </label>
+                                        </div>
                                     </div>
                                 )}
                         </div>
-                        <div className="p-5 bg-gray-50 border-t border-gray-100 shrink-0">
-                            <button onClick={() => setShowUISettings(false)} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-sm transition-colors shadow-md">Valider et Fermer</button>
+                        <div className="p-6 bg-white border-t border-gray-100 shrink-0">
+                            <button onClick={() => setShowUISettings(false)} className="w-full py-4 bg-gray-900 hover:bg-black text-white font-black rounded-xl text-sm transition-all shadow-[0_8px_16px_-6px_rgba(0,0,0,0.3)] hover:-translate-y-0.5 uppercase tracking-widest">Valider et Fermer</button>
                         </div>
                     </div>
                 </div>
@@ -2489,27 +2474,73 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
         {/* MODAL CUSTOM CONFIRMATION TOUT DONNER */}
         {showConfirmToutDonner && (
-            <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowConfirmToutDonner(false)}>
-                <div className="bg-white rounded-3xl w-full max-w-sm flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                    <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-orange-50">
-                        <h2 className="text-lg font-black text-orange-800 flex items-center gap-2"><AlertTriangle size={20}/> Confirmation</h2>
-                        <button onClick={() => setShowConfirmToutDonner(false)} className="p-2 bg-white rounded-full hover:bg-gray-100"><X size={20}/></button>
-                    </div>
-                    <div className="p-6 bg-gray-50 text-center space-y-5">
-                        <p className="font-bold text-gray-800 text-base">Wach mt2ked bghiti t3ti ga3 had l-commandes ({readyPosOrders.length}) f de9a we7da ?</p>
+                <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] p-6 max-w-sm w-full shadow-2xl text-center">
+                        <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle size={32}/></div>
+                        <h3 className="text-xl font-black text-gray-900 mb-2">Tout donner ?</h3>
+                        <p className="text-gray-500 font-bold mb-6 text-sm">Wach m2ked bghiti t3ti ga3 l-commandes ({readyPosOrders.length}) l-malihom ?</p>
                         <div className="flex gap-3">
-                            <button onClick={() => setShowConfirmToutDonner(false)} className="flex-1 py-3 font-bold text-gray-600 bg-gray-200 rounded-xl hover:bg-gray-300 transition-colors shadow-sm">Non (Annuler)</button>
+                            <button onClick={() => setShowConfirmToutDonner(false)} className="flex-1 py-3 font-black text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Annuler</button>
                             <button onClick={() => {
-                                readyPosOrders.forEach(o => updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() }));
-                                showNotify("Ga3 l-commandes t3taw l-klyan ! ✅", "success");
+                                readyPosOrders.forEach(o => {
+                                    updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() });
+                                });
+                                showNotify("Ga3 l-commandes t3taw! ✅", "success");
                                 setShowReadyPosModal(false);
                                 setShowConfirmToutDonner(false);
                             }} className="flex-[2] py-3 font-black text-white bg-green-500 rounded-xl shadow-md active:scale-95 transition-all hover:bg-green-600">Oui, Tout donner</button>
                         </div>
                     </div>
                 </div>
-            </div>
-        )}
+            )}
+
+            {/* MODAL COMMANDES PRÊTES GLOVO */}
+            {showGlovoModal && (
+                <div className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowGlovoModal(false)}>
+                    <div className="bg-gray-50 rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-black flex items-center gap-2" style={{color: brand.color || '#FFC244'}}>
+                                <Bike size={24} />
+                                Prêtes (Glovo)
+                            </h2>
+                            <button onClick={() => setShowGlovoModal(false)} className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 text-gray-700"><X size={20}/></button>
+                        </div>
+                        
+                        <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto no-scrollbar pr-2 pb-2">
+                            {readyGlovoOrders.length === 0 ? (
+                                <div className="text-center text-gray-400 py-6 font-bold flex flex-col items-center gap-4">
+                                    <span>Aucune commande Glovo prête.</span>
+                                </div>
+                            ) : (
+                                readyGlovoOrders.map(o => (
+                                    <div key={o.id} className="bg-white p-4 rounded-2xl border-2 border-[#FFC244]/30 shadow-sm flex flex-col gap-3">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex flex-col">
+                                                <span className="font-black text-xl text-yellow-600 uppercase">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                                <span className="text-xs font-bold text-gray-500 mt-1">{o.items?.length || 0} article(s)</span>
+                                            </div>
+                                            <div className="flex flex-col items-end">
+                                                <span className="font-black text-lg text-gray-900">{o.total} DH</span>
+                                            </div>
+                                        </div>
+                                        {o.paymentMethod === 'espece' && (
+                                            <div className="bg-green-100 border border-green-300 text-green-800 p-2 rounded-lg text-center font-black animate-pulse">
+                                                À ENCAISSER DU LIVREUR: {o.total} DH
+                                            </div>
+                                        )}
+                                        <button onClick={() => { 
+                                            updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() }); 
+                                            printTicket(o, brand);
+                                            showNotify("Remis au Livreur Glovo !", "success"); 
+                                            if (readyGlovoOrders.length === 1) setShowGlovoModal(false); 
+                                        }} className="bg-[#FFC244] hover:bg-yellow-500 text-black px-5 py-3 rounded-xl font-black text-sm transition-colors shadow-md flex items-center justify-center gap-2"><CheckCircle size={18}/> Remis au Livreur</button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* MODAL HISTORIQUE */}
             {showHistoryModal && (
@@ -2699,22 +2730,18 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         </div>
                         
                         <div className="p-6 bg-gray-50 flex flex-col gap-4">
-                        <div className="flex bg-gray-200/60 p-1.5 rounded-xl border border-gray-200 shadow-inner mb-2 w-fit mx-auto">
-                            <button onClick={()=>setTelType('telephone')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${telType==='telephone'?'bg-blue-600 text-white shadow-md':'text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}><Phone size={16}/> Standard Tél</button>
-                            <button onClick={()=>setTelType('glovo')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${telType==='glovo'?'bg-yellow-400 text-black shadow-md':'text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}><Truck size={16}/> Invite Glovo</button>
-                        </div>
 
                         {/* Input Number - SHARED */}
                         <label className="block text-left">
                             <span className="text-xs font-bold text-gray-700 mb-1.5 block">
-                                {telType === 'telephone' ? 'Numéro de Téléphone Client' : 'Numéro de Téléphone Client (Glovo)'} <span className="text-red-500">*</span>
+                                Numéro de Téléphone Client <span className="text-red-500">*</span>
                             </span>
                             <input
                                 type="tel"
                                 readOnly
                                 onClick={() => setShowTelNumpad(true)}
                                 placeholder="06XXXXXXXX ou 07XXXXXXXX"
-                                className={`w-full bg-white border border-gray-300 p-4 rounded-2xl text-3xl tracking-widest text-center font-bold text-gray-900 outline-none focus:ring-4 transition-all shadow-sm cursor-pointer ${telType === 'telephone' ? 'focus:border-blue-500 focus:ring-blue-500/20' : 'focus:border-yellow-500 focus:ring-yellow-500/20'}`}
+                                className="w-full bg-white border border-gray-300 p-4 rounded-2xl text-3xl tracking-widest text-center font-bold text-gray-900 outline-none focus:ring-4 focus:border-blue-500 focus:ring-blue-500/20 transition-all shadow-sm cursor-pointer"
                                 value={telInfo.phone}
                                 onChange={(e) => setTelInfo({ ...telInfo, phone: e.target.value.replace(/[^\d]/g, "").slice(0, 10) })}
                             />
@@ -2757,55 +2784,35 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                             </div>
                         )}
 
-                        {/* Section Telephone only */}
-                        {telType === 'telephone' && (
-                            <>
-                            <label className="block text-left">
-                                <span className="text-xs font-bold text-gray-700 mb-1.5 block">Frais de Livraison (DH)</span>
-                                <div className="flex gap-2">
-                                    {[0, 5, 10, 15, 20].map(fee => (
-                                        <button
-                                            key={fee}
-                                            onClick={() => setTelInfo({ ...telInfo, deliveryFee: fee })}
-                                            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all border ${Number(telInfo.deliveryFee) === fee ? "bg-orange-500 text-white border-orange-600 shadow-md scale-105" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"}`}
-                                        >
-                                            {fee}
-                                        </button>
-                                    ))}
-                                </div>
-                            </label>
-
-                            <div className="mt-4 flex justify-between items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                <span className="text-sm font-bold text-gray-600 uppercase tracking-widest">Total commande</span>
-                                <span className="text-2xl font-black text-gray-900">
-                                    {total + Number(telInfo.deliveryFee || 0)} <span className="text-sm">DH</span>
-                                </span>
+                        <label className="block text-left mt-2">
+                            <span className="text-xs font-bold text-gray-700 mb-1.5 block">Frais de Livraison (DH)</span>
+                            <div className="flex gap-2">
+                                {[0, 5, 10, 15, 20].map(fee => (
+                                    <button
+                                        key={fee}
+                                        onClick={() => setTelInfo({ ...telInfo, deliveryFee: fee })}
+                                        className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all border ${Number(telInfo.deliveryFee) === fee ? "bg-orange-500 text-white border-orange-600 shadow-md scale-105" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"}`}
+                                    >
+                                        {fee}
+                                    </button>
+                                ))}
                             </div>
+                        </label>
 
-                            <button
-                                onClick={handleSendWhatsappFromPOS}
-                                className="w-full mt-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-700 hover:to-green-800 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                                Créer Commande Tél & WhatsApp
-                            </button>
+                        <div className="mt-4 flex justify-between items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                            <span className="text-sm font-bold text-gray-600 uppercase tracking-widest">Total commande</span>
+                            <span className="text-2xl font-black text-gray-900">
+                                {total + Number(telInfo.deliveryFee || 0)} <span className="text-sm">DH</span>
+                            </span>
+                        </div>
 
-                            <button
-                                onClick={handleGlovoOrderFromPOS}
-                                className="w-full mt-3 bg-yellow-400 hover:bg-yellow-500 text-black py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                            >
-                                <ShoppingBag size={20} />
-                                Client Glovo (Saisir Commande)
-                            </button>
-                            </>
-                        )}
-
-                        {/* Section Glovo only */}
-                        {telType === 'glovo' && (
-                            <button onClick={handleGlovoInviteFromPOS} className="w-full mt-4 bg-yellow-400 hover:bg-yellow-500 text-black py-5 rounded-2xl font-black text-base uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3">
-                                <MessageCircle size={24} /> Convertir & Envoyer WhatsApp
-                            </button>
-                        )}
+                        <button
+                            onClick={handleSendWhatsappFromPOS}
+                            className="w-full mt-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-700 hover:to-green-800 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                            Créer Commande Tél & WhatsApp
+                        </button>
                         </div>
                     </div>
                 </div>

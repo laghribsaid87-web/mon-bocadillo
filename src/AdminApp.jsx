@@ -11,6 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 const AdminDashboard = lazy(() => import('./views/AdminDashboard'));
 const KitchenDashboard = lazy(() => import('./components/admin/KitchenDashboard'));
+const GlovoReports = lazy(() => import('./views/GlovoReports'));
 
 function AdminAppInner() {
   const [user, setUser] = useState(null);
@@ -92,6 +93,8 @@ function AdminAppInner() {
     }
   }, []);
 
+  const [posStatuses, setPosStatuses] = useState({});
+
   useEffect(() => {
     const unsubConfig = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), (s) => {
       if(s.exists()) setSettings(s.data());
@@ -99,7 +102,12 @@ function AdminAppInner() {
     const unsubBrand = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'brand'), (s) => {
       if(s.exists()) setBrand(s.data());
     });
-    return () => { unsubConfig(); unsubBrand(); };
+    const unsubPos = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'pos_status'), (snap) => {
+      const statuses = {};
+      snap.forEach(d => { statuses[d.id] = d.data(); });
+      setPosStatuses(statuses);
+    });
+    return () => { unsubConfig(); unsubBrand(); unsubPos(); };
   }, []);
 
   useEffect(() => {
@@ -200,6 +208,159 @@ function AdminAppInner() {
     const qOrders = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), where('createdAt', '>=', limiteDate), orderBy('createdAt', 'desc'));
     const unsubOrders = onSnapshot(qOrders, (snap) => {
         const ords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        // 🔥 PARSING GLOVO & ENREGISTREMENT CLIENT
+        ords.forEach(async (orderData) => {
+            if (orderData.source === 'glovo' && !orderData.parsedGlovo) {
+                try {
+                    let name = "Client Glovo";
+                    let phone = "Inconnu";
+                    let items = [];
+                    let hasParsedSomething = false;
+
+                    // 1. OLD METHOD (JSON)
+                    if (orderData.raw_text) {
+                        let rawJson = typeof orderData.raw_text === 'string' ? JSON.parse(orderData.raw_text) : orderData.raw_text;
+                        let phoneJson = orderData.phone_text ? (typeof orderData.phone_text === 'string' ? JSON.parse(orderData.phone_text) : orderData.phone_text) : null;
+                        let content = rawJson.tout || rawJson;
+                        let phoneContent = phoneJson ? (phoneJson.tout || phoneJson) : {};
+                        
+                        for (let key in phoneContent) {
+                          let val = phoneContent[key];
+                          if (typeof val === 'string' && (val.includes('+212') || val.match(/^0[67]\d{8}$/))) phone = val.trim();
+                        }
+                        if(!phone && phoneContent["com.deliveryhero.rps.restaurantandroidapp:id/phone_number"]) {
+                           phone = phoneContent["com.deliveryhero.rps.restaurantandroidapp:id/phone_number"];
+                        }
+
+                        let itemsMap = {};
+                        for (let key in content) {
+                          let val = content[key];
+                          if (typeof val !== 'string') continue;
+                          if (key.includes('customer_name')) name = val;
+                          let m = key.match(/item_name\$(\d+)/);
+                          if (m) { if (!itemsMap[m[1]]) itemsMap[m[1]] = {}; itemsMap[m[1]].name = val; }
+                          m = key.match(/multiplier_label\$(\d+)/);
+                          if (m) { if (!itemsMap[m[1]]) itemsMap[m[1]] = {}; itemsMap[m[1]].qty = parseInt(val.replace('x', '').trim()) || 1; }
+                          m = key.match(/item_price\$(\d+)/);
+                          if (m) { if (!itemsMap[m[1]]) itemsMap[m[1]] = {}; itemsMap[m[1]].price = parseFloat(val.replace(',', '.').replace('DH', '').trim()) || 0; }
+                        }
+                        Object.values(itemsMap).forEach(item => { if(item.name) items.push({ name: item.name, qty: item.qty || 1, price: item.price || 0 }); });
+                        hasParsedSomething = true;
+                    } 
+                    
+                    // 2. NEW METHOD (TEXT MACRODROID in orderNote)
+                    else if (orderData.orderNote) {
+                        const text = String(orderData.orderNote);
+                        
+                        // Attempt to extract JSON from MacroDroid UI Dump
+                        let jsonStart = text.indexOf('{');
+                        let arrayStart = text.indexOf('[{');
+                        if (arrayStart !== -1 && (arrayStart < jsonStart || jsonStart === -1)) jsonStart = arrayStart;
+                        
+                        if (jsonStart !== -1) {
+                            try {
+                                let jsonStr = text.substring(jsonStart);
+                                let rawJson = JSON.parse(jsonStr);
+                                
+                                let contentObj = {};
+                                if (Array.isArray(rawJson)) {
+                                    rawJson.forEach(obj => { if (obj.tout) Object.assign(contentObj, obj.tout); });
+                                } else {
+                                    contentObj = rawJson.tout || rawJson;
+                                }
+
+                                let itemsMap = {};
+                                for (let key in contentObj) {
+                                    let val = contentObj[key];
+                                    if (typeof val !== 'string') continue;
+                                    
+                                    if (key.includes('customer_content')) name = val;
+                                    if (key.includes('phone_number') && val.match(/\d/)) phone = val;
+                                    
+                                    let m = key.match(/receipt_item_description(?:\$(\d+))?/);
+                                    if (m) {
+                                        let idx = m[1] || '1';
+                                        if (!itemsMap[idx]) itemsMap[idx] = {};
+                                        itemsMap[idx].name = val;
+                                    }
+                                    m = key.match(/receipt_item_price(?:\$(\d+))?/);
+                                    if (m) {
+                                        let idx = m[1] || '1';
+                                        if (!itemsMap[idx]) itemsMap[idx] = {};
+                                        itemsMap[idx].price = parseFloat(val.replace(',', '.').replace(/MAD|DH/g, '').trim()) || 0;
+                                    }
+                                    m = key.match(/receipt_extra_item(?:\$(\d+))?/);
+                                    if (m) {
+                                        let idx = m[1] || '1';
+                                        if (!itemsMap[idx]) itemsMap[idx] = {};
+                                        let cleanExtra = val.replace(/"Extra"/g, '+').replace(/Sans/g, '-');
+                                        itemsMap[idx].extras = itemsMap[idx].extras ? itemsMap[idx].extras + ', ' + cleanExtra : cleanExtra;
+                                    }
+                                    m = key.match(/items_count(?:\$(\d+))?/);
+                                    if (m) {
+                                        let idx = m[1] || '1';
+                                        if (!itemsMap[idx]) itemsMap[idx] = {};
+                                        itemsMap[idx].qty = parseInt(val) || 1;
+                                    }
+                                }
+                                
+                                Object.values(itemsMap).forEach(item => { 
+                                    if(item.name) items.push({ 
+                                        name: item.name + (item.extras ? ' (' + item.extras + ')' : ''), 
+                                        qty: item.qty || 1, 
+                                        price: item.price || 0 
+                                    }); 
+                                });
+                            } catch (err) { console.error("Could not parse MacroDroid UI JSON", err); }
+                        }
+
+                        // Parse Phone Number using regex fallback
+                        const phoneMatch = text.match(/(?:\+212|0|212)[\s\-]*([67][\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d)/);
+                        if (phoneMatch && phone === "Inconnu") {
+                            phone = "0" + phoneMatch[1].replace(/[\s\-]/g, '');
+                        }
+                        
+                        // Fallback if no items extracted
+                        if (items.length === 0) {
+                            items = [{ name: "📦 Commande Glovo (Voir Détails)", qty: 1, price: 0 }];
+                        }
+                        hasParsedSomething = true;
+                    }
+
+                    if (hasParsedSomething) {
+                        let cleanPhone = phone;
+                        if (cleanPhone && cleanPhone !== "Inconnu") {
+                            cleanPhone = cleanPhone.replace(/\s/g, '').replace(/^\+212/, '0');
+                        }
+                        
+                        const updateData = {
+                            customerName: name,
+                            phone: cleanPhone || "Inconnu",
+                            items: items,
+                            parsedGlovo: true,
+                            status: "preparing", // 🔥 Important: Envoie directement au KDS !
+                            nearestBranch: orderData.nearestBranch || { id: "laymoune", name: "Laymoune" }
+                        };
+
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderData.id), updateData);
+
+                        if (cleanPhone && cleanPhone !== "Inconnu") {
+                            const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', cleanPhone);
+                            await setDoc(clientRef, {
+                                phone: cleanPhone,
+                                name: name || "Client Glovo",
+                                source: "glovo",
+                                createdAt: serverTimestamp(),
+                                blocked: false,
+                                isDriver: false
+                            }, { merge: true });
+                        }
+                    }
+                } catch(e) { console.error("Erreur parsing Glovo:", e); }
+            }
+        });
+
         setOrders(ords);
         
         let hasStatusChange = false;
@@ -372,6 +533,18 @@ function AdminAppInner() {
     );
   }
 
+  // 🔥 Chargement de l'écran Glovo Reports
+  if (window.location.pathname.startsWith('/glovo-reports') || window.location.hash.includes('/glovo-reports')) {
+    if (!profile?.isAdmin && !profile?.isManager) {
+        return <div className="min-h-screen flex items-center justify-center p-4">Accès Refusé.</div>;
+    }
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500"><div className="w-12 h-12 border-4 border-gray-200 border-t-[#FFC244] rounded-full animate-spin"></div></div>}>
+          <GlovoReports brand={brand} />
+      </Suspense>
+    );
+  }
+
   if (!profile?.isAdmin && !profile?.isManager) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{backgroundColor: brand?.bgColor || '#f8f9fa'}}>
@@ -434,6 +607,7 @@ function AdminAppInner() {
         clientsList={clientsList} 
         onlineDrivers={onlineDrivers} 
         settings={settings} 
+        posStatuses={posStatuses}
         brand={brand} 
         setBrand={setBrand} 
         saveSettings={saveSettings} 
