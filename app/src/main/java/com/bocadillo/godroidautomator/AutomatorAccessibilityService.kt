@@ -14,20 +14,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 class AutomatorAccessibilityService : AccessibilityService() {
 
     private val coroutineScope = CoroutineScope(Dispatchers.Default + Job())
     private var isSequenceRunning = false
+    private val sequenceMutex = kotlinx.coroutines.sync.Mutex()
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.bocadillo.godroidautomator.START_SEQUENCE") {
-                Journal.log("Broadcast reçu: START_SEQUENCE")
-                if (!isSequenceRunning) {
-                    startAutomationSequence()
-                } else {
-                    Log.d("AutoService", "Sequence already running, ignoring.")
+                Journal.log("Broadcast reçu: START_SEQUENCE (Mise en file d'attente)")
+                coroutineScope.launch {
+                    sequenceMutex.withLock {
+                        if (!isSequenceRunning) {
+                            startAutomationSequence()
+                        }
+                    }
                 }
             }
         }
@@ -51,10 +55,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
             while (true) {
                 try {
                     delay(15000) // Poll every 15 seconds
-                    if (!isSequenceRunning) {
+                    if (!sequenceMutex.isLocked && !isSequenceRunning) {
                         val readyOrder = NetworkClient.checkReadyOrders()
                         if (readyOrder != null) {
-                            startReadySequence(readyOrder.orderNumber, readyOrder.documentId)
+                            sequenceMutex.withLock {
+                                startReadySequence(readyOrder.orderNumber, readyOrder.documentId)
+                            }
                         }
                     }
                 } catch (e: Exception) {
@@ -64,92 +70,90 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun startReadySequence(orderNumber: String, documentId: String) {
+    private suspend fun startReadySequence(orderNumber: String, documentId: String) {
         isSequenceRunning = true
         val labelAcceptee = getLabel("btn_acceptee", "Acceptée")
         val labelPret = getLabel("btn_pret", "Prêt pour la livraison")
         val labelConfirmer = getLabel("btn_confirmer", "Confirmer")
 
-        coroutineScope.launch {
-            try {
-                Journal.log("=== DEBUT SÉQUENCE PRÊT POUR LA LIVRAISON ===")
-                Journal.log("Commande détectée: $orderNumber")
+        try {
+            Journal.log("=== DEBUT SÉQUENCE PRÊT POUR LA LIVRAISON ===")
+            Journal.log("Commande détectée: $orderNumber")
 
-                // 1. Launch goDroid
-                var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
-                val pm = packageManager
-                val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
-                for (app in packages) {
-                    val appName = pm.getApplicationLabel(app).toString()
-                    if (appName.equals("goDroid", ignoreCase = true) || appName.equals("Glovo Partner", ignoreCase = true)) {
-                        targetPackage = app.packageName
-                        break
-                    }
+            // 1. Launch goDroid
+            var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
+            val pm = packageManager
+            val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+            for (app in packages) {
+                val appName = pm.getApplicationLabel(app).toString()
+                if (appName.equals("goDroid", ignoreCase = true) || appName.equals("Glovo Partner", ignoreCase = true)) {
+                    targetPackage = app.packageName
+                    break
                 }
-
-                launch(Dispatchers.Main) {
-                    android.widget.Toast.makeText(applicationContext, "Validation Commande $orderNumber !", android.widget.Toast.LENGTH_LONG).show()
-                }
-
-                val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
-                if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    startActivity(launchIntent)
-                    Journal.log("Ouverture de l'app: $targetPackage")
-                }
-
-                delay(3000)
-
-                // 2. Click on "Acceptée" tab
-                Journal.log("Clic sur l'onglet '$labelAcceptee'")
-                clickByText(labelAcceptee)
-                delay(2000)
-
-                // 3. Find the order on the screen
-                val formattedOrderNumber = if (orderNumber.startsWith("#")) orderNumber else "#$orderNumber"
-                Journal.log("Recherche de la commande $formattedOrderNumber")
-                
-                // If we can click the exact order number
-                if (clickByText(formattedOrderNumber)) {
-                    delay(1500)
-                    Journal.log("Clic sur '$labelPret'")
-                    clickByText(labelPret)
-                    
-                    delay(2000)
-                    
-                    // Handle Dialogs
-                    val screenText = extractAllText(rootInActiveWindow)
-                    
-                    // Grouped Orders Dialog: "Sélectionnez les commandes qui sont prêtes"
-                    if (screenText.contains("Sélectionnez les commandes", ignoreCase = true)) {
-                        Journal.log("Commandes groupées détectées, sélection de $formattedOrderNumber")
-                        // Usually the checkbox has text next to it like "Commande n° 32"
-                        val checkboxText = "Commande n° ${formattedOrderNumber.replace("#", "")}"
-                        clickByText(checkboxText)
-                        delay(1000)
-                        Journal.log("Clic sur '$labelConfirmer'")
-                        clickByText(labelConfirmer)
-                    } 
-                    // Early Ready Dialog: "est-elle prête pour la livraison ?"
-                    else if (screenText.contains("est-elle prête", ignoreCase = true)) {
-                        Journal.log("Confirmation d'avance demandée par Glovo")
-                        Journal.log("Clic sur '$labelConfirmer'")
-                        clickByText(labelConfirmer)
-                    }
-                    
-                    delay(2000)
-                    // Mark as clicked in Firestore
-                    NetworkClient.markOrderAsGlovoReady(documentId)
-                    Journal.log("=== SÉQUENCE PRÊT TERMINÉE ===")
-                } else {
-                    Journal.log("Erreur: Commande $formattedOrderNumber introuvable à l'écran")
-                }
-
-            } catch (e: Exception) {
-                Journal.log("ERREUR FATALE: ${e.message}")
-            } finally {
-                isSequenceRunning = false
             }
+
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(applicationContext, "Validation Commande $orderNumber !", android.widget.Toast.LENGTH_LONG).show()
+            }
+
+            val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                startActivity(launchIntent)
+                Journal.log("Ouverture de l'app: $targetPackage")
+            }
+
+            delay(3000)
+
+            // 2. Click on "Acceptée" tab
+            Journal.log("Clic sur l'onglet '$labelAcceptee'")
+            clickByText(labelAcceptee)
+            delay(2000)
+
+            // 3. Find the order on the screen
+            val formattedOrderNumber = if (orderNumber.startsWith("#")) orderNumber else "#$orderNumber"
+            Journal.log("Recherche de la commande $formattedOrderNumber")
+            
+            // If we can click the exact order number
+            if (clickByText(formattedOrderNumber)) {
+                delay(1500)
+                Journal.log("Clic sur '$labelPret'")
+                clickByText(labelPret)
+                
+                delay(2000)
+                
+                // Handle Dialogs
+                val screenText = extractAllText(rootInActiveWindow)
+                
+                // Grouped Orders Dialog: "Sélectionnez les commandes qui sont prêtes"
+                if (screenText.contains("Sélectionnez les commandes", ignoreCase = true)) {
+                    Journal.log("Commandes groupées détectées, sélection de $formattedOrderNumber")
+                    // Usually the checkbox has text next to it like "Commande n° 32"
+                    val checkboxText = "Commande n° ${formattedOrderNumber.replace("#", "")}"
+                    clickByText(checkboxText)
+                    delay(1000)
+                    Journal.log("Clic sur '$labelConfirmer'")
+                    clickByText(labelConfirmer)
+                } 
+                // Early Ready Dialog: "est-elle prête pour la livraison ?"
+                else if (screenText.contains("est-elle prête", ignoreCase = true)) {
+                    Journal.log("Confirmation d'avance demandée par Glovo")
+                    Journal.log("Clic sur '$labelConfirmer'")
+                    clickByText(labelConfirmer)
+                }
+                
+                delay(2000)
+                // Mark as clicked in Firestore
+                NetworkClient.markOrderAsGlovoReady(documentId)
+                Journal.log("=== SÉQUENCE PRÊT TERMINÉE ===")
+            } else {
+                Journal.log("Erreur: Commande $formattedOrderNumber introuvable à l'écran")
+            }
+
+        } catch (e: Exception) {
+            Journal.log("ERREUR FATALE: ${e.message}")
+        } finally {
+            isSequenceRunning = false
         }
     }
 
@@ -171,7 +175,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         return prefs.getString(key, defaultValue) ?: defaultValue
     }
 
-    private fun startAutomationSequence() {
+    private suspend fun startAutomationSequence() {
         isSequenceRunning = true
         val labelMins = getLabel("btn_mins", "mins")
         val labelModifier = getLabel("btn_modifier", "Modifier")
@@ -180,112 +184,110 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val labelAccepter = getLabel("btn_accepter", "Accepter la commande")
         val labelConfirmer = getLabel("btn_confirmer", "Confirmer")
 
-        coroutineScope.launch {
-            try {
-                Journal.log("=== DEBUT DE L'AUTOMATISATION ===")
+        try {
+            Journal.log("=== DEBUT DE L'AUTOMATISATION ===")
 
-                // 1. Launch goDroid
-                var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
-                val pm = packageManager
-                val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
-                for (app in packages) {
-                    val appName = pm.getApplicationLabel(app).toString()
-                    if (appName.equals("goDroid", ignoreCase = true) || appName.equals("Glovo Partner", ignoreCase = true)) {
-                        targetPackage = app.packageName
-                        break
-                    }
+            // 1. Launch goDroid
+            var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
+            val pm = packageManager
+            val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+            for (app in packages) {
+                val appName = pm.getApplicationLabel(app).toString()
+                if (appName.equals("goDroid", ignoreCase = true) || appName.equals("Glovo Partner", ignoreCase = true)) {
+                    targetPackage = app.packageName
+                    break
                 }
-                
-                // Show a toast on the UI thread
-                launch(Dispatchers.Main) {
-                    android.widget.Toast.makeText(applicationContext, "GoDroid Automator déclenché !", android.widget.Toast.LENGTH_LONG).show()
-                }
-
-                val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
-                if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    startActivity(launchIntent)
-                    Journal.log("Ouverture de l'app: $targetPackage")
-                } else {
-                    Journal.log("ERREUR: App goDroid introuvable !")
-                }
-
-                // 2. Wait 2 seconds
-                delay(2000)
-
-                // 3. Click "mins"
-                Journal.log("Clic sur '$labelMins'")
-                val minsClicked = clickByText(labelMins)
-                if (!minsClicked) Journal.log("Attention: '$labelMins' introuvable")
-
-                // 4. Wait 1 second
-                delay(1000)
-
-                // 5. Read screen content -> ContenuEcran (First screen has Order Items)
-                Journal.log("Lecture ContenuEcran...")
-                var contenuEcran = extractAllText(rootInActiveWindow)
-                Journal.log("Texte lu: ${contenuEcran.length} charactères")
-
-                // 6. Wait 1 second
-                delay(1000)
-
-                // 7. Click "Modifier"
-                Journal.log("Clic sur '$labelModifier'")
-                clickByText(labelModifier)
-
-                // 8. Wait 1 second
-                delay(1000)
-
-                // 9. Click Checkbox
-                Journal.log("Clic sur Checkbox")
-                clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
-
-                // 10. Wait 1 second
-                delay(1000)
-
-                // 11. Click "Continuer"
-                Journal.log("Clic sur '$labelContinuer'")
-                clickByText(labelContinuer)
-
-                // 12. Wait 2 seconds
-                delay(2000)
-
-                // 13. Read screen content -> TelephoneEcran (Second screen has Phone Number and Name)
-                Journal.log("Lecture TelephoneEcran...")
-                var telephoneEcran = extractAllText(rootInActiveWindow)
-                Journal.log("Texte lu: ${telephoneEcran.length} charactères")
-
-                // 14. Click "Annuler"
-                Journal.log("Clic sur '$labelAnnuler'")
-                clickByText(labelAnnuler)
-
-                // 15. Removed Text Manipulation (Handled cleanly in NetworkClient)
-
-                // 16. Send HTTP Request
-                Journal.log("Lancement requête HTTP...")
-                NetworkClient.sendOrderData(telephoneEcran, contenuEcran)
-
-                // 17. Click "Accepter la commande"
-                delay(1000)
-                Journal.log("Clic sur '$labelAccepter'")
-                clickByText(labelAccepter)
-
-                // 18. Check for "payer en espèces" dialog and click "Confirmer"
-                delay(1500)
-                val dialogText = extractAllText(rootInActiveWindow)
-                if (dialogText.contains("payer en espèces", ignoreCase = true)) {
-                    Journal.log("Alerte Glovo: Le coursier doit payer en espèces")
-                }
-                Journal.log("Clic sur '$labelConfirmer'")
-                clickByText(labelConfirmer)
-
-                Journal.log("=== AUTOMATISATION TERMINEE ===")
-            } catch (e: Exception) {
-                Journal.log("ERREUR FATALE: ${e.message}")
-                Log.e("AutoService", "Error in sequence", e)
-            } finally {
-                isSequenceRunning = false
             }
+            
+            // Show a toast on the UI thread
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(applicationContext, "GoDroid Automator déclenché !", android.widget.Toast.LENGTH_LONG).show()
+            }
+
+            val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                startActivity(launchIntent)
+                Journal.log("Ouverture de l'app: $targetPackage")
+            } else {
+                Journal.log("ERREUR: App goDroid introuvable !")
+            }
+
+            // 2. Wait 2 seconds
+            delay(2000)
+
+            // 3. Click "mins"
+            Journal.log("Clic sur '$labelMins'")
+            val minsClicked = clickByText(labelMins)
+            if (!minsClicked) Journal.log("Attention: '$labelMins' introuvable")
+
+            // 4. Wait 1 second
+            delay(1000)
+
+            // 5. Read screen content -> ContenuEcran (First screen has Order Items)
+            Journal.log("Lecture ContenuEcran...")
+            var contenuEcran = extractAllText(rootInActiveWindow)
+            Journal.log("Texte lu: ${contenuEcran.length} charactères")
+
+            // 6. Wait 1 second
+            delay(1000)
+
+            // 7. Click "Modifier"
+            Journal.log("Clic sur '$labelModifier'")
+            clickByText(labelModifier)
+
+            // 8. Wait 1 second
+            delay(1000)
+
+            // 9. Click Checkbox
+            Journal.log("Clic sur Checkbox")
+            clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
+
+            // 10. Wait 1 second
+            delay(1000)
+
+            // 11. Click "Continuer"
+            Journal.log("Clic sur '$labelContinuer'")
+            clickByText(labelContinuer)
+
+            // 12. Wait 2 seconds
+            delay(2000)
+
+            // 13. Read screen content -> TelephoneEcran (Second screen has Phone Number and Name)
+            Journal.log("Lecture TelephoneEcran...")
+            var telephoneEcran = extractAllText(rootInActiveWindow)
+            Journal.log("Texte lu: ${telephoneEcran.length} charactères")
+
+            // 14. Click "Annuler"
+            Journal.log("Clic sur '$labelAnnuler'")
+            clickByText(labelAnnuler)
+
+            // 15. Removed Text Manipulation (Handled cleanly in NetworkClient)
+
+            // 16. Send HTTP Request
+            Journal.log("Lancement requête HTTP...")
+            NetworkClient.sendOrderData(telephoneEcran, contenuEcran)
+
+            // 17. Click "Accepter la commande"
+            delay(1000)
+            Journal.log("Clic sur '$labelAccepter'")
+            clickByText(labelAccepter)
+
+            // 18. Check for "payer en espèces" dialog and click "Confirmer"
+            delay(1500)
+            val dialogText = extractAllText(rootInActiveWindow)
+            if (dialogText.contains("payer en espèces", ignoreCase = true)) {
+                Journal.log("Alerte Glovo: Le coursier doit payer en espèces")
+            }
+            Journal.log("Clic sur '$labelConfirmer'")
+            clickByText(labelConfirmer)
+
+            Journal.log("=== AUTOMATISATION TERMINEE ===")
+        } catch (e: Exception) {
+            Journal.log("ERREUR FATALE: ${e.message}")
+            Log.e("AutoService", "Error in sequence", e)
+        } finally {
+            isSequenceRunning = false
         }
     }
 
