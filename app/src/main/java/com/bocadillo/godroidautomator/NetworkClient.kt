@@ -370,6 +370,8 @@ object NetworkClient {
                 val response = client.newCall(request).execute()
                 if (!response.isSuccessful) {
                     Log.e("NetworkClient", "Failed to send cancelled order: ${response.code}")
+                } else {
+                    Journal.log("Rapport d'annulation envoyé avec succès.")
                 }
             } catch (e: Exception) {
                 Log.e("NetworkClient", "Exception in sendCancelledOrderReport", e)
