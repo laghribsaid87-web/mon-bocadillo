@@ -187,8 +187,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (currentTime - lastTriggerTime < 10000) return // Debounce 10 seconds
             
             val node = findNodeWithTextRecursively(labelMins, root)
-            if (node != null && isNodeClickable(node)) {
-                Journal.log("Détection visuelle de '$labelMins'")
+            val screenText = extractAllText(root)
+            val nouvelleRegex = Regex("Nouvelle\\s+([1-9][0-9]*)", RegexOption.IGNORE_CASE)
+            
+            if (nouvelleRegex.find(screenText) != null && node != null && isNodeClickable(node)) {
+                Journal.log("Détection visuelle de Nouvelle Commande et '$labelMins'")
                 lastTriggerTime = currentTime
                 coroutineScope.launch {
                     sequenceMutex.withLock {
@@ -250,7 +253,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val labelContinuer = getLabel("btn_continuer", "Continuer")
         val labelAnnuler = getLabel("btn_annuler", "Annuler")
         val labelAccepter = getLabel("btn_accepter", "Accepter la commande")
-        val labelConfirmer = getLabel("btn_confirmer", "Confirmer")
+        val labelCompris = getLabel("btn_compris", "Compris")
 
         try {
             Journal.log("=== DEBUT DE L'AUTOMATISATION ===")
@@ -297,10 +300,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 4. Wait 1.5 seconds for details to load
             delay(1500)
 
-            // 5. Skip ContenuEcran read here
-
-            // 6. Wait 1 second
-            delay(1000)
+            // 5. Read full details (Items, Price, Order Num) on the main order screen (Image 2)
+            Journal.log("Lecture détails de la commande...")
+            val screenWidth = resources.displayMetrics.widthPixels
+            val contenuEcran = extractOrderDetailsText(rootInActiveWindow, screenWidth)
+            Journal.log("Texte lu: ${contenuEcran.length} charactères")
+            
+            // 6. (Data will be sent later after getting phone number)
 
             // 7. Click "Modifier"
             Journal.log("Clic sur '$labelModifier'")
@@ -312,46 +318,53 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 9. Click Checkbox
             Journal.log("Clic sur Checkbox")
             clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
+            // Si jamais l'ID a changé, on essaye de trouver une CheckBox
+            delay(500)
 
-            // 10. Wait 1 second
-            delay(1000)
-
-            // 11. Click "Continuer"
+            // 10. Click "Continuer"
             Journal.log("Clic sur '$labelContinuer'")
             clickByText(labelContinuer)
 
-            // 12. Wait 2 seconds for the confirmation screen
+            // 11. Wait 2 seconds for the confirmation screen (QR Code screen)
             delay(2000)
 
-            // 13. Read full details (Items, Price, Order Num) on confirmation screen
-            Journal.log("Lecture détails de la commande...")
-            val screenWidth = resources.displayMetrics.widthPixels
-            var contenuEcran = extractOrderDetailsText(rootInActiveWindow, screenWidth)
-            Journal.log("Texte lu: ${contenuEcran.length} charactères")
+            // 12. Read Phone number from this screen
+            Journal.log("Lecture du numéro de téléphone...")
+            val telephoneEcran = extractAllText(rootInActiveWindow)
+            Journal.log("Extraction num téléphone terminée.")
+
+            // 13. Send the phone number to Idara (using the same API or a new one, currently sendOrderData was doing both, 
+            // but we already sent the KDS data. Wait, sendOrderData takes telephoneEcran and contenuEcran!)
+            // I should update NetworkClient to just send phone number, OR I can just re-send the order data with the phone number?
+            // Actually, we should send the order data ONCE. Let me just extract phone here, and I'll send the whole thing.
             
-            // Backend takes TelephoneEcran, we send the same content as it contains everything
-            var telephoneEcran = contenuEcran
+            // Wait, to not modify too much: I will move the sendOrderData call HERE, and pass both strings!
+            Journal.log("Lancement requête HTTP globale...")
+            NetworkClient.sendOrderData(telephoneEcran, contenuEcran)
 
             // 14. Click "Annuler"
             Journal.log("Clic sur '$labelAnnuler'")
             clickByText(labelAnnuler)
 
-            // 15. Send HTTP Request
-            Journal.log("Lancement requête HTTP...")
-            NetworkClient.sendOrderData(telephoneEcran, contenuEcran)
-
-            // 16. Click "Accepter la commande"
+            // 15. Wait 1 second and Click "Accepter la commande"
             delay(1000)
             Journal.log("Clic sur '$labelAccepter'")
             clickByText(labelAccepter)
 
-            // 17. Check for "payer en espèces" dialog and click "Confirmer"
+            // 16. Check for "Le coursier paie au restaurant" dialog and click "Compris"
             delay(2000)
             val dialogText = extractAllText(rootInActiveWindow)
-            if (dialogText.contains("payer en espèces", ignoreCase = true) || dialogText.contains("Confirmer", ignoreCase = true)) {
-                Journal.log("Alerte Glovo détectée, clic sur '$labelConfirmer'")
-                clickByText(labelConfirmer)
+            if (dialogText.contains("paie au restaurant", ignoreCase = true) || dialogText.contains(labelCompris, ignoreCase = true)) {
+                Journal.log("Alerte Espèces Glovo détectée, clic sur '$labelCompris'")
+                clickByText(labelCompris)
             }
+            
+            // 17. Wait 4 seconds
+            delay(4000)
+            
+            // 18. Click Android Back Button
+            Journal.log("Retour à la liste des commandes")
+            performGlobalAction(GLOBAL_ACTION_BACK)
 
             Journal.log("=== AUTOMATISATION TERMINEE ===")
         } catch (e: Exception) {
