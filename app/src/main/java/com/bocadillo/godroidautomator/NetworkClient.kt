@@ -51,50 +51,65 @@ object NetworkClient {
                     var i = 0
                     
                     while (i < lines.size) {
-                        val line = lines[i]
-                        val qtyMatch = Regex("^([0-9]+)\$").find(line)
+                        var line = lines[i]
                         
-                        if (qtyMatch != null && i + 1 < lines.size) {
-                            val qtyStr = qtyMatch.groupValues[1]
-                            val qty = qtyStr.toIntOrNull() ?: 1
-                            val name = lines[i+1]
-                            
-                            val currentItem = JSONObject()
-                            currentItem.put("name", name)
-                            currentItem.put("qty", qty)
-                            currentItem.put("price", 0.0)
-                            
-                            val optionsBuffer = mutableListOf<String>()
-                            i += 2
-                            
-                            if (i < lines.size) {
-                                val nextLine = lines[i]
-                                val itemPriceRegex = Regex("([0-9]+[.,]?[0-9]*)\\s*(MAD|DH|DHS)", RegexOption.IGNORE_CASE)
-                                val priceMatch = itemPriceRegex.find(nextLine)
-                                if (priceMatch != null) {
-                                    val p = priceMatch.groupValues[1].replace(",", ".").toDoubleOrNull() ?: 0.0
-                                    currentItem.put("price", p)
-                                    i++
-                                }
+                        var qty: Int
+                        var name: String
+                        
+                        val newFormatMatch = Regex("^([0-9]+)\\s*x\\s+(.*)\$").find(line)
+                        if (newFormatMatch != null) {
+                            qty = newFormatMatch.groupValues[1].toIntOrNull() ?: 1
+                            name = newFormatMatch.groupValues[2].trim()
+                            i++
+                        } else {
+                            val oldFormatMatch = Regex("^([0-9]+)\$").find(line)
+                            if (oldFormatMatch != null && i + 1 < lines.size) {
+                                qty = oldFormatMatch.groupValues[1].toIntOrNull() ?: 1
+                                name = lines[i+1].trim()
+                                i += 2
+                            } else {
+                                i++
+                                continue
                             }
-                            
-                            while (i < lines.size) {
-                                val optLine = lines[i]
-                                if (Regex("^([0-9]+)\$").matches(optLine)) break 
-                                if (Regex("(?i).*(MAD|DH|DHS).*").matches(optLine) && !optLine.startsWith("--")) break
-                                
-                                optionsBuffer.add(optLine)
+                        }
+                        
+                        val currentItem = JSONObject()
+                        currentItem.put("qty", qty)
+                        currentItem.put("price", 0.0)
+                        
+                        val inlinePriceMatch = Regex("([0-9]+[.,]?[0-9]*)\\s*(MAD|DH|DHS)").find(name)
+                        if (inlinePriceMatch != null) {
+                            val p = inlinePriceMatch.groupValues[1].replace(",", ".").toDoubleOrNull() ?: 0.0
+                            currentItem.put("price", p)
+                            name = name.replace(inlinePriceMatch.value, "").trim()
+                        } else if (i < lines.size) {
+                            val nextLine = lines[i]
+                            val priceMatch = Regex("([0-9]+[.,]?[0-9]*)\\s*(MAD|DH|DHS)", RegexOption.IGNORE_CASE).find(nextLine)
+                            if (priceMatch != null) {
+                                val p = priceMatch.groupValues[1].replace(",", ".").toDoubleOrNull() ?: 0.0
+                                currentItem.put("price", p)
                                 i++
                             }
-                            
-                            if (optionsBuffer.isNotEmpty()) {
-                                currentItem.put("name", name + " (" + optionsBuffer.joinToString(", ") + ")")
-                            }
-                            
-                            itemsList.add(currentItem)
-                            continue 
                         }
-                        i++
+                        
+                        val optionsBuffer = mutableListOf<String>()
+                        while (i < lines.size) {
+                            val optLine = lines[i]
+                            if (Regex("^([1-9][0-9]*)\$").matches(optLine)) break 
+                            if (Regex("^([1-9][0-9]*)\\s*x\\s+(.*)\$").matches(optLine)) break 
+                            if (Regex("(?i).*(MAD|DH|DHS).*").matches(optLine) && !optLine.startsWith("--")) break
+                            if (optLine.equals("Sous-total", ignoreCase = true) || optLine.equals("Total", ignoreCase = true) || optLine.startsWith("Prêt pour", ignoreCase = true)) break
+                            
+                            optionsBuffer.add(optLine)
+                            i++
+                        }
+                        
+                        if (optionsBuffer.isNotEmpty()) {
+                            name = name + "\n" + optionsBuffer.joinToString("\n")
+                        }
+                        
+                        currentItem.put("name", name)
+                        itemsList.add(currentItem)
                     }
                     
                     if (itemsList.isNotEmpty()) {
@@ -103,7 +118,7 @@ object NetworkClient {
                             {
                               "mapValue": {
                                 "fields": {
-                                  "name": { "stringValue": "${item.getString("name").replace("\"", "\\\"")}" },
+                                  "name": { "stringValue": "${item.getString("name").replace("\"", "\\\"").replace("\n", "\\n")}" },
                                   "qty": { "integerValue": "${item.getInt("qty")}" },
                                   "price": { "doubleValue": ${item.getDouble("price")} }
                                 }
