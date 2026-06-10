@@ -206,4 +206,86 @@ object NetworkClient {
             }
         }
     }
+
+    suspend fun checkCancellationTrigger(): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_trigger"
+                val request = Request.Builder().url(url).get().build()
+                val response = client.newCall(request).execute()
+                
+                if (response.isSuccessful) {
+                    val responseStr = response.body?.string() ?: return@withContext false
+                    val json = JSONObject(responseStr)
+                    val fields = json.optJSONObject("fields") ?: return@withContext false
+                    
+                    val action = fields.optJSONObject("action")?.optString("stringValue", "")
+                    val isHandled = fields.optJSONObject("isHandled")?.optBoolean("booleanValue", true) ?: true
+                    
+                    if (action == "VERIFY_CANCELLATIONS" && !isHandled) {
+                        return@withContext true
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in checkCancellationTrigger", e)
+            }
+            return@withContext false
+        }
+    }
+
+    suspend fun markCancellationTriggerHandled() {
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_trigger?updateMask.fieldPaths=isHandled"
+                val jsonStr = """
+                {
+                  "fields": {
+                    "isHandled": { "booleanValue": true }
+                  }
+                }
+                """.trimIndent()
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val body = jsonStr.toRequestBody(mediaType)
+                val request = Request.Builder().url(url).method("PATCH", body).build()
+                client.newCall(request).execute()
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in markCancellationTriggerHandled", e)
+            }
+        }
+    }
+
+    suspend fun sendCancelledOrderReport(orderNumber: String, reasonText: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/glovo_cancellations"
+                val formatter = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                formatter.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val createdAt = formatter.format(java.util.Date())
+
+                val formattedReason = reasonText.replace("\"", "\\\"").replace("\n", " | ")
+                val formattedOrder = orderNumber.replace("\"", "\\\"").replace("\n", " ")
+
+                val jsonStr = """
+                {
+                  "fields": {
+                    "orderNumber": { "stringValue": "$formattedOrder" },
+                    "reasonText": { "stringValue": "$formattedReason" },
+                    "createdAt": { "timestampValue": "$createdAt" }
+                  }
+                }
+                """.trimIndent()
+
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val body = jsonStr.toRequestBody(mediaType)
+                val request = Request.Builder().url(url).post(body).build()
+
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) {
+                    Log.e("NetworkClient", "Failed to send cancelled order: ${response.code}")
+                }
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in sendCancelledOrderReport", e)
+            }
+        }
+    }
 }

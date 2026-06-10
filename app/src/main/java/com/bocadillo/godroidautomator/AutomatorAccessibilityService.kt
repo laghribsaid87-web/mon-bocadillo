@@ -56,6 +56,17 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 try {
                     delay(15000) // Poll every 15 seconds
                     if (!sequenceMutex.isLocked && !isSequenceRunning) {
+                        
+                        // 1. Check for Manual Trigger from POS to verify Cancellations
+                        val shouldVerifyCancellations = NetworkClient.checkCancellationTrigger()
+                        if (shouldVerifyCancellations) {
+                            sequenceMutex.withLock {
+                                startCancellationCheckSequence()
+                            }
+                            continue // skip ready orders check in this tick
+                        }
+
+                        // 2. Normal check for Ready Orders
                         val readyOrders = NetworkClient.checkReadyOrders()
                         for (order in readyOrders) {
                             sequenceMutex.withLock {
@@ -431,5 +442,149 @@ class AutomatorAccessibilityService : AccessibilityService() {
             sb.append(extractOrderDetailsText(node.getChild(i), screenWidth))
         }
         return sb.toString()
+    }
+
+    private suspend fun startCancellationCheckSequence() {
+        isSequenceRunning = true
+        Journal.log("=== VÉRIFICATION DES ANNULATIONS DÉCLENCHÉE ===")
+
+        try {
+            // 1. Mark trigger as handled
+            NetworkClient.markCancellationTriggerHandled()
+
+            // 2. Launch goDroid
+            var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
+            val pm = packageManager
+            val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+            for (app in packages) {
+                val appName = pm.getApplicationLabel(app).toString()
+                if (appName.equals("goDroid", ignoreCase = true) || appName.equals("Glovo Partner", ignoreCase = true)) {
+                    targetPackage = app.packageName
+                    break
+                }
+            }
+
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(applicationContext, "Vérification Glovo...", android.widget.Toast.LENGTH_LONG).show()
+            }
+
+            val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                startActivity(launchIntent)
+            }
+            
+            delay(4000)
+
+            // 3. Open Drawer / Menu (usually content desc "Ouvrir le tiroir de navigation" or just 3 lines)
+            Journal.log("Ouverture du menu")
+            val root = rootInActiveWindow
+            if (root != null) {
+                if (!clickByText("Ouvrir le tiroir de navigation")) {
+                    val drawerNodes = root.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
+                    if (drawerNodes.isNotEmpty()) {
+                        val toolbar = drawerNodes[0]
+                        if (toolbar.childCount > 0 && toolbar.getChild(0).isClickable) {
+                            toolbar.getChild(0).performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        }
+                    } else {
+                        clickByText("Menu")
+                    }
+                }
+            }
+            
+            delay(2000)
+
+            // 4. Click "Commandes récentes"
+            Journal.log("Clic sur 'Commandes récentes'")
+            clickByText("Commandes récentes")
+            
+            delay(3000)
+
+            // 5. Scroll and find "ANNULÉE"
+            Journal.log("Recherche des commandes ANNULÉE...")
+            var foundAny = false
+            
+            for (scroll in 0 until 5) {
+                val currentRoot = rootInActiveWindow ?: break
+                val annuleeNodes = findNodesWithText(currentRoot, "ANNULÉE")
+                
+                for (node in annuleeNodes) {
+                    Journal.log("Commande ANNULÉE trouvée! Ouverture des détails...")
+                    var clickable: AccessibilityNodeInfo? = node
+                    while (clickable != null && !clickable.isClickable) {
+                        clickable = clickable.parent
+                    }
+                    
+                    if (clickable != null && clickable.isClickable) {
+                        clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        foundAny = true
+                        delay(2000)
+                        
+                        val detailsText = extractAllText(rootInActiveWindow)
+                        
+                        val orderRegex = Regex("#([0-9]+)")
+                        val orderMatch = orderRegex.find(detailsText)
+                        val orderNum = orderMatch?.groupValues?.get(1) ?: "INCONNU"
+                        
+                        Journal.log("Rapport pour #$orderNum envoyé à la Caisse")
+                        NetworkClient.sendCancelledOrderReport(orderNum, detailsText)
+                        
+                        delay(1000)
+                        
+                        performGlobalAction(GLOBAL_ACTION_BACK)
+                        delay(2000)
+                    }
+                }
+                
+                val listNode = findScrollableNode(rootInActiveWindow)
+                if (listNode != null) {
+                    listNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    delay(2000)
+                } else {
+                    break
+                }
+            }
+
+            if (!foundAny) {
+                Journal.log("Aucune commande ANNULÉE trouvée.")
+            }
+            
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            
+        } catch (e: Exception) {
+            Journal.log("ERREUR: ${e.message}")
+        } finally {
+            isSequenceRunning = false
+            Journal.log("=== VÉRIFICATION TERMINÉE ===")
+        }
+    }
+
+    private fun findNodesWithText(node: AccessibilityNodeInfo?, text: String): List<AccessibilityNodeInfo> {
+        val result = mutableListOf<AccessibilityNodeInfo>()
+        if (node == null) return result
+        
+        val nodeText = node.text?.toString() ?: ""
+        val nodeDesc = node.contentDescription?.toString() ?: ""
+        
+        if (nodeText.contains(text, ignoreCase = true) || nodeDesc.contains(text, ignoreCase = true)) {
+            result.add(node)
+        }
+        
+        for (i in 0 until node.childCount) {
+            result.addAll(findNodesWithText(node.getChild(i), text))
+        }
+        return result
+    }
+
+    private fun findScrollableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isScrollable) return node
+        
+        for (i in 0 until node.childCount) {
+            val result = findScrollableNode(node.getChild(i))
+            if (result != null) return result
+        }
+        return null
     }
 }
