@@ -126,11 +126,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
             delay(2000)
 
             // 3. Find the order on the screen
-            val formattedOrderNumber = if (orderNumber.startsWith("#")) orderNumber else "#$orderNumber"
-            Journal.log("Recherche de la commande $formattedOrderNumber")
+            val orderTextToFind = orderNumber.replace("#", "")
+            Journal.log("Recherche de la commande $orderTextToFind")
             
             // If we can click the exact order number
-            if (clickByText(formattedOrderNumber)) {
+            if (clickByText(orderTextToFind)) {
                 delay(1500)
                 Journal.log("Clic sur '$labelPret'")
                 clickByText(labelPret)
@@ -142,9 +142,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 
                 // Grouped Orders Dialog: "Sélectionnez les commandes qui sont prêtes"
                 if (screenText.contains("Sélectionnez les commandes", ignoreCase = true)) {
-                    Journal.log("Commandes groupées détectées, sélection de $formattedOrderNumber")
+                    Journal.log("Commandes groupées détectées, sélection de $orderTextToFind")
                     // Usually the checkbox has text next to it like "Commande n° 32"
-                    val checkboxText = "Commande n° ${formattedOrderNumber.replace("#", "")}"
+                    val checkboxText = "Commande n° $orderTextToFind"
                     clickByText(checkboxText)
                     delay(1000)
                     Journal.log("Clic sur '$labelConfirmer'")
@@ -162,7 +162,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 NetworkClient.markOrderAsGlovoReady(documentId)
                 Journal.log("=== SÉQUENCE PRÊT TERMINÉE ===")
             } else {
-                Journal.log("Erreur: Commande $formattedOrderNumber introuvable à l'écran")
+                Journal.log("Erreur: Commande $orderTextToFind introuvable à l'écran")
             }
 
         } catch (e: Exception) {
