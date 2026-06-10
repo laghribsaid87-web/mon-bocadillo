@@ -63,12 +63,28 @@ class AutomatorAccessibilityService : AccessibilityService() {
             try {
                 Log.d("AutoService", "--- STARTING AUTOMATION SEQUENCE ---")
 
-                // 1. Launch goDroid (com.deliveryhero.rps.restaurantandroidapp)
-                val launchIntent = packageManager.getLaunchIntentForPackage("com.deliveryhero.rps.restaurantandroidapp")
+                // 1. Launch goDroid
+                var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
+                val pm = packageManager
+                val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+                for (app in packages) {
+                    val appName = pm.getApplicationLabel(app).toString()
+                    if (appName.equals("goDroid", ignoreCase = true) || appName.equals("Glovo Partner", ignoreCase = true)) {
+                        targetPackage = app.packageName
+                        break
+                    }
+                }
+                
+                // Show a toast on the UI thread
+                launch(Dispatchers.Main) {
+                    android.widget.Toast.makeText(applicationContext, "GoDroid Automator déclenché !", android.widget.Toast.LENGTH_LONG).show()
+                }
+
+                val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
                 if (launchIntent != null) {
                     launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                     startActivity(launchIntent)
-                    Log.d("AutoService", "Launched goDroid app")
+                    Log.d("AutoService", "Launched goDroid app: $targetPackage")
                 } else {
                     Log.e("AutoService", "goDroid app not found on device")
                 }
