@@ -100,10 +100,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 // 4. Wait 1 second
                 delay(1000)
 
-                // 5. Read screen content -> TelephoneEcran
-                Journal.log("Lecture TelephoneEcran...")
-                var telephoneEcran = extractAllText(rootInActiveWindow)
-                Journal.log("Texte lu: ${telephoneEcran.length} charactères")
+                // 5. Read screen content -> ContenuEcran (First screen has Order Items)
+                Journal.log("Lecture ContenuEcran...")
+                var contenuEcran = extractAllText(rootInActiveWindow)
+                Journal.log("Texte lu: ${contenuEcran.length} charactères")
 
                 // 6. Wait 1 second
                 delay(1000)
@@ -115,7 +115,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 // 8. Wait 1 second
                 delay(1000)
 
-                // 9. Click ID com.deliveryhero.rps.restaurantandroidapp:id/checkbox
+                // 9. Click Checkbox
                 Journal.log("Clic sur Checkbox")
                 clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
 
@@ -129,10 +129,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 // 12. Wait 2 seconds
                 delay(2000)
 
-                // 13. Read screen content -> ContenuEcran
-                Journal.log("Lecture ContenuEcran...")
-                var contenuEcran = extractAllText(rootInActiveWindow)
-                Journal.log("Texte lu: ${contenuEcran.length} charactères")
+                // 13. Read screen content -> TelephoneEcran (Second screen has Phone Number and Name)
+                Journal.log("Lecture TelephoneEcran...")
+                var telephoneEcran = extractAllText(rootInActiveWindow)
+                Journal.log("Texte lu: ${telephoneEcran.length} charactères")
 
                 // 14. Click "Annuler"
                 Journal.log("Clic sur 'Annuler'")

@@ -26,6 +26,10 @@ object NetworkClient {
                 val formattedContent = contenuEcran.replace("\"", "\\\"").replace("\n", " ")
                 val finalNote = "TELEPHONE: $formattedPhone\n\nCONTENU: $formattedContent"
 
+                val formatter = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                formatter.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val createdAt = formatter.format(java.util.Date())
+
                 // Structure of Firestore REST document for an order
                 val jsonStr = """
                 {
@@ -33,6 +37,8 @@ object NetworkClient {
                     "source": { "stringValue": "glovo" },
                     "status": { "stringValue": "preparing" },
                     "orderNumber": { "stringValue": "GLOVO-APP" },
+                    "total": { "doubleValue": 0 },
+                    "createdAt": { "timestampValue": "$createdAt" },
                     "items": {
                       "arrayValue": {
                         "values": [
