@@ -56,10 +56,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 try {
                     delay(15000) // Poll every 15 seconds
                     if (!sequenceMutex.isLocked && !isSequenceRunning) {
-                        val readyOrder = NetworkClient.checkReadyOrders()
-                        if (readyOrder != null) {
+                        val readyOrders = NetworkClient.checkReadyOrders()
+                        for (order in readyOrders) {
                             sequenceMutex.withLock {
-                                startReadySequence(readyOrder.orderNumber, readyOrder.documentId)
+                                startReadySequence(order.orderNumber, order.documentId)
                             }
                         }
                     }

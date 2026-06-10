@@ -105,8 +105,9 @@ object NetworkClient {
 
     data class ReadyOrder(val documentId: String, val orderNumber: String)
 
-    suspend fun checkReadyOrders(): ReadyOrder? {
+    suspend fun checkReadyOrders(): List<ReadyOrder> {
         return withContext(Dispatchers.IO) {
+            val orders = mutableListOf<ReadyOrder>()
             try {
                 val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data:runQuery"
                 val jsonStr = """
@@ -144,8 +145,8 @@ object NetworkClient {
 
                 val response = client.newCall(request).execute()
                 if (response.isSuccessful) {
-                    val responseStr = response.body?.string() ?: return@withContext null
-                    if (responseStr.trim() == "[]") return@withContext null
+                    val responseStr = response.body?.string() ?: return@withContext emptyList()
+                    if (responseStr.trim() == "[]") return@withContext emptyList()
 
                     val jsonArray = org.json.JSONArray(responseStr)
                     for (i in 0 until jsonArray.length()) {
@@ -158,15 +159,14 @@ object NetworkClient {
                             val docName = document.optString("name")
                             val docId = docName.substringAfterLast("/")
                             val orderNumber = fields.optJSONObject("orderNumber")?.optString("stringValue", "") ?: ""
-                            return@withContext ReadyOrder(docId, orderNumber)
+                            orders.add(ReadyOrder(docId, orderNumber))
                         }
                     }
                 }
-                return@withContext null
             } catch (e: Exception) {
                 Log.e("NetworkClient", "Exception in checkReadyOrders", e)
-                return@withContext null
             }
+            return@withContext orders
         }
     }
 
