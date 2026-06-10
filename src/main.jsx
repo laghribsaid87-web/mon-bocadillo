@@ -97,11 +97,11 @@ if (import.meta.env.VITE_APP_TYPE === 'DRIVER') {
           window.history.replaceState(null, '', '#/kds');
       } else if (pwaMode === 'pos' && !hash.includes('/pos') && !path.includes('/pos')) {
           window.history.replaceState(null, '', '#/pos');
-      } else if (path.startsWith('/glovo-reports') || hash.includes('/glovo-reports')) {
+      } else if (pwaMode === 'admin' && !hash.includes('/idara') && !path.includes('/idara')) {
+          window.history.replaceState(null, '', '#/idara');
+      }
+    } else if (path.startsWith('/glovo-reports') || hash.includes('/glovo-reports')) {
       RootComponent = AdminApp;
-    } else if (pwaMode === 'admin' && !hash.includes('/idara') && !path.includes('/idara')) {
-      window.history.replaceState(null, '', '#/idara');
-    }  }
     } else if (pwaMode === 'tv') {
       RootComponent = App;
       if (!hash.includes('/tv') && !path.includes('/tv')) {
