@@ -273,6 +273,35 @@ class AutomatorAccessibilityService : AccessibilityService() {
         return prefs.getString(key, defaultValue) ?: defaultValue
     }
 
+    private suspend fun waitUntilTextAppears(text: String, timeoutMs: Long = 5000): Boolean {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            val root = rootInActiveWindow
+            if (root != null) {
+                if (findNodeWithTextRecursively(text, root) != null) {
+                    return true
+                }
+            }
+            delay(100)
+        }
+        return false
+    }
+
+    private suspend fun waitUntilIdAppears(id: String, timeoutMs: Long = 5000): Boolean {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            val root = rootInActiveWindow
+            if (root != null) {
+                val nodes = root.findAccessibilityNodeInfosByViewId(id)
+                if (nodes != null && nodes.isNotEmpty()) {
+                    return true
+                }
+            }
+            delay(100)
+        }
+        return false
+    }
+
     private suspend fun startAutomationSequence() {
         isSequenceRunning = true
         val labelMins = getLabel("btn_mins", "mins")
@@ -297,9 +326,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
             }
             
-            // Show a toast on the UI thread
             kotlinx.coroutines.withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(applicationContext, "GoDroid Automator déclenché !", android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(applicationContext, "GoDroid Automator déclenché !", android.widget.Toast.LENGTH_SHORT).show()
             }
 
             val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
@@ -311,85 +339,75 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 Journal.log("ERREUR: App goDroid introuvable !")
             }
 
-            // 2. Wait 2 seconds
-            delay(2000)
-
-            // 3. Click "mins"
-            Journal.log("Clic sur '$labelMins'")
-            val minsClicked = clickByText(labelMins)
-            if (!minsClicked) {
-                Journal.log("Attention: '$labelMins' introuvable")
-                // Retry once
-                delay(1000)
+            // 2. Wait until "mins" appears dynamically
+            Journal.log("Attente de '$labelMins'...")
+            if (waitUntilTextAppears(labelMins, 5000)) {
+                Journal.log("Clic sur '$labelMins'")
                 clickByText(labelMins)
+            } else {
+                Journal.log("Attention: '$labelMins' introuvable")
+                clickByText(labelMins) // Try anyway
             }
 
-            // 4. Wait 1.5 seconds for details to load
-            delay(1500)
+            // 3. Wait until "Modifier" appears (indicates order details loaded)
+            Journal.log("Attente de '$labelModifier'...")
+            waitUntilTextAppears(labelModifier, 4000)
 
-            // 5. Read full details (Items, Price, Order Num) on the main order screen (Image 2)
+            // 4. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
             val screenWidth = resources.displayMetrics.widthPixels
             val contenuEcran = extractOrderDetailsText(rootInActiveWindow, screenWidth)
             Journal.log("Texte lu: ${contenuEcran.length} charactères")
-            
-            // 6. (Data will be sent later after getting phone number)
 
-            // 7. Click "Modifier"
+            // 5. Click "Modifier"
             Journal.log("Clic sur '$labelModifier'")
             clickByText(labelModifier)
 
-            // 8. Wait 1 second
-            delay(1000)
+            // 6. Wait for Checkbox
+            Journal.log("Attente Checkbox...")
+            if (waitUntilIdAppears("com.deliveryhero.rps.restaurantandroidapp:id/checkbox", 3000)) {
+                Journal.log("Clic sur Checkbox")
+                clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
+            } else {
+                delay(500) // Fallback
+            }
 
-            // 9. Click Checkbox
-            Journal.log("Clic sur Checkbox")
-            clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
-            // Si jamais l'ID a changé, on essaye de trouver une CheckBox
-            delay(500)
-
-            // 10. Click "Continuer"
+            // 7. Click "Continuer"
             Journal.log("Clic sur '$labelContinuer'")
             clickByText(labelContinuer)
 
-            // 11. Wait 2 seconds for the confirmation screen (QR Code screen)
-            delay(2000)
+            // 8. Wait for QR Code / Phone screen ("Annuler" should appear)
+            Journal.log("Attente de '$labelAnnuler'...")
+            waitUntilTextAppears(labelAnnuler, 4000)
 
-            // 12. Read Phone number from this screen
+            // 9. Read Phone number from this screen
             Journal.log("Lecture du numéro de téléphone...")
             val telephoneEcran = extractAllText(rootInActiveWindow)
             Journal.log("Extraction num téléphone terminée.")
 
-            // 13. Send the phone number to Idara (using the same API or a new one, currently sendOrderData was doing both, 
-            // but we already sent the KDS data. Wait, sendOrderData takes telephoneEcran and contenuEcran!)
-            // I should update NetworkClient to just send phone number, OR I can just re-send the order data with the phone number?
-            // Actually, we should send the order data ONCE. Let me just extract phone here, and I'll send the whole thing.
-            
-            // Wait, to not modify too much: I will move the sendOrderData call HERE, and pass both strings!
+            // 10. Send the order data
             Journal.log("Lancement requête HTTP globale...")
             NetworkClient.sendOrderData(telephoneEcran, contenuEcran)
 
-            // 14. Click "Annuler"
+            // 11. Click "Annuler"
             Journal.log("Clic sur '$labelAnnuler'")
             clickByText(labelAnnuler)
 
-            // 15. Wait 1 second and Click "Accepter la commande"
-            delay(1000)
+            // 12. Wait for "Accepter la commande"
+            Journal.log("Attente de '$labelAccepter'...")
+            waitUntilTextAppears(labelAccepter, 3000)
             Journal.log("Clic sur '$labelAccepter'")
             clickByText(labelAccepter)
 
-            // 16. Check for "Le coursier paie au restaurant" dialog and click "Compris"
-            delay(2000)
-            val dialogText = extractAllText(rootInActiveWindow)
-            if (dialogText.contains("paie au restaurant", ignoreCase = true) || dialogText.contains(labelCompris, ignoreCase = true)) {
+            // 13. Wait briefly for "Compris" (Cash payment dialog)
+            if (waitUntilTextAppears(labelCompris, 1500)) {
                 Journal.log("Alerte Espèces Glovo détectée, clic sur '$labelCompris'")
                 clickByText(labelCompris)
             }
             
-            // 17. Wait 4 seconds
-            delay(4000)
+            delay(1000)
             
-            // 18. Click Android Back Button
+            // 14. Click Android Back Button
             Journal.log("Retour à la liste des commandes")
             performGlobalAction(GLOBAL_ACTION_BACK)
 
