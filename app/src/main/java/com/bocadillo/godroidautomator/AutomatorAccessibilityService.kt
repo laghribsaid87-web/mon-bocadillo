@@ -352,6 +352,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 3. Wait until "Modifier" appears (indicates order details loaded)
             Journal.log("Attente de '$labelModifier'...")
             waitUntilTextAppears(labelModifier, 4000)
+            
+            // Wait extra time for the transition animation and list to fully load
+            delay(2000)
 
             // 4. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
