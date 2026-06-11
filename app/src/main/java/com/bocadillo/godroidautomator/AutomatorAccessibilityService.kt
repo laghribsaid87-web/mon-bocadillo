@@ -593,13 +593,24 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             delay(3000)
 
-            // 5. Scroll and find "ANNULÉE"
+            // 5. Click on Dropdown "Tout" and select "Annulée"
+            Journal.log("Clic sur le filtre 'Tout'")
+            if (clickByText("Tout")) {
+                delay(1500)
+                Journal.log("Sélection de 'Annulée' dans le menu")
+                clickByText("Annulée")
+                delay(2000)
+            } else {
+                Journal.log("Attention: Filtre 'Tout' introuvable, recherche manuelle...")
+            }
+
+            // 6. Scroll and find "ANNULÉE" (or process filtered list)
             Journal.log("Recherche des commandes ANNULÉE...")
             var foundAny = false
             
             for (scroll in 0 until 5) {
                 val currentRoot = rootInActiveWindow ?: break
-                val annuleeNodes = findNodesWithText(currentRoot, "ANNULÉE")
+                val annuleeNodes = findNodesWithText(currentRoot, "Annulée")
                 
                 for (node in annuleeNodes) {
                     Journal.log("Commande ANNULÉE trouvée! Ouverture des détails...")
@@ -660,7 +671,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val nodeDesc = node.contentDescription?.toString() ?: ""
         
         if (nodeText.contains(text, ignoreCase = true) || nodeDesc.contains(text, ignoreCase = true)) {
-            result.add(node)
+            val rect = android.graphics.Rect()
+            node.getBoundsInScreen(rect)
+            // Ignore the filter button at the top of the screen
+            if (rect.top > 250) {
+                result.add(node)
+            }
         }
         
         for (i in 0 until node.childCount) {
