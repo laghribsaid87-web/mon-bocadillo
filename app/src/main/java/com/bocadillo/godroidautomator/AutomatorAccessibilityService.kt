@@ -27,6 +27,33 @@ class AutomatorAccessibilityService : AccessibilityService() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.bocadillo.godroidautomator.START_SEQUENCE") {
                 Journal.log("Broadcast reçu: START_SEQUENCE (Mise en file d'attente)")
+                
+                // Wake up screen and unlock
+                try {
+                    val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                    val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                        powerManager.isInteractive
+                    } else {
+                        powerManager.isScreenOn
+                    }
+                    if (!isScreenOn) {
+                        val wakeLock = powerManager.newWakeLock(
+                            android.os.PowerManager.FULL_WAKE_LOCK or
+                            android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                            android.os.PowerManager.ON_AFTER_RELEASE,
+                            "GoDroidAutomator::WakeLock"
+                        )
+                        wakeLock.acquire(10000)
+                    }
+                    val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+                    if (keyguardManager.isKeyguardLocked) {
+                        val keyguardLock = keyguardManager.newKeyguardLock("GoDroidAutomator::KeyguardLock")
+                        keyguardLock.disableKeyguard()
+                    }
+                } catch (e: Exception) {
+                    Journal.log("Erreur WakeUp: ${e.message}")
+                }
+
                 coroutineScope.launch {
                     sequenceMutex.withLock {
                         if (!isSequenceRunning) {
