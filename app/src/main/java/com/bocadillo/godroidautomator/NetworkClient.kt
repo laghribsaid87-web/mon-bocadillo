@@ -12,26 +12,34 @@ import org.json.JSONObject
 object NetworkClient {
 
     private val client = OkHttpClient()
-    // Using the Webhook URL for the robust parsing logic
-    private const val WEBHOOK_URL = "https://us-central1-mon-bocadillo-menu.cloudfunctions.net/glovoWebhook"
+    // Using Firestore REST API directly
+    private const val FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/Commandes_Brutes_Glovo"
 
     suspend fun sendOrderData(telephoneEcran: String, contenuEcran: String) {
         withContext(Dispatchers.IO) {
             try {
-                // Formatting payload for Webhook (Expects 'title' and 'text')
-                val jsonObject = JSONObject()
-                jsonObject.put("title", telephoneEcran)
-                jsonObject.put("text", contenuEcran)
+                // Formatting payload for Firestore
+                val fields = JSONObject()
+                
+                val rawTextObj = JSONObject().put("stringValue", contenuEcran)
+                val phoneTextObj = JSONObject().put("stringValue", telephoneEcran)
+                val statusObj = JSONObject().put("stringValue", "new")
+                
+                fields.put("raw_text", rawTextObj)
+                fields.put("phone_text", phoneTextObj)
+                fields.put("status", statusObj)
+                
+                val jsonObject = JSONObject().put("fields", fields)
 
                 val mediaType = "application/json; charset=utf-8".toMediaType()
                 val body = jsonObject.toString().toRequestBody(mediaType)
 
                 val request = Request.Builder()
-                    .url(WEBHOOK_URL)
+                    .url(FIRESTORE_URL)
                     .post(body)
                     .build()
 
-                Journal.log("Envoi POST vers Webhook...")
+                Journal.log("Envoi POST vers Firestore (Commandes_Brutes_Glovo)...")
                 val response = client.newCall(request).execute()
                 
                 if (response.isSuccessful) {
