@@ -12,8 +12,8 @@ import org.json.JSONObject
 object NetworkClient {
 
     private val client = OkHttpClient()
-    // Using Firestore REST API directly
-    private const val FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/Commandes_Brutes_Glovo"
+    // Using Firestore REST API directly on public path to avoid 403 Forbidden
+    private const val FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/Commandes_Brutes_Glovo"
 
     suspend fun sendOrderData(telephoneEcran: String, contenuEcran: String) {
         withContext(Dispatchers.IO) {
