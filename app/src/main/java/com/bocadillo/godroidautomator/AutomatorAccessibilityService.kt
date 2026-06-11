@@ -147,6 +147,30 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             delay(3000)
 
+            // 1.5 Open Menu (Drawer) and click "Aperçu des commandes"
+            Journal.log("Ouverture du menu")
+            val root = rootInActiveWindow
+            if (root != null) {
+                if (!clickByText("Ouvrir le tiroir de navigation")) {
+                    val drawerNodes = root.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
+                    if (drawerNodes.isNotEmpty()) {
+                        val toolbar = drawerNodes[0]
+                        if (toolbar.childCount > 0) {
+                            val firstChild = toolbar.getChild(0)
+                            if (firstChild != null && firstChild.isClickable) {
+                                firstChild.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            }
+                        }
+                    } else {
+                        clickByText("Menu")
+                    }
+                }
+            }
+            delay(2000)
+            Journal.log("Clic sur 'Aperçu des commandes'")
+            clickByText("Aperçu des commandes")
+            delay(2000)
+
             // 2. Click on "Acceptée" tab
             Journal.log("Clic sur l'onglet '$labelAcceptee'")
             clickByText(labelAcceptee)
@@ -189,7 +213,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 NetworkClient.markOrderAsGlovoReady(documentId)
                 Journal.log("=== SÉQUENCE PRÊT TERMINÉE ===")
             } else {
-                Journal.log("Erreur: Commande $orderTextToFind introuvable à l'écran")
+                Journal.log("Commande $orderTextToFind introuvable : Probablement déjà traitée manuellement.")
+                // Mark as handled to prevent endless retries
+                NetworkClient.markOrderAsGlovoReady(documentId)
             }
 
         } catch (e: Exception) {
