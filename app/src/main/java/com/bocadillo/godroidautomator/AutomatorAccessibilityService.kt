@@ -205,7 +205,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         if (event == null) return
         
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val labelMins = getLabel("btn_mins", "mins")
+            val labelMins = getLabel("btn_mins", "produit")
             val root = rootInActiveWindow ?: return
             
             if (isSequenceRunning) return
@@ -304,7 +304,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
     private suspend fun startAutomationSequence() {
         isSequenceRunning = true
-        val labelMins = getLabel("btn_mins", "mins")
+        val labelMins = getLabel("btn_mins", "produit")
         val labelModifier = getLabel("btn_modifier", "Modifier")
         val labelContinuer = getLabel("btn_continuer", "Continuer")
         val labelAnnuler = getLabel("btn_annuler", "Annuler")
