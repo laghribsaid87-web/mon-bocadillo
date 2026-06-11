@@ -195,6 +195,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Journal.log("ERREUR FATALE: ${e.message}")
         } finally {
+            coroutineScope.launch { returnToNewOrdersTab() }
             isSequenceRunning = false
         }
     }
@@ -410,9 +411,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             delay(1000)
             
-            // 14. Click Android Back Button
-            Journal.log("Retour à la liste des commandes")
-            performGlobalAction(GLOBAL_ACTION_BACK)
+            // 14. Return to New Orders Tab
+            returnToNewOrdersTab()
 
             Journal.log("=== AUTOMATISATION TERMINEE ===")
         } catch (e: Exception) {
@@ -642,7 +642,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 Journal.log("Aucune commande ANNULÉE trouvée.")
             }
             
-            performGlobalAction(GLOBAL_ACTION_BACK)
+            returnToNewOrdersTab()
             
         } catch (e: Exception) {
             Journal.log("ERREUR: ${e.message}")
@@ -677,6 +677,19 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val result = findScrollableNode(node.getChild(i))
             if (result != null) return result
         }
-        return null
+    private suspend fun returnToNewOrdersTab() {
+        Journal.log("Retour à la page Aperçu des commandes...")
+        delay(1000)
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        delay(1000)
+        
+        // Try clicking tabs to ensure we are on the new orders list
+        if (clickByText("Aperçu des commandes")) {
+            delay(500)
+        } else if (clickByText("Nouvelle")) {
+            delay(500)
+        } else if (clickByText("Aperçu")) {
+            delay(500)
+        }
     }
 }
