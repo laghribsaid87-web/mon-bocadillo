@@ -677,6 +677,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val result = findScrollableNode(node.getChild(i))
             if (result != null) return result
         }
+        return null
+    }
+
     private suspend fun returnToNewOrdersTab() {
         Journal.log("Retour à la page Aperçu des commandes...")
         delay(1000)
