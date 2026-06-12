@@ -60,7 +60,24 @@ class MainActivity : AppCompatActivity() {
             text = "Vider le Journal"
             setOnClickListener { Journal.clear() }
         }
-        layout.addView(btnClear)
+
+        val btnCopy = Button(this).apply {
+            text = "Copier le Journal"
+            setOnClickListener {
+                val logsText = Journal.logs.value.joinToString("\n")
+                val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("Journal GoDroid", if (logsText.isEmpty()) "Journal vide" else logsText)
+                clipboard.setPrimaryClip(clip)
+                android.widget.Toast.makeText(this@MainActivity, "Journal copié dans le presse-papiers !", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        val buttonsLayout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            addView(btnClear, android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(btnCopy, android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        layout.addView(buttonsLayout)
 
         val logTitle = TextView(this).apply {
             text = "\nJournal Système:"
