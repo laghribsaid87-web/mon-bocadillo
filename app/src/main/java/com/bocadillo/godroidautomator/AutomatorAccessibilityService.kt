@@ -660,22 +660,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
         return sb.toString()
     }
-
-    private fun findScrollableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-        if (node == null) return null
-        try {
-            if (node.isScrollable() == true) return node
-            val count = node.getChildCount()
-            for (i in 0 until count) {
-                val child = findScrollableNode(node.getChild(i))
-                if (child != null) return child
-            }
-        } catch (e: Exception) {
-            // Ignore
-        }
-        return null
-    }
     
+
     private fun extractOrderDetailsText(node: AccessibilityNodeInfo?, screenWidth: Int): String {
         val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
         collectTextNodes(node, nodesList)
