@@ -206,39 +206,31 @@ object NetworkClient {
         }
     }
 
-    suspend fun sendCancelledOrderReport(orderNumber: String, reasonText: String) {
+    suspend fun sendCancelledOrderCount(count: Int) {
         withContext(Dispatchers.IO) {
             try {
-                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/glovo_cancellations"
-                val formatter = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
-                formatter.timeZone = java.util.TimeZone.getTimeZone("UTC")
-                val createdAt = formatter.format(java.util.Date())
-
-                val formattedReason = reasonText.replace("\"", "\\\"").replace("\n", " | ")
-                val formattedOrder = orderNumber.replace("\"", "\\\"").replace("\n", " ")
-
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_cancellations_count"
+                
                 val jsonStr = """
                 {
                   "fields": {
-                    "orderNumber": { "stringValue": "$formattedOrder" },
-                    "reasonText": { "stringValue": "$formattedReason" },
-                    "createdAt": { "timestampValue": "$createdAt" }
+                    "count": { "integerValue": "$count" }
                   }
                 }
                 """.trimIndent()
 
                 val mediaType = "application/json; charset=utf-8".toMediaType()
                 val body = jsonStr.toRequestBody(mediaType)
-                val request = Request.Builder().url(url).post(body).build()
+                val request = Request.Builder().url(url).method("PATCH", body).build()
 
                 val response = client.newCall(request).execute()
                 if (!response.isSuccessful) {
-                    Log.e("NetworkClient", "Failed to send cancelled order: ${response.code}")
+                    Log.e("NetworkClient", "Failed to send cancelled count: ${response.code}")
                 } else {
-                    Journal.log("Rapport d'annulation envoyé avec succès.")
+                    Journal.log("Nombre d'annulations envoyé avec succès: $count")
                 }
             } catch (e: Exception) {
-                Log.e("NetworkClient", "Exception in sendCancelledOrderReport", e)
+                Log.e("NetworkClient", "Exception in sendCancelledOrderCount", e)
             }
         }
     }

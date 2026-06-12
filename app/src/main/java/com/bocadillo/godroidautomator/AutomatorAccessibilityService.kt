@@ -622,67 +622,61 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 5. Click on Dropdown "Tout" and select "Annulée"
             Journal.log("Clic sur le filtre 'Tout'")
             if (clickByText("Tout")) {
-                delay(1500)
-                Journal.log("Sélection de 'Annulée' dans le menu")
-                clickByText("Annulée")
                 delay(2000)
+                Journal.log("Recherche du nombre d'annulations dans le menu...")
+                
+                // Read the screen text to find "Annulée X"
+                val screenText = extractAllText(rootInActiveWindow)
+                
+                // Ex: "Annulée (2)" ou "Annulée 2"
+                val countRegex = Regex("Annul(?:ée|ee)[^0-9]*([0-9]+)", RegexOption.IGNORE_CASE)
+                val match = countRegex.find(screenText)
+                
+                var count = 0
+                if (match != null) {
+                    count = match.groupValues[1].toInt()
+                } else if (screenText.contains("Annulée", ignoreCase = true)) {
+                    count = 0
+                }
+                
+                Journal.log("Nombre détecté: ${"$"}{count}")
+                NetworkClient.sendCancelledOrderCount(count)
+                delay(1000)
             } else {
-                Journal.log("Attention: Filtre 'Tout' introuvable, recherche manuelle...")
+                Journal.log("Attention: Filtre 'Tout' introuvable")
             }
 
-            // 6. Scroll and find "ANNULÉE" (or process filtered list)
-            Journal.log("Recherche des commandes ANNULÉE...")
-            var foundAny = false
-            
-            for (scroll in 0 until 5) {
-                val currentRoot = rootInActiveWindow ?: break
-                val annuleeNodes = findNodesWithText(currentRoot, "Annulée")
-                
-                for (node in annuleeNodes) {
-                    Journal.log("Commande ANNULÉE trouvée! Ouverture des détails...")
-                    var clickable: AccessibilityNodeInfo? = node
-                    while (clickable != null && !clickable.isClickable) {
-                        clickable = clickable.parent
-                    }
-                    
-                    if (clickable != null && clickable.isClickable) {
-                        clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        foundAny = true
-                        delay(2000)
-                        
-                        val detailsText = extractAllText(rootInActiveWindow)
-                        
-                        val orderRegex = Regex("#([0-9]+)")
-                        val orderMatch = orderRegex.find(detailsText)
-                        val orderNum = orderMatch?.groupValues?.get(1) ?: "INCONNU"
-                        
-                        Journal.log("Rapport pour #$orderNum envoyé à la Caisse")
-                        NetworkClient.sendCancelledOrderReport(orderNum, detailsText)
-                        
-                        delay(1000)
-                        
+            // Close the dropdown or go to drawer
+            Journal.log("Ouverture du menu (3 barres)")
+            // Try to click the 3 bars to close dropdown and open menu
+            val rootAfter = rootInActiveWindow
+            if (rootAfter != null) {
+                if (!clickByText("Ouvrir le tiroir de navigation")) {
+                    val drawerNodes = rootAfter.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
+                    if (drawerNodes.isNotEmpty()) {
+                        val toolbar = drawerNodes[0]
+                        if (toolbar.childCount > 0) {
+                            val firstChild = toolbar.getChild(0)
+                            if (firstChild != null && firstChild.isClickable) {
+                                firstChild.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            }
+                        }
+                    } else {
+                        // Fallback: Use GLOBAL_ACTION_BACK to close the dropdown
                         performGlobalAction(GLOBAL_ACTION_BACK)
-                        delay(2000)
+                        delay(1000)
+                        clickByText("Ouvrir le tiroir de navigation")
                     }
                 }
-                
-                val listNode = findScrollableNode(rootInActiveWindow)
-                if (listNode != null) {
-                    listNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-                    delay(2000)
-                } else {
-                    break
-                }
             }
-
-            if (!foundAny) {
-                Journal.log("Aucune commande ANNULÉE trouvée.")
-            }
+            delay(2000)
             
-            returnToNewOrdersTab()
+            Journal.log("Clic sur 'Aperçu des commandes'")
+            clickByText("Aperçu des commandes")
+            delay(2000)
             
         } catch (e: Exception) {
-            Journal.log("ERREUR: ${e.message}")
+            Journal.log("ERREUR: ${"$"}{e.message}")
         } finally {
             isSequenceRunning = false
             Journal.log("=== VÉRIFICATION TERMINÉE ===")
