@@ -115,8 +115,8 @@ export default function AdminHistory({
                                            <td className="px-8 py-5">
                                                <span className="font-black text-gray-800 uppercase italic">{String(o.customerName || o.name || o.phone)}</span>
                                                <div className="flex items-center gap-1 mt-1">
-                                                   <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${o.source === 'pos' ? 'bg-blue-50 text-blue-600 border-blue-200' : o.source === 'telephone' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                                                       {o.source === 'pos' ? 'Caisse (POS)' : o.source === 'telephone' ? 'Tél' : 'App'}
+                                                   <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${o.source === 'pos' ? 'bg-blue-100 text-blue-700' : o.source === 'telephone' ? 'bg-purple-100 text-purple-700' : o.source === 'glovo' ? ((o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-yellow-100 text-yellow-800') : 'bg-emerald-100 text-emerald-700'}`}>
+                                                       {o.source === 'pos' ? 'Caisse (POS)' : o.source === 'telephone' ? 'Tél' : o.source === 'glovo' ? ((o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Glovo (ESPECE 💵 $)' : 'Glovo') : 'App'}
                                                    </span>
                                                    {o.source === 'pos' && o.orderType && (
                                                        <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${o.orderType === 'sur_place' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-pink-50 text-pink-600 border-pink-200'}`}>

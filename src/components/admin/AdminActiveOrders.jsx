@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapPin, Phone, Printer, Clock, CheckCircle, AlertTriangle, Truck, Map as MapIcon, X, ChefHat, BellRing, ClipboardList, Volume2, Zap } from 'lucide-react';
 import OrderTimer from '../OrderTimer';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import LiveTimer from '../LiveTimer';
 import { isDriverOnline } from '../../utils/helpers';
 
@@ -36,7 +36,30 @@ export default function AdminActiveOrders({
     }, [actives, activeFilter]);
 
     // Dictionnaire de thèmes (Couleurs Claires pour l'Admin) selon la source
-    const getSourceTheme = (source, index, brandColor) => {
+    const getSourceTheme = (o, index, brandColor) => {
+        const source = o.source;
+        const isGlovoEspece = source === 'glovo' && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash');
+        
+        if (isGlovoEspece) return {
+            cardClass: `border-2 ${index === 0 ? 'border-green-400 ring-4 ring-green-100 ring-offset-4 scale-[1.02]' : 'border-green-100'}`,
+            cardStyle: {},
+            topClass: 'bg-green-500',
+            topStyle: {},
+            headerClass: 'bg-green-50/50',
+            badgeClass: 'bg-green-100 text-green-800 border-green-300 font-black animate-pulse',
+            label: 'GLOVO (ESPECE 💵 $)'
+        };
+        
+        if (source === 'glovo') return {
+            cardClass: `border-2 ${index === 0 ? 'border-yellow-400 ring-4 ring-yellow-100 ring-offset-4 scale-[1.02]' : 'border-yellow-100'}`,
+            cardStyle: {},
+            topClass: 'bg-yellow-400',
+            topStyle: {},
+            headerClass: 'bg-yellow-50/50',
+            badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+            label: 'GLOVO'
+        };
+
         if (source === 'pos') return {
             cardClass: `border-2 ${index === 0 ? 'border-blue-400 ring-4 ring-blue-100 ring-offset-4 scale-[1.02]' : 'border-blue-100'}`,
             cardStyle: {},
@@ -136,6 +159,7 @@ export default function AdminActiveOrders({
                 <button onClick={() => setShowTotals(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-4 rounded-[1.5rem] font-black text-xs md:text-sm uppercase tracking-widest shadow-xl flex items-center gap-3 transition-all active:scale-95 border-2 border-blue-500">
                     <ClipboardList size={22} className="text-blue-200" /> Résumé (Total)
                 </button>
+
                 {(!hasAccess || hasAccess('kds')) && (
                     <button onClick={() => {
                         const route = '/kds';
@@ -163,7 +187,7 @@ export default function AdminActiveOrders({
                 {displayedOrders.sort((a,b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)).map((o, index) => {
                     const dName = o.driverName || (clientsList||[]).find(c => (c.uid && c.uid === o.driverId) || (o.driverId && c.phone === o.driverId))?.name || 'Inconnu';
                     const dPhone = (clientsList||[]).find(c => (c.uid && c.uid === o.driverId) || (o.driverId && c.phone === o.driverId))?.phone || '';
-                    const theme = getSourceTheme(o.source, index, brand.color);
+                    const theme = getSourceTheme(o, index, brand.color);
 
                     return (
                         <div key={o.id} className={`bg-white rounded-2xl shadow-lg border relative overflow-hidden flex flex-col hover:shadow-xl transition-all ${theme.cardClass}`} style={theme.cardStyle}>
@@ -291,7 +315,11 @@ export default function AdminActiveOrders({
                                     </button>
                                 )}
                                 {o.status==='preparing' && (
-                                    <button onClick={(e)=>{ e.stopPropagation(); updateStatus(o.id,'ready'); }} className="flex-1 py-2.5 rounded-lg text-white font-bold text-[11px] uppercase tracking-wide active:scale-95 transition-all bg-green-500 hover:bg-green-600 flex items-center justify-center gap-1.5 shadow-sm">
+                                    <button onClick={async (e)=>{ 
+                                        e.stopPropagation(); 
+                                        updateStatus(o.id,'ready'); 
+
+                                    }} className="flex-1 py-2.5 rounded-lg text-white font-bold text-[11px] uppercase tracking-wide active:scale-95 transition-all bg-green-500 hover:bg-green-600 flex items-center justify-center gap-1.5 shadow-sm">
                                         <CheckCircle size={14}/> {brand.texts?.btnReady || 'Prêt (Wajad)'}
                                     </button>
                                 )}

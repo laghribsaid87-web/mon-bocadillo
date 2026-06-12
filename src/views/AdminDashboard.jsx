@@ -24,7 +24,7 @@ const PosDashboard = lazy(() => import('./PosDashboard'));
 const AchatInventaire = lazy(() => import('./AchatInventaire'));
 const FicheTechnique = lazy(() => import('./FicheTechnique'));
 
-export default function AdminDashboard({ role, managerBranchId, orders, updateStatus, clientsList, onlineDrivers, settings, brand, setBrand, saveSettings, db, showNotify, handleReassignOrder, printTicket, defaultMenu, onLogout, appId }) {
+export default function AdminDashboard({ role, managerBranchId, orders, updateStatus, clientsList, onlineDrivers, settings, posStatuses, brand, setBrand, saveSettings, db, showNotify, handleReassignOrder, printTicket, defaultMenu, onLogout, appId }) {
     const [tab, setTab] = useState('active'); 
     const [f, setF] = useState({ type: 'none', date: '', search: '' }); 
     const [clientSubTab, setClientSubTab] = useState('nouveaux'); 
@@ -59,6 +59,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
     const [glovoPenalties, setGlovoPenalties] = useState(0);
     const [glovoBranch, setGlovoBranch] = useState('ALL');
     const [glovoData, setGlovoData] = useState([]);
+    const [glovoCancellations, setGlovoCancellations] = useState([]);
     const [isFetchingGlovo, setIsFetchingGlovo] = useState(false);
 
     const [showAddDriver, setShowAddDriver] = useState(false);
@@ -416,6 +417,9 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
             (orders || []).forEach(o => {
                 if (o.status === 'rejected' || o.status === 'delivered') return;
                 
+                // 🔥 NOUVEAU: Ignorer les commandes Glovo pour l'assignation
+                if (o.source === 'glovo') return;
+                
                 if (o.driverId && !o.driverAccepted) {
                     const elapsed = currentTime - (o.assignedAtLocal || 0);
                     
@@ -438,13 +442,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                 } catch(e) {}
                             }
                             
-                            // 🔥 NOUVEAU: Appel MacroDroid (Webhook) bach ysonni f iPhone w Android
-                            if (driverData.phone) {
-                                try {
-                                    const webhookUrl = `https://trigger.macrodroid.com/28c4739c-b1c7-43d8-bad9-60c0cbd412d9/souni?phone=${driverData.phone}`;
-                                    fetch(webhookUrl, { mode: 'no-cors' }).catch(()=>{});
-                                } catch(e) {}
-                            }
+
                         }
                     }
 
@@ -467,26 +465,27 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                     } catch(e) {}
                                 }
                                 
-                                // 🔥 NOUVEAU: Rappel Appel MacroDroid (Kola 2 min)
-                                if (driverData.phone) {
-                                    try {
-                                        const webhookUrl = `https://trigger.macrodroid.com/28c4739c-b1c7-43d8-bad9-60c0cbd412d9/souni?phone=${driverData.phone}`;
-                                        fetch(webhookUrl, { mode: 'no-cors' }).catch(()=>{});
-                                    } catch(e) {}
-                                }
+
                             }
                         }
                     } else {
                         if (elapsed > 30000) { handleReassignOrder(o, o.driverId, false, true); }
                     }
                 } else if (!o.driverId && (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready')) {
+                    // 🔥 NOUVEAU: Assignation immédiate au livreur de l'agence
+                    const defaultDriverId = posStatuses?.[o.nearestBranch?.id]?.defaultDriverId;
+                    if (defaultDriverId) {
+                        handleReassignOrder(o, null, false, true, defaultDriverId);
+                        return;
+                    }
+
                     const elapsedSinceLastSearch = currentTime - (o.assignedAtLocal || o.createdAt?.seconds*1000 || 0);
                     if (elapsedSinceLastSearch > 15000) { handleReassignOrder(o, null, true, true); }
                 }
             });
         }, 3000);
         return () => clearInterval(interval);
-    }, [orders, handleReassignOrder, liveOnlineDrivers, appId]);
+    }, [orders, handleReassignOrder, liveOnlineDrivers, appId, posStatuses]);
 
     useEffect(() => { 
         setEditableMenu(settings?.menuItems || defaultMenu || DEFAULT_MENU_ITEMS); 
@@ -591,7 +590,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
         const bOrders = role === 'manager' ? sOrders.filter(o => o.nearestBranch?.id === managerBranchId) : sOrders;
         
         // 🔥 N7iydou l-Commandes dyal POS (Caisse) mn Idara bach yb9aw ghi dyal l-Livraison (App/Tél)
-        const idaraActiveOrders = bOrders.filter(o => o.source !== 'pos');
+        const idaraActiveOrders = bOrders.filter(o => o.source !== 'pos' && o.source !== 'glovo');
 
         // NOUVEAU: Isoler les commandes avec problème
         const pOrders = idaraActiveOrders.filter(o => {
@@ -774,28 +773,6 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
         setTab('active');
     };
 
-    const handleGlovoInvite = async () => {
-        if(!extOrder.phone) return showNotify("Numéro darouri!", "error");
-        const cleanPh = formatPhoneNumber(extOrder.phone);
-        if(!/^(06|07)\d{8}$/.test(cleanPh)) return showNotify("Numéro de téléphone invalide (Doit commencer par 06 ou 07 et avoir 10 chiffres)", "error");
-        const waPhone = getWhatsAppFormat(cleanPh); const appUrl = window.location.origin + window.location.pathname;
-        const msgTemplate = brand.messages?.glovoInvite || DEFAULT_BRAND.messages.glovoInvite; 
-        const msgBody = buildMessage(msgTemplate, { brandName: (brand.name || '').toUpperCase(), appUrl: appUrl });
-        
-        try {
-            const clientRef = doc(db, 'artifacts', appId, 'public', 'data', 'clients', cleanPh);
-            const snap = await getDoc(clientRef);
-            if (!snap.exists()) {
-                await setDoc(clientRef, { phone: cleanPh, source: 'glovo', isDriver: false, blocked: false, createdAt: serverTimestamp() });
-            } else {
-                await setDoc(clientRef, { source: 'glovo' }, { merge: true });
-            }
-            
-            openWhatsAppDirect(waPhone, msgBody);
-            showNotify("Invitation WhatsApp t7ellat w t-sjel l-client! ✅", "success"); 
-            setExtOrder({ type: 'glovo', phone: '', address: '', details: '', total: '', branchId: '' });
-        } catch (error) { showNotify("Erreur d'enregistrement", "error"); }
-    };
 
     const handleExportCSV = () => {
         const headers = ['Nom', 'Téléphone', 'Role', 'Statut', 'Date Création', 'App Installée', 'Type Appareil', 'Total Commandes', 'Total Livraisons'];
@@ -1100,8 +1077,8 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                             <div>
                                                 <div className="flex items-center gap-3 mb-1">
                                                     <span className="font-black text-gray-900 text-lg">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
-                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${o.source === 'pos' ? 'bg-blue-100 text-blue-700' : o.source === 'telephone' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                        {o.source === 'pos' ? 'Caisse (POS)' : o.source === 'telephone' ? 'Téléphone' : 'App Client'}
+                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${o.source === 'pos' ? 'bg-blue-100 text-blue-700' : o.source === 'telephone' ? 'bg-purple-100 text-purple-700' : o.source === 'glovo' ? ((o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-yellow-100 text-yellow-800') : 'bg-emerald-100 text-emerald-700'}`}>
+                                                        {o.source === 'pos' ? 'Caisse (POS)' : o.source === 'telephone' ? 'Téléphone' : o.source === 'glovo' ? ((o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Glovo (ESPECE 💵 $)' : 'Glovo') : 'App Client'}
                                                     </span>
                                                     {o.source === 'pos' && o.orderType && (
                                                         <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${o.orderType === 'sur_place' ? 'bg-indigo-100 text-indigo-700' : 'bg-pink-100 text-pink-700'}`}>
@@ -1135,12 +1112,6 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
 
                     {tab === 'standard' && (
                     <div className="space-y-6 animate-in fade-in pb-4 max-w-4xl">
-                      <div className="flex bg-gray-200/60 p-1.5 rounded-xl border border-gray-200 shadow-inner mb-6 w-fit">
-                          <button onClick={()=>setExtOrder({...extOrder, type: 'telephone'})} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${extOrder.type==='telephone'?'bg-blue-600 text-white shadow-md':'text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}><Phone size={16}/> Standard Tél</button>
-                          <button onClick={()=>setExtOrder({...extOrder, type: 'glovo'})} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${extOrder.type==='glovo'?'bg-orange-500 text-white shadow-md':'text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}><Truck size={16}/> Glovo Grahak</button>
-                      </div>
-
-                      {extOrder.type === 'telephone' && (
                         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-gray-100 border-t-4 border-t-blue-500 flex flex-col gap-5">
                            <h3 className="font-bold text-gray-900 text-lg mb-2 flex items-center gap-3 border-b border-gray-100 pb-4"><div className="p-2 bg-blue-100 rounded-lg text-blue-600"><Phone size={20}/></div> Saisir une nouvelle commande</h3>
                            <div className="grid grid-cols-1 gap-4">
@@ -1314,15 +1285,6 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                              </div>
                            )}
                         </div>
-                      )}
-
-                      {extOrder.type === 'glovo' && (
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-4">
-                           <h3 className="font-semibold text-gray-900 text-base mb-2 flex items-center gap-2 border-b border-gray-100 pb-3"><Truck size={16} className="text-gray-500"/> Convertir Client Glovo</h3>
-                           <div className="grid grid-cols-1 gap-4"><label className="block"><span className="text-xs font-medium text-gray-700 mb-1.5 block">Numéro de Téléphone <span className="text-red-500">*</span></span><input className="w-full bg-white border border-gray-300 p-2.5 rounded-lg text-sm text-gray-900 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm" placeholder="06XXXXXXXX ou 07XXXXXXXX" type="tel" value={extOrder.phone} onChange={e=>setExtOrder({...extOrder, phone: e.target.value.replace(/[^\d]/g, '').slice(0, 10)})} /></label></div>
-                           <button onClick={handleGlovoInvite} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-medium text-sm shadow-sm mt-2 flex items-center justify-center gap-2 transition-all"><MessageCircle size={18}/> Envoyer WhatsApp Invitation</button>
-                        </div>
-                      )}
                     </div>
                 )}
 
@@ -1976,6 +1938,16 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                     filtered = filtered.filter(o => o.nearestBranch?.id === glovoBranch);
                                 }
                                 setGlovoData(filtered);
+
+                                // Fetch cancellations
+                                const qCancel = query(
+                                    collection(db, 'artifacts', appId, 'public', 'data', 'glovo_cancellations'),
+                                    where('createdAt', '>=', start),
+                                    where('createdAt', '<=', end)
+                                );
+                                const snapCancel = await getDocs(qCancel);
+                                setGlovoCancellations(snapCancel.docs.map(d => ({id: d.id, ...d.data()})));
+
                                 showNotify(`Données Glovo chargées : ${filtered.length} commandes ✅`, "success");
                             } catch(e) {
                                 console.error(e);
@@ -2096,6 +2068,29 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                         </div>
                                     </div>
                                 </div>
+
+                                {glovoCancellations.length > 0 && (
+                                    <div className="bg-white p-6 rounded-2xl border border-red-200 shadow-sm mt-6">
+                                        <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                                            <h3 className="font-black text-lg text-red-700 flex items-center gap-2"><AlertTriangle size={20}/> Annulations Glovo Détectées</h3>
+                                            <span className="bg-red-100 text-red-700 px-3 py-1 rounded-lg font-bold text-sm">{glovoCancellations.length} annulation(s)</span>
+                                        </div>
+                                        <p className="text-sm text-gray-500 mb-4 font-bold">Utilisez ces données pour comparer avec votre facture Glovo et faire vos réclamations :</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {glovoCancellations.map(c => (
+                                                <div key={c.id} className="p-4 bg-red-50 border border-red-100 rounded-xl">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <span className="font-black text-lg text-gray-900">#{c.orderNumber}</span>
+                                                        <span className="text-xs font-bold text-gray-500">{c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString('fr-FR') : new Date(c.createdAt).toLocaleString('fr-FR')}</span>
+                                                    </div>
+                                                    <div className="text-xs text-gray-700 bg-white p-2 rounded-lg border border-red-50 whitespace-pre-wrap max-h-24 overflow-y-auto font-mono">
+                                                        {c.reasonText}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         );
                     })()}
@@ -2123,6 +2118,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                         configTab={configTab} setConfigTab={setConfigTab}
                         activeEditZone={activeEditZone} setActiveEditZone={setActiveEditZone}
                         db={db} appId={appId} showNotify={showNotify}
+                        clientsList={clientsList}
                     />
                 )}
 
