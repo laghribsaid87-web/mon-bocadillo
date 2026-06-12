@@ -318,10 +318,11 @@ function AdminAppInner() {
                             } catch (err) { console.error("Could not parse MacroDroid UI JSON", err); }
                         }
 
-                        // Parse Phone Number using regex fallback
-                        const phoneMatch = text.match(/(?:\+\d{1,4}|0)[0-9\s\-]{8,15}/);
+                        // Parse Phone Number using regex fallback (Trés permissif pour les numéros Glovo)
+                        // Cherche toute séquence de 9 à 15 chiffres (avec ou sans espaces/tirets/plus)
+                        const phoneMatch = text.replace(/[\s\-]/g, '').match(/(\+?\d{9,15})/);
                         if (phoneMatch && phone === "Inconnu") {
-                            phone = phoneMatch[0].trim();
+                            phone = phoneMatch[1].trim();
                         }
                         
                         // Fallback if no items extracted

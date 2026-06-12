@@ -35,7 +35,33 @@ export default function AdminClients({
             }
         });
 
-        return (clientsList||[])
+        // Extraire les clients Glovo depuis les commandes s'ils ne sont pas dans clientsList
+        const glovoClientsMap = new Map();
+        (safeOrders || []).forEach(o => {
+            if (o.source === 'glovo' && o.phone && o.phone !== 'Inconnu' && o.phone !== 'GLOVO') {
+                if (!glovoClientsMap.has(o.phone)) {
+                    glovoClientsMap.set(o.phone, {
+                        id: 'glovo-' + o.phone,
+                        uid: 'glovo-' + o.phone,
+                        name: o.customerName || o.name || 'Client Glovo',
+                        phone: o.phone,
+                        source: 'glovo',
+                        isDriver: false,
+                        isFreelance: false,
+                        createdAt: o.createdAt || new Date()
+                    });
+                }
+            }
+        });
+
+        const allClients = [...(clientsList||[])];
+        glovoClientsMap.forEach((gc, phone) => {
+            if (!allClients.find(c => c.phone === phone)) {
+                allClients.push(gc);
+            }
+        });
+
+        return allClients
         .map(c => {
             // Utiliser les données indexées au lieu de refiltrer tout le tableau safeOrders
             const clientOrdersMap = new Map();
