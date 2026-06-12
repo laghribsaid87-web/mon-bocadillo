@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings, MessageCircle, Truck, Phone, FileText, Bike } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Coffee, Banknote, ArrowLeft, ShoppingBasket, ShoppingBag, Unlock, History, ClipboardList, X, Printer, Power, BellRing, CheckCircle, MapPin, ChefHat, Clock, Monitor, AlertTriangle, Delete, Bluetooth, Settings, MessageCircle, Truck, Phone, FileText, Bike, RefreshCw } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot, query, where } from 'firebase/firestore';
 import { generateOrderNumber, printTicket, formatSansIngredient, buildMessage, openWhatsAppDirect } from '../utils/helpers';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,6 +43,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showXZModal, setShowXZModal] = useState(false);
     const [showAchatsModal, setShowAchatsModal] = useState(false);
     const [achatsToday, setAchatsToday] = useState([]);
+    const [glovoCancellationsToday, setGlovoCancellationsToday] = useState(0);
+    const [isVerifyingGlovo, setIsVerifyingGlovo] = useState(false);
     const [activeBranchId, setActiveBranchId] = useState(isAdmin ? (adminSelectedBranch && adminSelectedBranch !== 'ALL' ? adminSelectedBranch : 'ALL') : (managerBranchId || ''));
     const prevPendingCount = useRef(0);
     const [currentTime, setCurrentTime] = useState(Date.now());
@@ -84,23 +86,82 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     const totalAchats = useMemo(() => achatsToday.reduce((sum, a) => sum + (Number(a.total) || 0), 0), [achatsToday]);
 
-    const triggerGlovoVerification = async () => {
+    useEffect(() => {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'glovo_cancellations_count');
+        const unsub = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                // Utiliser updatedAt si envoyé, sinon utiliser l'heure de modification native de Firestore
+                const timeToUse = data.updatedAt || docSnap.updateTime; 
+                
+                let isToday = false;
+                if (timeToUse) {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const d = timeToUse.toDate ? timeToUse.toDate() : new Date(timeToUse);
+                    if (d.toISOString().split('T')[0] === todayStr) {
+                        isToday = true;
+                    }
+                }
+                
+                if (isToday) setGlovoCancellationsToday(Number(data.count) || 0);
+                else setGlovoCancellationsToday(0);
+            } else {
+                setGlovoCancellationsToday(0);
+            }
+        });
+        return () => unsub();
+    }, [db, appId]);
+
+    const triggerGlovoVerification = async (isAuto = false) => {
+        if (isVerifyingGlovo) return;
+        setIsVerifyingGlovo(true);
         try {
+            const triggerId = Date.now().toString() + Math.floor(Math.random() * 1000);
             await setDoc(doc(db, "artifacts", appId, "public", "data", "settings", "glovo_trigger"), {
                 action: "VERIFY_CANCELLATIONS",
                 isHandled: false,
+                triggerId: triggerId,
                 timestamp: Date.now()
             });
-            toast.success("Vérification des annulations lancée sur la tablette Glovo !");
-            
-            // Ouvrir la page des rapports
-            const route = '/glovo-reports';
-            window.open(navigator.userAgent.toLowerCase().includes('electron') ? window.location.href.split('#')[0] + '#' + route : route, '_blank');
+            if (!isAuto) {
+                showNotify("Vérification rapide lancée sur la tablette Glovo !", "success");
+            } else {
+                console.log("Vérification automatique Glovo lancée (chaque 2h).");
+            }
+            setTimeout(() => {
+                setIsVerifyingGlovo(false);
+            }, 2000);
         } catch (error) {
             console.error("Error triggering glovo:", error);
-            toast.error("Erreur de lancement de vérification");
+            if (!isAuto) showNotify("Erreur de lancement de vérification", "error");
+            setIsVerifyingGlovo(false);
         }
     };
+
+    // 🔥 NOUVEAU: Déclenchement automatique chaque 3 heures à partir de 14h
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const now = new Date();
+            const hours = now.getHours();
+            
+            // Plage horaire de travail: de 14h00 à 23h30
+            const isWithinTimeWindow = (hours >= 14 && hours < 23) || (hours === 23 && now.getMinutes() <= 30);
+            
+            if (isWithinTimeWindow) {
+                const lastAutoStr = localStorage.getItem('last_glovo_auto_verify');
+                const lastAuto = lastAutoStr ? parseInt(lastAutoStr, 10) : 0;
+                const timeSinceLast = now.getTime() - lastAuto;
+                
+                // 3 heures = 3 * 60 * 60 * 1000 = 10800000 ms
+                if (timeSinceLast >= 10800000) {
+                    triggerGlovoVerification(true);
+                    localStorage.setItem('last_glovo_auto_verify', now.getTime().toString());
+                }
+            }
+        }, 60000); // Vérification chaque minute
+        
+        return () => clearInterval(interval);
+    }, []);
 
     // 📱 States & Refs pour le glissement (Drag & Drop)
     const dragCatRef = useRef(null);
@@ -718,7 +779,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     }, [orders, activeBranchId]);
 
     // 🔥 Hssab dyal Z w Rapports
-    const { completedOrdersToday, caPos, caApp, caTel, dailyCA, dailyItemsList } = useMemo(() => {
+    const { completedOrdersToday, caPos, caApp, caTel, caGlovoEspece, caGlovoEnLigne, dailyCA, dailyItemsList } = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
         
         const completed = (orders || []).filter(o => {
@@ -740,14 +801,17 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             } catch (err) { return false; }
         });
 
-        let cPos = 0, cApp = 0, cTel = 0;
+        let cPos = 0, cApp = 0, cTel = 0, cGlovoEspece = 0, cGlovoEnLigne = 0;
         let itemsMap = {};
 
         completed.forEach(o => {
             const t = Number(o.total) || 0;
             if (o.source === 'pos') cPos += t;
             else if (o.source === 'telephone') cTel += t;
-            else if (o.source === 'glovo' && o.paymentMethod === 'espece') cPos += t;
+            else if (o.source === 'glovo') {
+                if (o.paymentMethod === 'espece') cGlovoEspece += t;
+                else cGlovoEnLigne += t;
+            }
             else cApp += t;
 
             (o.items || []).forEach(i => { 
@@ -757,8 +821,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         });
 
         return {
-            completedOrdersToday: completed, caPos: cPos, caApp: cApp, caTel: cTel,
-            dailyCA: cPos + cApp + cTel,
+            completedOrdersToday: completed, caPos: cPos, caApp: cApp, caTel: cTel, caGlovoEspece: cGlovoEspece, caGlovoEnLigne: cGlovoEnLigne,
+            dailyCA: cPos + cApp + cTel + cGlovoEspece + cGlovoEnLigne,
             dailyItemsList: Object.entries(itemsMap).sort((a, b) => b[1] - a[1])
         };
     }, [orders, activeBranchId]);
@@ -1019,7 +1083,13 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                 selectedOption: comboSelectionsForOptions[i]?.selectedOption || null
             }));
             const cartItemId = selectedItemForOptions.id + '_combo_' + Date.now();
-            setCart([...cart, { ...selectedItemForOptions, qty: 1, cartItemId, comboChoices }]);
+            setCart(prev => {
+                let newCart = prev;
+                if (selectedItemForOptions.isEditingCartItemName) {
+                    newCart = prev.filter(i => !(i.id === selectedItemForOptions.id && (i.cartItemId === selectedItemForOptions.cartItemId || i.name === selectedItemForOptions.isEditingCartItemName)));
+                }
+                return [...newCart, { ...selectedItemForOptions, qty: 1, cartItemId, comboChoices }];
+            });
             setSelectedItemForOptions(null);
             return;
         }
@@ -1372,18 +1442,22 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             setOrderType(settings?.hidePosSurPlace ? 'a_emporter' : 'sur_place'); 
 
             // 🚀 2. SAUVEGARDE FIREBASE EN ARRIÈRE-PLAN (Sans bloquer la caisse)
+            const sanitizedOrder = JSON.parse(JSON.stringify(newOrder));
             if (isNetOnline) {
                 addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), {
-                    ...newOrder,
+                    ...sanitizedOrder,
                     createdAt: serverTimestamp()
-                }).catch((error) => saveOfflineOrder(newOrder));
+                }).catch((error) => {
+                    console.error("Firebase AddDoc Error:", error);
+                    saveOfflineOrder(sanitizedOrder);
+                });
             } else {
-                saveOfflineOrder(newOrder);
+                saveOfflineOrder(sanitizedOrder);
             }
 
             // 🚀 3. EMIT VERS KDS LOCAL (WIFI HORS LIGNE)
             if (localSocket) {
-                localSocket.emit('new_local_order', newOrder);
+                localSocket.emit('new_local_order', sanitizedOrder);
             }
         } catch (error) {
             showNotify("W9e3 mochkil f tsjal dyal l-commande", "error");
@@ -1441,7 +1515,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         const branch = (settings?.branches || []).find(b => b.id === activeBranchId);
         const itemsHtml = dailyItemsList.map(([name, qty]) => `<div style="display:flex; justify-content:space-between;"><span>${qty}x ${name}</span><span></span></div>`).join('');
         
-        const repartitionHtml = isAdmin ? `\n            <p style="text-align:left; font-weight:bold; margin:5px 0;">Répartition C.A :</p>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Sur Place (Caisse):</span><span>${caPos} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Livraison (App):</span><span>${caApp} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Standard (Tél):</span><span>${caTel} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Achats (Dépenses):</span><span>-${totalAchats} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:bold;"><span>Net (Espèce - Achats):</span><span>${caPos - totalAchats} DH</span></div>\n            <hr style="border-top:1px dashed #000; margin:10px 0;"/>\n` : '';
+        const repartitionHtml = isAdmin ? `\n            <p style="text-align:left; font-weight:bold; margin:5px 0;">Répartition C.A :</p>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Sur Place (Caisse):</span><span>${caPos} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Glovo (Espèce):</span><span>${caGlovoEspece} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Glovo (En Ligne):</span><span>${caGlovoEnLigne} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Web App:</span><span>${caApp} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Standard (Tél):</span><span>${caTel} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Achats (Dépenses):</span><span>-${totalAchats} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:bold;"><span>Net (Espèce Caisse + Glovo - Achats):</span><span>${(caPos + caGlovoEspece) - totalAchats} DH</span></div>\n            <hr style="border-top:1px dashed #000; margin:10px 0;"/>\n` : '';
         
         const html = `<html><head><title>Rapport ${type}</title></head>
         <body style="font-family:monospace; padding:10px; font-size:14px; color:#000; text-align:center;">
@@ -1554,8 +1628,11 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                 );
             case 'glovo_verify':
                 return (
-                    <button key={btnId} {...dragProps} onClick={triggerGlovoVerification} className={`${baseClass} bg-red-50 border border-red-200 text-red-700 hover:bg-red-100`} style={{ width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
-                        <RefreshCw size={18} /> <span className="hidden sm:inline">Vérifier Annulées (Glovo)</span>
+                    <button key={btnId} {...dragProps} onClick={triggerGlovoVerification} disabled={isVerifyingGlovo} className={`${baseClass} relative ${glovoCancellationsToday > 0 ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100' : 'bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100'} disabled:opacity-50 disabled:cursor-not-allowed`} style={{ width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
+                        {isVerifyingGlovo ? <RefreshCw size={18} className="animate-spin" /> : <Bike size={18} />} <span className="hidden sm:inline text-center leading-tight">{isVerifyingGlovo ? "Vérification..." : "Vérifier Annulées (Glovo)"}</span>
+                        {glovoCancellationsToday > 0 && (
+                            <span className="absolute -top-2 -right-2 bg-red-600 text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{glovoCancellationsToday}</span>
+                        )}
                     </button>
                 );
             case 'tv':
@@ -1887,8 +1964,10 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                     <div className="flex-1 min-w-0">
                                         <h4 className={`font-bold text-sm leading-tight truncate tracking-tight ${titleColor}`}>{item.name.split(' (Sans')[0]}</h4>
                                         {item.name.includes(' (Sans') && (
-                                            <div className="text-[10px] text-red-500 font-bold tracking-wide uppercase mt-1 line-clamp-2">
-                                                {item.name.split(' (Sans ')[1].replace(')', '').split(', ').map((opt, oIdx) => <span key={oIdx}>- {formatSansIngredient(opt)} </span>)}
+                                            <div className="flex flex-col gap-1 mt-1">
+                                                {item.name.split(' (Sans ')[1].replace(')', '').split(', ').map((opt, oIdx) => (
+                                                    <span key={oIdx} className="text-[10px] text-red-500 font-bold tracking-wide uppercase">- {formatSansIngredient(opt)}</span>
+                                                ))}
                                             </div>
                                         )}
                                         {item.isCombo && item.comboChoices && item.comboChoices.map((c, cIdx) => (
@@ -2516,16 +2595,22 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                     <div key={o.id} className="bg-white p-4 rounded-2xl border-2 border-[#FFC244]/30 shadow-sm flex flex-col gap-3">
                                         <div className="flex justify-between items-start">
                                             <div className="flex flex-col">
-                                                <span className="font-black text-xl text-yellow-600 uppercase">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-black text-xl text-yellow-600 uppercase">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                                    {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && (
+                                                        <span className="text-[10px] text-green-700 bg-green-100 px-2 py-1 rounded-md border border-green-300 font-black animate-pulse">ESPECE 💵 $</span>
+                                                    )}
+                                                </div>
                                                 <span className="text-xs font-bold text-gray-500 mt-1">{o.items?.length || 0} article(s)</span>
                                             </div>
                                             <div className="flex flex-col items-end">
                                                 <span className="font-black text-lg text-gray-900">{o.total} DH</span>
                                             </div>
                                         </div>
-                                        {o.paymentMethod === 'espece' && (
-                                            <div className="bg-green-100 border border-green-300 text-green-800 p-2 rounded-lg text-center font-black animate-pulse">
-                                                À ENCAISSER DU LIVREUR: {o.total} DH
+                                        {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && (
+                                            <div className="bg-green-100 border-2 border-green-400 text-green-800 p-3 rounded-lg text-center font-black animate-pulse shadow-sm flex flex-col">
+                                                <span className="text-xs uppercase opacity-80 mb-1">TOTAL À PAYER (CE QUE LE LIVREUR DOIT DONNER)</span>
+                                                <span className="text-2xl">{o.total} DH</span>
                                             </div>
                                         )}
                                         <button onClick={() => { 
@@ -2573,18 +2658,26 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                 <h3 className="text-3xl font-black text-purple-600">{isAdmin ? `${dailyCA} MAD` : '*** MAD'}</h3>
                                 <p className="text-xs text-gray-400 mt-1 font-medium mb-3">{completedOrdersToday.length} commandes au total</p>
                                 
-                                <div className="grid grid-cols-3 gap-2 border-t border-gray-100 pt-3">
+                                <div className="grid grid-cols-5 gap-1 border-t border-gray-100 pt-3">
                                     <div className="flex flex-col items-center">
-                                        <span className="text-[10px] text-gray-400 uppercase font-bold">Sur Place</span>
-                                        <span className="text-sm font-black text-indigo-600">{isAdmin ? `${caPos} DH` : '***'}</span>
+                                        <span className="text-[8px] text-gray-400 uppercase font-bold text-center">Sur Place</span>
+                                        <span className="text-xs font-black text-indigo-600">{isAdmin ? `${caPos} DH` : '***'}</span>
                                     </div>
-                                    <div className="flex flex-col items-center border-l border-r border-gray-100">
-                                        <span className="text-[10px] text-gray-400 uppercase font-bold">App</span>
-                                        <span className="text-sm font-black text-green-600">{isAdmin ? `${caApp} DH` : '***'}</span>
+                                    <div className="flex flex-col items-center border-l border-gray-100">
+                                        <span className="text-[8px] text-gray-400 uppercase font-bold text-center">Glovo<br/>Espèce</span>
+                                        <span className="text-xs font-black text-green-600">{isAdmin ? `${caGlovoEspece} DH` : '***'}</span>
                                     </div>
-                                    <div className="flex flex-col items-center">
-                                        <span className="text-[10px] text-gray-400 uppercase font-bold">Téléphone</span>
-                                        <span className="text-sm font-black text-orange-600">{isAdmin ? `${caTel} DH` : '***'}</span>
+                                    <div className="flex flex-col items-center border-l border-gray-100">
+                                        <span className="text-[8px] text-gray-400 uppercase font-bold text-center">Glovo<br/>En Ligne</span>
+                                        <span className="text-xs font-black text-green-600">{isAdmin ? `${caGlovoEnLigne} DH` : '***'}</span>
+                                    </div>
+                                    <div className="flex flex-col items-center border-l border-gray-100">
+                                        <span className="text-[8px] text-gray-400 uppercase font-bold text-center">Web App</span>
+                                        <span className="text-xs font-black text-blue-600">{isAdmin ? `${caApp} DH` : '***'}</span>
+                                    </div>
+                                    <div className="flex flex-col items-center border-l border-gray-100">
+                                        <span className="text-[8px] text-gray-400 uppercase font-bold text-center">Téléphone</span>
+                                        <span className="text-xs font-black text-orange-600">{isAdmin ? `${caTel} DH` : '***'}</span>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 border-t border-gray-100 mt-2 pt-2">
@@ -2593,8 +2686,8 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                         <span className="text-sm font-black text-red-600">{isAdmin ? `-${totalAchats} DH` : '***'}</span>
                                     </div>
                                     <div className="flex flex-col items-center bg-green-50 p-2 rounded-xl">
-                                        <span className="text-[10px] text-green-600 uppercase font-bold">Net (Espèce - Achats)</span>
-                                        <span className="text-sm font-black text-green-700">{isAdmin ? `${caPos - totalAchats} DH` : '***'}</span>
+                                        <span className="text-[10px] text-green-600 uppercase font-bold text-center leading-tight">Net (Espèce + Glovo Esp - Achats)</span>
+                                        <span className="text-sm font-black text-green-700">{isAdmin ? `${(caPos + caGlovoEspece) - totalAchats} DH` : '***'}</span>
                                     </div>
                                 </div>
                             </div>
