@@ -106,22 +106,28 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         }
 
                         // 3. Check Visually for "mins" on screen (Fallback for missed notifications)
-                        val root = rootInActiveWindow
-                        if (root != null && !isSequenceRunning) {
-                            val labelMins = getLabel("btn_mins", "mins")
-                            val node = findNodeWithTextRecursively(labelMins, root)
-                            if (node != null && isNodeClickable(node)) {
-                                Journal.log("Polling visuel: '$labelMins' trouvé ! (Fallback)")
-                                sequenceMutex.withLock {
-                                    if (!isSequenceRunning) {
-                                        startAutomationSequence()
-                                    }
-                                }
-                            }
-                        }
+                        triggerFallbackVisualCheck()
                     }
                 } catch (e: Exception) {
                     Log.e("AutoService", "Polling error", e)
+                }
+            }
+        }
+    }
+
+    private fun triggerFallbackVisualCheck() {
+        val root = rootInActiveWindow
+        if (root != null && !isSequenceRunning) {
+            val labelMins = getLabel("btn_mins", "mins")
+            val node = findNodeWithTextRecursively(labelMins, root)
+            if (node != null && isNodeClickable(node)) {
+                Journal.log("Suite de commande: '$labelMins' détecté !")
+                coroutineScope.launch {
+                    sequenceMutex.withLock {
+                        if (!isSequenceRunning) {
+                            startAutomationSequence()
+                        }
+                    }
                 }
             }
         }
@@ -238,6 +244,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } finally {
             coroutineScope.launch { returnToNewOrdersTab() }
             isSequenceRunning = false
+            triggerFallbackVisualCheck()
         }
     }
 
@@ -459,6 +466,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Log.e("AutoService", "Error in sequence", e)
         } finally {
             isSequenceRunning = false
+            triggerFallbackVisualCheck()
         }
     }
 
