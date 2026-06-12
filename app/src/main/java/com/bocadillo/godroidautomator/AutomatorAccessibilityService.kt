@@ -29,30 +29,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 Journal.log("Broadcast reçu: START_SEQUENCE (Mise en file d'attente)")
                 
                 // Wake up screen and unlock
-                try {
-                    val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                    val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-                        powerManager.isInteractive
-                    } else {
-                        powerManager.isScreenOn
-                    }
-                    if (!isScreenOn) {
-                        val wakeLock = powerManager.newWakeLock(
-                            android.os.PowerManager.FULL_WAKE_LOCK or
-                            android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP or
-                            android.os.PowerManager.ON_AFTER_RELEASE,
-                            "GoDroidAutomator::WakeLock"
-                        )
-                        wakeLock.acquire(10000)
-                    }
-                    val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
-                    if (keyguardManager.isKeyguardLocked) {
-                        val keyguardLock = keyguardManager.newKeyguardLock("GoDroidAutomator::KeyguardLock")
-                        keyguardLock.disableKeyguard()
-                    }
-                } catch (e: Exception) {
-                    Journal.log("Erreur WakeUp: ${e.message}")
-                }
+                wakeUpScreenAndUnlock()
 
                 coroutineScope.launch {
                     sequenceMutex.withLock {
@@ -76,6 +53,37 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
         
         startPollingForReadyOrders()
+    }
+
+    private fun wakeUpScreenAndUnlock() {
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                powerManager.isInteractive
+            } else {
+                powerManager.isScreenOn
+            }
+            if (!isScreenOn) {
+                Journal.log("Réveil de l'écran en cours...")
+                @Suppress("DEPRECATION")
+                val wakeLock = powerManager.newWakeLock(
+                    android.os.PowerManager.FULL_WAKE_LOCK or
+                    android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                    android.os.PowerManager.ON_AFTER_RELEASE,
+                    "GoDroidAutomator::WakeLock"
+                )
+                wakeLock.acquire(10000)
+            }
+            val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+            if (keyguardManager.isKeyguardLocked) {
+                Journal.log("Déverrouillage de l'écran...")
+                @Suppress("DEPRECATION")
+                val keyguardLock = keyguardManager.newKeyguardLock("GoDroidAutomator::KeyguardLock")
+                keyguardLock.disableKeyguard()
+            }
+        } catch (e: Exception) {
+            Journal.log("Erreur WakeUp: ${e.message}")
+        }
     }
 
     private fun startPollingForReadyOrders() {
@@ -142,6 +150,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
         try {
             Journal.log("=== DEBUT SÉQUENCE PRÊT POUR LA LIVRAISON ===")
             Journal.log("Commande détectée: $orderNumber")
+            
+            wakeUpScreenAndUnlock()
+            delay(1000) // Donner le temps à l'écran de s'allumer
 
             // 1. Launch goDroid
             var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
@@ -355,6 +366,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
     private suspend fun startAutomationSequence() {
         isSequenceRunning = true
+        
+        wakeUpScreenAndUnlock()
+        delay(1000)
+
         val labelMins = getLabel("btn_mins", "mins")
         val labelModifier = getLabel("btn_modifier", "Modifier")
         val labelContinuer = getLabel("btn_continuer", "Continuer")
@@ -594,6 +609,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private suspend fun startCancellationCheckSequence() {
         isSequenceRunning = true
         Journal.log("=== VÉRIFICATION DES ANNULATIONS DÉCLENCHÉE ===")
+        
+        wakeUpScreenAndUnlock()
+        delay(1000)
 
         try {
             // 1. Mark trigger as handled
