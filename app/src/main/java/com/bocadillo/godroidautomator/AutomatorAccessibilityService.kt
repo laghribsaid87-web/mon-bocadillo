@@ -104,6 +104,21 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 }
                             }
                         }
+
+                        // 3. Check Visually for "mins" on screen (Fallback for missed notifications)
+                        val root = rootInActiveWindow
+                        if (root != null && !isSequenceRunning) {
+                            val labelMins = getLabel("btn_mins", "mins")
+                            val node = findNodeWithTextRecursively(labelMins, root)
+                            if (node != null && isNodeClickable(node)) {
+                                Journal.log("Polling visuel: '$labelMins' trouvé ! (Fallback)")
+                                sequenceMutex.withLock {
+                                    if (!isSequenceRunning) {
+                                        startAutomationSequence()
+                                    }
+                                }
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e("AutoService", "Polling error", e)
@@ -241,11 +256,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (currentTime - lastTriggerTime < 10000) return // Debounce 10 seconds
             
             val node = findNodeWithTextRecursively(labelMins, root)
-            val screenText = extractAllText(root)
-            val nouvelleRegex = Regex("Nouvelle\\s+([1-9][0-9]*)", RegexOption.IGNORE_CASE)
             
-            if (nouvelleRegex.find(screenText) != null && node != null && isNodeClickable(node)) {
-                Journal.log("Détection visuelle de Nouvelle Commande et '$labelMins'")
+            if (node != null && isNodeClickable(node)) {
+                Journal.log("Détection visuelle (Carré vert) avec '$labelMins'")
                 lastTriggerTime = currentTime
                 coroutineScope.launch {
                     sequenceMutex.withLock {
