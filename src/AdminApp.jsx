@@ -227,7 +227,10 @@ function AdminAppInner() {
                         
                         for (let key in phoneContent) {
                           let val = phoneContent[key];
-                          if (typeof val === 'string' && (val.includes('+212') || val.match(/^0[67]\d{8}$/))) phone = val.trim();
+                          if (typeof val === 'string') {
+                              let cleanVal = val.replace(/[\s\-]/g, '');
+                              if (cleanVal.match(/^(\+|0)\d{8,15}$/)) phone = val.trim();
+                          }
                         }
                         if(!phone && phoneContent["com.deliveryhero.rps.restaurantandroidapp:id/phone_number"]) {
                            phone = phoneContent["com.deliveryhero.rps.restaurantandroidapp:id/phone_number"];
@@ -316,9 +319,9 @@ function AdminAppInner() {
                         }
 
                         // Parse Phone Number using regex fallback
-                        const phoneMatch = text.match(/(?:\+212|0|212)[\s\-]*([67][\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d[\s\-]*\d)/);
+                        const phoneMatch = text.match(/(?:\+\d{1,4}|0)[0-9\s\-]{8,15}/);
                         if (phoneMatch && phone === "Inconnu") {
-                            phone = "0" + phoneMatch[1].replace(/[\s\-]/g, '');
+                            phone = phoneMatch[0].trim();
                         }
                         
                         // Fallback if no items extracted
