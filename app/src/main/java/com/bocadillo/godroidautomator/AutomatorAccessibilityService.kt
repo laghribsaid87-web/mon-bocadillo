@@ -429,6 +429,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 8. Wait for QR Code / Phone screen ("Annuler" should appear)
             Journal.log("Attente de '$labelAnnuler'...")
             waitUntilTextAppears(labelAnnuler, 4000)
+            
+            // Attendre un peu que la page charge complètement le numéro et le nom
+            delay(1500)
 
             // 9. Read Phone number from this screen
             Journal.log("Lecture du numéro de téléphone...")
