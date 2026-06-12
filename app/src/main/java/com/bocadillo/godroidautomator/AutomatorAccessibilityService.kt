@@ -518,7 +518,23 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 4. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
             val screenWidth = resources.displayMetrics.widthPixels
-            val contenuEcran = extractOrderDetailsText(rootInActiveWindow, screenWidth)
+            val contenuEcranHaut = extractOrderDetailsText(rootInActiveWindow, screenWidth)
+            
+            // SCROLL DOWN TO READ PAYMENT METHOD
+            Journal.log("Défilement vers le bas pour lire le paiement...")
+            val rootForScroll = rootInActiveWindow
+            if (rootForScroll != null) {
+                val scrollableNode = findScrollableNode(rootForScroll)
+                if (scrollableNode != null) {
+                    scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                } else {
+                    performSwipeUp()
+                }
+            }
+            delay(1500) // Wait for scroll animation
+            
+            val contenuEcranBas = extractOrderDetailsText(rootInActiveWindow, screenWidth)
+            val contenuEcran = "$contenuEcranHaut\n\n--- SUITE ---\n\n$contenuEcranBas"
             Journal.log("Texte lu: ${contenuEcran.length} charactères")
 
             // 5. Click "Modifier"
@@ -631,18 +647,22 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private fun extractAllText(node: AccessibilityNodeInfo?): String {
         if (node == null) return ""
         val sb = java.lang.StringBuilder()
-        val text = node.text?.toString()?.trim()
-        if (!text.isNullOrEmpty()) {
-            sb.append(text).append("\n")
-        }
-        val desc = node.contentDescription?.toString()?.trim()
-        if (!desc.isNullOrEmpty()) {
-            sb.append(desc).append("\n")
-        }
+        if (node.text != null) sb.append(node.text).append("\n")
+        if (node.contentDescription != null) sb.append(node.contentDescription).append("\n")
         for (i in 0 until node.childCount) {
             sb.append(extractAllText(node.getChild(i)))
         }
         return sb.toString()
+    }
+
+    private fun findScrollableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isScrollable) return node
+        for (i in 0 until node.childCount) {
+            val child = findScrollableNode(node.getChild(i))
+            if (child != null) return child
+        }
+        return null
     }
     
     private fun extractOrderDetailsText(node: AccessibilityNodeInfo?, screenWidth: Int): String {
