@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
         layout.addView(buttonsLayout)
 
         val logTitle = TextView(this).apply {
-            text = "\nJournal Système:"
+            text = "\nJournal du Robot (Notre APK):"
             textSize = 18f
             setPadding(0, 32, 0, 8)
             setTypeface(null, android.graphics.Typeface.BOLD)
