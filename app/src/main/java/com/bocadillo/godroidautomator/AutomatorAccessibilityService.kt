@@ -619,36 +619,31 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             delay(3000)
 
-            // 5. Click on Dropdown "Tout" and select "Annulée"
-            Journal.log("Clic sur le filtre 'Tout'")
-            if (clickByText("Tout")) {
+            // 5. Click on Dropdown "Tout"
+            Journal.log("Clic sur le filtre 'Tout' (Dropdown)")
+            if (clickByText("Tout") || clickByText("Toutes")) {
                 delay(1500)
-                Journal.log("Sélection de 'Annulée' dans le menu")
-                clickByText("Annulée")
-                delay(2000)
                 
-                Journal.log("Comptage des commandes annulées sur l'écran...")
+                Journal.log("Lecture du numéro à côté de 'Annulée' dans le Dropdown...")
                 val currentRoot = rootInActiveWindow
                 var count = 0
                 
                 if (currentRoot != null) {
                     val screenText = extractAllText(currentRoot)
                     
-                    // Glovo affiche parfois le nombre dans la liste ou l'en-tête (ex: "2 commandes")
-                    val regexCommandes = Regex("([0-9]+)\\s*commandes?", RegexOption.IGNORE_CASE)
-                    val matchCmd = regexCommandes.find(screenText)
+                    // On cherche "Annulée (X)" ou "Annulées (X)"
+                    val regexAnnulee = Regex("Annul[ée]es?\\s*\\(?\\s*([0-9]+)\\s*\\)?", RegexOption.IGNORE_CASE)
+                    val matchCmd = regexAnnulee.find(screenText)
                     
                     if (matchCmd != null) {
                         count = matchCmd.groupValues[1].toInt()
                     } else {
-                        // Sinon on compte les cartes visibles sur l'écran
-                        val annuleeNodes = findNodesWithText(currentRoot, "Annulée")
-                        // findNodesWithText ignore déjà le bouton du haut (top > 250)
-                        count = annuleeNodes.size
+                        // S'il n'y a pas de numéro, c'est 0
+                        count = 0
                     }
                 }
                 
-                Journal.log("Nombre détecté: ${count}")
+                Journal.log("Nombre détecté dans le Dropdown: $count")
                 NetworkClient.sendCancelledOrderCount(count)
                 delay(1000)
             } else {
