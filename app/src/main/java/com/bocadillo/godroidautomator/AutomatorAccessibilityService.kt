@@ -159,11 +159,15 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 android.widget.Toast.makeText(applicationContext, "Validation Commande $orderNumber !", android.widget.Toast.LENGTH_LONG).show()
             }
 
-            val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                startActivity(launchIntent)
-                Journal.log("Ouverture de l'app: $targetPackage")
+            val currentPackage = rootInActiveWindow?.packageName?.toString()
+            if (currentPackage != targetPackage) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    Journal.log("Ouverture de l'app: $targetPackage")
+                    delay(2000)
+                }
             }
 
             delay(3000)
@@ -377,13 +381,17 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 android.widget.Toast.makeText(applicationContext, "GoDroid Automator déclenché !", android.widget.Toast.LENGTH_SHORT).show()
             }
 
-            val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(launchIntent)
-                Journal.log("Ouverture de l'app: $targetPackage")
-            } else {
-                Journal.log("ERREUR: App goDroid introuvable !")
+            val currentPackage = rootInActiveWindow?.packageName?.toString()
+            if (currentPackage != targetPackage) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    Journal.log("Ouverture de l'app: $targetPackage")
+                    delay(2000)
+                } else {
+                    Journal.log("ERREUR: App goDroid introuvable !")
+                }
             }
 
             // 2. Wait until "mins" appears dynamically
