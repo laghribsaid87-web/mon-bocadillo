@@ -526,7 +526,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (rootForScroll != null) {
                 val scrollableNode = findScrollableNode(rootForScroll)
                 if (scrollableNode != null) {
-                    scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    scrollableNode.performAction(4096) // 4096 = ACTION_SCROLL_FORWARD
                 } else {
                     performSwipeUp()
                 }
@@ -663,10 +663,15 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
     private fun findScrollableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         if (node == null) return null
-        if (node.isScrollable) return node
-        for (i in 0 until node.childCount) {
-            val child = findScrollableNode(node.getChild(i))
-            if (child != null) return child
+        try {
+            if (node.isScrollable() == true) return node
+            val count = node.getChildCount()
+            for (i in 0 until count) {
+                val child = findScrollableNode(node.getChild(i))
+                if (child != null) return child
+            }
+        } catch (e: Exception) {
+            // Ignore
         }
         return null
     }
