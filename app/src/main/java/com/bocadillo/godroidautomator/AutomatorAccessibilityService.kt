@@ -259,8 +259,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // If we can click the exact order number
             if (clickByText(orderTextToFind)) {
                 delay(1500)
-                Journal.log("Clic sur '$labelPret'")
-                clickByText(labelPret)
+                Journal.log("Clic sur '$labelPret' pour $orderTextToFind")
+                
+                val clickedInSameContainer = clickButtonInSameContainer(orderTextToFind, labelPret)
+                if (!clickedInSameContainer) {
+                    Journal.log("Bouton non trouvé près de $orderTextToFind, essai par défaut")
+                    clickByText(labelPret)
+                }
                 
                 delay(2000)
                 
@@ -359,6 +364,50 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (childNode != null) return childNode
         }
         return null
+    }
+
+    private fun clickButtonInSameContainer(textReference: String, buttonText: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val referenceNodes = mutableListOf<AccessibilityNodeInfo>()
+        findAllNodesWithTextRecursively(textReference, root, referenceNodes)
+        
+        for (refNode in referenceNodes) {
+            var currentContainer: AccessibilityNodeInfo? = refNode
+            // Remonter jusqu'à 15 niveaux pour trouver un conteneur commun (utile pour tablette)
+            for (i in 0..15) {
+                if (currentContainer == null) break
+                
+                val btnNode = findNodeWithTextRecursively(buttonText, currentContainer)
+                if (btnNode != null) {
+                    var clickable: AccessibilityNodeInfo? = btnNode
+                    while (clickable != null) {
+                        if (clickable.isClickable) {
+                            clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            return true
+                        }
+                        clickable = clickable.parent
+                    }
+                }
+                currentContainer = currentContainer.parent
+            }
+        }
+        return false
+    }
+
+    private fun findAllNodesWithTextRecursively(text: String, node: AccessibilityNodeInfo?, result: MutableList<AccessibilityNodeInfo>) {
+        if (node == null) return
+        
+        val nodeText = node.text?.toString() ?: ""
+        val nodeDesc = node.contentDescription?.toString() ?: ""
+        
+        if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || 
+            nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true)) {
+            result.add(node)
+        }
+
+        for (i in 0 until node.childCount) {
+            findAllNodesWithTextRecursively(text, node.getChild(i), result)
+        }
     }
 
     override fun onInterrupt() {
