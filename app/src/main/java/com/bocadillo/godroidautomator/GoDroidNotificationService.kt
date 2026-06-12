@@ -21,8 +21,6 @@ class GoDroidNotificationService : NotificationListenerService() {
             // Ignore
         }
 
-        Journal.log("Notif reçue: pkg=$packageName, app=$appName, titre=$title")
-
         // Trigger on target app notifications ONLY if it's an actual order
         val isTargetApp = packageName.contains("deliveryhero.rps") || packageName.contains("godroid", ignoreCase = true) ||
                           appName.contains("goDroid", ignoreCase = true) || appName.contains("Glovo", ignoreCase = true)
@@ -30,6 +28,10 @@ class GoDroidNotificationService : NotificationListenerService() {
         val isOrderNotification = title.contains("Nouvelle commande", ignoreCase = true) || 
                                   title.contains("Commande", ignoreCase = true) ||
                                   text.contains("Nouvelle commande", ignoreCase = true)
+
+        if (isTargetApp) {
+            Journal.log("Notif reçue: pkg=$packageName, app=$appName, titre=$title")
+        }
 
         if (isTargetApp && isOrderNotification) {
             Journal.log("MATCH! Réveil de l'Automator...")

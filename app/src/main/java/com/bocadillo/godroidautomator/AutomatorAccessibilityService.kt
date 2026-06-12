@@ -647,8 +647,14 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private fun extractAllText(node: AccessibilityNodeInfo?): String {
         if (node == null) return ""
         val sb = java.lang.StringBuilder()
-        if (node.text != null) sb.append(node.text).append("\n")
-        if (node.contentDescription != null) sb.append(node.contentDescription).append("\n")
+        val text = node.text?.toString()?.trim()
+        if (!text.isNullOrEmpty()) {
+            sb.append(text).append("\n")
+        }
+        val desc = node.contentDescription?.toString()?.trim()
+        if (!desc.isNullOrEmpty()) {
+            sb.append(desc).append("\n")
+        }
         for (i in 0 until node.childCount) {
             sb.append(extractAllText(node.getChild(i)))
         }
