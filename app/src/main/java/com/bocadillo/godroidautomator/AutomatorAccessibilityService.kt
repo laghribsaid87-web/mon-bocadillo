@@ -622,28 +622,38 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 5. Click on Dropdown "Tout" and select "Annulée"
             Journal.log("Clic sur le filtre 'Tout'")
             if (clickByText("Tout")) {
+                delay(1500)
+                Journal.log("Sélection de 'Annulée' dans le menu")
+                clickByText("Annulée")
                 delay(2000)
-                Journal.log("Recherche du nombre d'annulations dans le menu...")
                 
-                // Read the screen text to find "Annulée X"
-                val screenText = extractAllText(rootInActiveWindow)
-                
-                // Ex: "Annulée (2)" ou "Annulée 2"
-                val countRegex = Regex("Annul(?:ée|ee)[^0-9]*([0-9]+)", RegexOption.IGNORE_CASE)
-                val match = countRegex.find(screenText)
-                
+                Journal.log("Comptage des commandes annulées sur l'écran...")
+                val currentRoot = rootInActiveWindow
                 var count = 0
-                if (match != null) {
-                    count = match.groupValues[1].toInt()
-                } else if (screenText.contains("Annulée", ignoreCase = true)) {
-                    count = 0
+                
+                if (currentRoot != null) {
+                    val screenText = extractAllText(currentRoot)
+                    
+                    // Glovo affiche parfois le nombre dans la liste ou l'en-tête (ex: "2 commandes")
+                    val regexCommandes = Regex("([0-9]+)\\s*commandes?", RegexOption.IGNORE_CASE)
+                    val matchCmd = regexCommandes.find(screenText)
+                    
+                    if (matchCmd != null) {
+                        count = matchCmd.groupValues[1].toInt()
+                    } else {
+                        // Sinon on compte les cartes visibles sur l'écran
+                        val annuleeNodes = findNodesWithText(currentRoot, "Annulée")
+                        // findNodesWithText ignore déjà le bouton du haut (top > 250)
+                        count = annuleeNodes.size
+                    }
                 }
                 
-                Journal.log("Nombre détecté: ${"$"}{count}")
+                Journal.log("Nombre détecté: ${count}")
                 NetworkClient.sendCancelledOrderCount(count)
                 delay(1000)
             } else {
                 Journal.log("Attention: Filtre 'Tout' introuvable")
+                NetworkClient.sendCancelledOrderCount(0)
             }
 
             // Close the dropdown or go to drawer
