@@ -69,7 +69,19 @@ export default function AdminClients({
             return { ...c, totalOrders, totalLivraisons, lastAddress, createdDate, driverDate, lastOrderDate, lastDeliveryDate, isInactive, availablePoints };
         })
         .filter(c => {
-            const isRoleMatch = role === 'manager' ? c.isDriver : (clientSubTab==='livreurs' ? c.isDriver : !c.isDriver);
+            let isRoleMatch = false;
+            if (role === 'manager') {
+                isRoleMatch = c.isDriver;
+            } else {
+                if (clientSubTab === 'livreurs') {
+                    isRoleMatch = c.isDriver === true;
+                } else if (clientSubTab === 'glovo') {
+                    isRoleMatch = !c.isDriver && (c.source === 'glovo' || (c.name || '').toLowerCase().includes('glovo'));
+                } else {
+                    isRoleMatch = !c.isDriver && c.source !== 'glovo' && !(c.name || '').toLowerCase().includes('glovo');
+                }
+            }
+            
             const isSearchMatch = ((c.name || '').toLowerCase().includes((f.search || '').toLowerCase()) || (c.phone || '').includes(f.search || ''));
             if (!isRoleMatch || !isSearchMatch) return false;
             
@@ -77,6 +89,7 @@ export default function AdminClients({
                 if (activityFilter === 'LOYAL') return c.totalOrders >= 5 && !c.isInactive;
                 if (activityFilter === 'OCCASIONAL') return c.totalOrders > 0 && c.totalOrders < 5 && !c.isInactive;
                 if (activityFilter === 'INACTIVE') return c.isInactive;
+                if (activityFilter === 'GLOVO') return c.source === 'glovo' || (c.name || '').toLowerCase().includes('glovo');
             }
             
             if (c.isDriver && driverFilter !== 'ALL') {
@@ -198,6 +211,7 @@ export default function AdminClients({
                       onChange={(e) => setActivityFilter(e.target.value)}
                   >
                       <option value="ALL">Tous les clients</option>
+                      <option value="GLOVO">🍔 Clients Glovo</option>
                       <option value="LOYAL">🌟 Kaycomandi Mzyan</option>
                       <option value="OCCASIONAL">🚶‍♂️ Mara Mara</option>
                       <option value="INACTIVE">💤 Mab9ach Kaycomandi</option>
@@ -234,9 +248,10 @@ export default function AdminClients({
            </div>
            
            {role === 'admin' && (
-               <div className="flex gap-4 bg-gray-100 p-2 rounded-[2rem] mb-8 w-fit">
-                   <button onClick={()=>{setClientSubTab('nouveaux'); setSelectedClients([]);}} className={`px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${clientSubTab==='nouveaux' ? 'bg-white text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-800 hover:bg-white/50'}`}>Utilisateurs</button>
-                   <button onClick={()=>{setClientSubTab('livreurs'); setSelectedClients([]);}} className={`px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${clientSubTab==='livreurs' ? 'bg-white text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-800 hover:bg-white/50'}`}>Livreurs</button>
+               <div className="flex gap-4 bg-gray-100 p-2 rounded-[2rem] mb-8 w-fit overflow-x-auto max-w-full">
+                   <button onClick={()=>{setClientSubTab('nouveaux'); setSelectedClients([]);}} className={`px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap ${clientSubTab==='nouveaux' ? 'bg-white text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-800 hover:bg-white/50'}`}>Utilisateurs</button>
+                   <button onClick={()=>{setClientSubTab('livreurs'); setSelectedClients([]);}} className={`px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap ${clientSubTab==='livreurs' ? 'bg-white text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-800 hover:bg-white/50'}`}>Livreurs</button>
+                   <button onClick={()=>{setClientSubTab('glovo'); setSelectedClients([]);}} className={`px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap ${clientSubTab==='glovo' ? 'bg-[#FFC244] text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-800 hover:bg-white/50'}`}>🍔 Glovo</button>
                </div>
            )}
 
