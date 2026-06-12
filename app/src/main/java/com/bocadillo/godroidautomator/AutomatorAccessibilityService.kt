@@ -28,10 +28,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (intent?.action == "com.bocadillo.godroidautomator.START_SEQUENCE") {
                 Journal.log("Broadcast reçu: START_SEQUENCE (Mise en file d'attente)")
                 
-                // Wake up screen and unlock
-                wakeUpScreenAndUnlock()
-
                 coroutineScope.launch {
+                    // Wake up screen and unlock
+                    wakeUpScreenAndUnlock()
+                    
                     sequenceMutex.withLock {
                         if (!isSequenceRunning) {
                             startAutomationSequence()
@@ -55,7 +55,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         startPollingForReadyOrders()
     }
 
-    private fun wakeUpScreenAndUnlock() {
+    private suspend fun wakeUpScreenAndUnlock() {
         try {
             val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
@@ -80,9 +80,49 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 @Suppress("DEPRECATION")
                 val keyguardLock = keyguardManager.newKeyguardLock("GoDroidAutomator::KeyguardLock")
                 keyguardLock.disableKeyguard()
+                
+                // Attendre 1 seconde que l'écran s'allume bien avant de glisser
+                delay(1000)
+                
+                // Forcer le Swipe Up (Glisser l'écran vers le haut)
+                performSwipeUp()
             }
         } catch (e: Exception) {
             Journal.log("Erreur WakeUp: ${e.message}")
+        }
+    }
+
+    private fun performSwipeUp() {
+        try {
+            val displayMetrics = resources.displayMetrics
+            val middleX = displayMetrics.widthPixels / 2f
+            val startY = displayMetrics.heightPixels * 0.8f // Commencer en bas (80%)
+            val endY = displayMetrics.heightPixels * 0.1f   // Finir en haut (10%)
+
+            val path = android.graphics.Path()
+            path.moveTo(middleX, startY)
+            path.lineTo(middleX, endY)
+
+            val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
+            // Stroke de 500ms pour simuler un vrai glissement du doigt
+            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 500))
+
+            val result = dispatchGesture(gestureBuilder.build(), object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
+                override fun onCompleted(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                    super.onCompleted(gestureDescription)
+                    Journal.log("Glissement (Swipe Up) réussi pour déverrouiller.")
+                }
+                override fun onCancelled(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                    super.onCancelled(gestureDescription)
+                    Journal.log("Glissement (Swipe Up) annulé.")
+                }
+            }, null)
+            
+            if (!result) {
+                Journal.log("Impossible de lancer le glissement (Swipe Up).")
+            }
+        } catch (e: Exception) {
+            Journal.log("Erreur lors du Swipe Up: ${e.message}")
         }
     }
 
