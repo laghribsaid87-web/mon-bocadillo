@@ -82,7 +82,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         coroutineScope.launch {
             while (true) {
                 try {
-                    delay(15000) // Poll every 15 seconds
+                    delay(5000) // Poll every 5 seconds
                     if (!sequenceMutex.isLocked && !isSequenceRunning) {
                         
                         // 1. Check for Manual Trigger from POS to verify Cancellations
@@ -379,7 +379,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
             if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(launchIntent)
                 Journal.log("Ouverture de l'app: $targetPackage")
             } else {
@@ -388,7 +388,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // 2. Wait until "mins" appears dynamically
             Journal.log("Attente de '$labelMins'...")
-            if (waitUntilTextAppears(labelMins, 5000)) {
+            if (waitUntilTextAppears(labelMins, 10000)) {
                 Journal.log("Clic sur '$labelMins'")
                 clickByText(labelMins)
             } else {
