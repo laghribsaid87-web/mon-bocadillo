@@ -508,14 +508,14 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 clickByText(labelMins) // Try anyway
             }
 
-            // 3. Wait until "Modifier" appears (indicates order details loaded)
-            Journal.log("Attente de '$labelModifier'...")
-            val orderOpened = waitUntilTextAppears(labelModifier, 4000)
+            // 3. Wait until "Accepter la commande" appears (indicates order details loaded)
+            Journal.log("Attente de '$labelAccepter'...")
+            val orderOpened = waitUntilTextAppears(labelAccepter, 4000)
             
             if (!orderOpened) {
                 Journal.log("La commande ne s'est pas ouverte ! Deuxième essai...")
                 clickByText(labelMins)
-                if (!waitUntilTextAppears(labelModifier, 4000)) {
+                if (!waitUntilTextAppears(labelAccepter, 4000)) {
                     Journal.log("ERREUR: Impossible d'ouvrir la commande. Annulation pour éviter les erreurs.")
                     returnToNewOrdersTab()
                     return // Stop sequence to avoid sending garbage data
