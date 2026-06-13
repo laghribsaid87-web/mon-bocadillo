@@ -693,15 +693,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun findScrollableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-        if (node == null) return null
-        if (node.isScrollable) return node
-        for (i in 0 until node.childCount) {
-            val res = findScrollableNode(node.getChild(i))
-            if (res != null) return res
-        }
-        return null
-    }
 
     private suspend fun startCancellationCheckSequence() {
         isSequenceRunning = true
