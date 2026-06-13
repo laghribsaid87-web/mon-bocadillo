@@ -498,26 +498,78 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
             }
 
-            // 2. Wait until "mins" appears dynamically
-            Journal.log("Attente de '$labelMins'...")
-            if (waitUntilTextAppears(labelMins, 10000)) {
-                Journal.log("Clic sur '$labelMins'")
-                clickByText(labelMins)
+            // 2. Wait and Open the new order by clicking its card
+            Journal.log("Attente de la nouvelle commande...")
+            
+            // On cherche le bouton Accepter la commande qui n'apparait que pour les nouvelles commandes
+            val foundBtn = waitUntilTextAppears(labelAccepter, 10000)
+            if (foundBtn) {
+                Journal.log("Nouvelle commande détectée! Tentative d'ouverture...")
+                // On cherche le texte "produit" (qui est sur la carte de la commande)
+                // Mais pour être sûr de cliquer sur la NOUVELLE commande, on cherche à proximité du bouton Accepter
+                var clicked = false
+                val root = rootInActiveWindow
+                if (root != null) {
+                    val referenceNodes = mutableListOf<AccessibilityNodeInfo>()
+                    findAllNodesWithTextRecursively(labelAccepter, root, referenceNodes)
+                    if (referenceNodes.isNotEmpty()) {
+                        val acceptNode = referenceNodes[0]
+                        // Remonter de 2 ou 3 niveaux pour avoir la carte entière
+                        var cardNode: AccessibilityNodeInfo? = acceptNode
+                        for (i in 0..5) {
+                            if (cardNode == null) break
+                            if (cardNode.isClickable) {
+                                cardNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                clicked = true
+                                break
+                            }
+                            cardNode = cardNode.parent
+                        }
+                        
+                        // Si la carte n'est pas cliquable directement, on cherche "produit" dans la même carte
+                        if (!clicked) {
+                            cardNode = acceptNode
+                            for (i in 0..8) {
+                                if (cardNode == null) break
+                                val prodNode = findNodeWithTextRecursively("produit", cardNode)
+                                if (prodNode != null) {
+                                    var clickableProd: AccessibilityNodeInfo? = prodNode
+                                    while (clickableProd != null) {
+                                        if (clickableProd.isClickable) {
+                                            clickableProd.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                            clicked = true
+                                            break
+                                        }
+                                        clickableProd = clickableProd.parent
+                                    }
+                                }
+                                if (clicked) break
+                                cardNode = cardNode.parent
+                            }
+                        }
+                    }
+                }
+                
+                if (!clicked) {
+                    Journal.log("Attention: Clic sur la carte a échoué. Essai sur 'produit'")
+                    clickByText("produit") 
+                }
             } else {
-                Journal.log("Attention: '$labelMins' introuvable")
-                clickByText(labelMins) // Try anyway
+                Journal.log("Aucune nouvelle commande avec '$labelAccepter' trouvée.")
+                isSequenceRunning = false
+                return
             }
 
-            // 3. Wait until "Accepter la commande" appears (indicates order details loaded)
-            Journal.log("Attente de '$labelAccepter'...")
-            val orderOpened = waitUntilTextAppears(labelAccepter, 4000)
+            // 3. Wait until the order details are loaded (we check for 'Modifier' or 'Client')
+            Journal.log("Attente de l'ouverture de la commande...")
+            // On attend que le bouton Modifier apparaisse (il est dans les détails)
+            val orderOpened = waitUntilTextAppears(labelModifier, 4000)
             
             if (!orderOpened) {
                 Journal.log("La commande ne s'est pas ouverte ! Deuxième essai...")
-                clickByText(labelMins)
-                if (!waitUntilTextAppears(labelAccepter, 4000)) {
+                clickByText("produit")
+                if (!waitUntilTextAppears(labelModifier, 4000)) {
                     Journal.log("ERREUR: Impossible d'ouvrir la commande. Annulation pour éviter les erreurs.")
-                    returnToNewOrdersTab()
                     return // Stop sequence to avoid sending garbage data
                 }
             }
