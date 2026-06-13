@@ -35,7 +35,9 @@ object NetworkClient {
                 val body = jsonObject.toString().toRequestBody(mediaType)
 
                 val prefs = context.getSharedPreferences("AutomatorPrefs", android.content.Context.MODE_PRIVATE)
-                val firestoreUrl = prefs.getString("webhook_url", DEFAULT_FIRESTORE_URL) ?: DEFAULT_FIRESTORE_URL
+                val pointDeVente = prefs.getString("point_de_vente", "Laymoune") ?: "Laymoune"
+                val suffix = if (pointDeVente.equals("Laymoune", ignoreCase = true) || pointDeVente.isBlank()) "" else "_$pointDeVente"
+                val firestoreUrl = "${DEFAULT_FIRESTORE_URL}$suffix"
 
                 val request = Request.Builder()
                     .url(firestoreUrl)

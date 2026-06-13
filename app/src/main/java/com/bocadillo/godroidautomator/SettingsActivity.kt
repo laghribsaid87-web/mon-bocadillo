@@ -90,23 +90,23 @@ class SettingsActivity : AppCompatActivity() {
         }
         
         val titleWebhook = TextView(this).apply {
-            text = "Serveur (Webhook)"
+            text = "Point de Vente"
             textSize = 20f
             setPadding(0, 32, 0, 16)
         }
         layout.addView(titleWebhook)
         
         val tvWebhook = TextView(this).apply {
-            text = "Lien Webhook Firebase"
+            text = "Nom du Point de Vente (ex: Laymoune, OumRabii, Zoubire)"
             setTypeface(null, android.graphics.Typeface.BOLD)
             setPadding(0, 16, 0, 8)
         }
         layout.addView(tvWebhook)
         
         val etWebhook = EditText(this).apply {
-            setText(prefs.getString("webhook_url", "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/Commandes_Brutes_Glovo"))
+            setText(prefs.getString("point_de_vente", "Laymoune"))
         }
-        editTexts["webhook_url"] = etWebhook
+        editTexts["point_de_vente"] = etWebhook
         layout.addView(etWebhook)
 
         layout.addView(btnSave)
