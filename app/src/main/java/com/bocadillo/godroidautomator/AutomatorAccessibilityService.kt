@@ -517,8 +517,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // 4. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
-            val screenWidth = resources.displayMetrics.widthPixels
-            val contenuEcranHaut = extractOrderDetailsText(rootInActiveWindow, screenWidth)
+            val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
+            collectTextNodes(rootInActiveWindow, nodesList)
             
             // SCROLL DOWN TO READ PAYMENT METHOD
             Journal.log("Défilement vers le bas pour lire le paiement...")
@@ -533,9 +533,21 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             delay(1500) // Wait for scroll animation
             
-            val contenuEcranBas = extractOrderDetailsText(rootInActiveWindow, screenWidth)
-            val contenuEcran = "$contenuEcranHaut\n\n--- SUITE ---\n\n$contenuEcranBas"
-            Journal.log("Texte lu: ${contenuEcran.length} charactères")
+            collectTextNodes(rootInActiveWindow, nodesList)
+            
+            // Remove approximate duplicates (same text and similar Y position)
+            val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
+            for (node in nodesList) {
+                val isDuplicate = distinctNodes.any { 
+                    it.second == node.second && kotlin.math.abs(it.first.top - node.first.top) < 30 
+                }
+                if (!isDuplicate) {
+                    distinctNodes.add(node)
+                }
+            }
+            
+            val contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
+            Journal.log("JSON généré: ${contenuEcran.take(100)}...")
 
             // 5. Click "Modifier"
             Journal.log("Clic sur '$labelModifier'")
@@ -662,37 +674,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
     }
     
 
-    private fun extractOrderDetailsText(node: AccessibilityNodeInfo?, screenWidth: Int): String {
-        val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
-        collectTextNodes(node, nodesList)
-        
-        // Sort by Y (top) first, then X (left). Give a 20px tolerance for Y to group same-line items.
-        nodesList.sortWith(Comparator { a, b ->
-            val yDiff = a.first.top - b.first.top
-            if (kotlin.math.abs(yDiff) < 20) {
-                a.first.left.compareTo(b.first.left)
-            } else {
-                yDiff.compareTo(0)
-            }
-        })
-        
-        val sb = java.lang.StringBuilder()
-        if (nodesList.isNotEmpty()) {
-            var currentY = nodesList[0].first.top
-            for (item in nodesList) {
-                if (kotlin.math.abs(item.first.top - currentY) < 20) {
-                    if (sb.isNotEmpty() && !sb.endsWith("\n")) {
-                        sb.append(" ")
-                    }
-                    sb.append(item.second)
-                } else {
-                    sb.append("\n").append(item.second)
-                    currentY = item.first.top
-                }
-            }
-        }
-        return sb.toString()
-    }
     
     private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<Pair<android.graphics.Rect, String>>) {
         if (node == null) return
