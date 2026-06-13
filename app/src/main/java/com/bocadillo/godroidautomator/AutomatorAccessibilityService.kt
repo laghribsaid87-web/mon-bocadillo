@@ -510,7 +510,17 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // 3. Wait until "Modifier" appears (indicates order details loaded)
             Journal.log("Attente de '$labelModifier'...")
-            waitUntilTextAppears(labelModifier, 4000)
+            val orderOpened = waitUntilTextAppears(labelModifier, 4000)
+            
+            if (!orderOpened) {
+                Journal.log("La commande ne s'est pas ouverte ! Deuxième essai...")
+                clickByText(labelMins)
+                if (!waitUntilTextAppears(labelModifier, 4000)) {
+                    Journal.log("ERREUR: Impossible d'ouvrir la commande. Annulation pour éviter les erreurs.")
+                    returnToNewOrdersTab()
+                    return // Stop sequence to avoid sending garbage data
+                }
+            }
             
             // Wait extra time for the transition animation and list to fully load
             delay(2000)
