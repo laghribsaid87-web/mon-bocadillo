@@ -520,7 +520,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
             collectTextNodes(rootInActiveWindow, nodesList)
             
-            // No scrolling needed as all necessary info is visible on the main screen
+            // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
+            Journal.log("Défilement vers le bas pour lire la suite...")
+            val rootForScroll = rootInActiveWindow
+            if (rootForScroll != null) {
+                val scrollableNode = findScrollableNode(rootForScroll)
+                if (scrollableNode != null) {
+                    scrollableNode.performAction(4096) // 4096 = ACTION_SCROLL_FORWARD
+                } else {
+                    performSwipeUp()
+                }
+            }
+            delay(1500) // Wait for scroll animation
+            
+            collectTextNodes(rootInActiveWindow, nodesList)
             
             // Remove approximate duplicates (same text and similar Y position)
             val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
@@ -678,6 +691,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             collectTextNodes(node.getChild(i), list)
         }
+    }
+
+    private fun findScrollableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isScrollable) return node
+        for (i in 0 until node.childCount) {
+            val res = findScrollableNode(node.getChild(i))
+            if (res != null) return res
+        }
+        return null
     }
 
     private suspend fun startCancellationCheckSequence() {

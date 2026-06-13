@@ -39,7 +39,14 @@ object OrderParser {
             // Find Order ID (# followed by digits/letters)
             if (text.matches(Regex("^#[0-9A-Za-z]+.*"))) {
                 orderId = text.split(" ")[0]
-                yStartItems = rect.bottom // Items start below the Order ID card
+                if (yStartItems < rect.bottom) yStartItems = rect.bottom // Items start below the Order ID card
+            }
+            
+            // Adjust yStartItems to be below the timer button ("mins") to avoid extracting header texts
+            if (text.matches(Regex(".*[0-9]+\\s*mins?.*", RegexOption.IGNORE_CASE))) {
+                if (rect.bottom > yStartItems) {
+                    yStartItems = rect.bottom
+                }
             }
 
             // Find End of items ("Sous-total" or "TVA")
