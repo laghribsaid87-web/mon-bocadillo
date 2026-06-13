@@ -32,8 +32,11 @@ class MainActivity : AppCompatActivity() {
         }
         layout.addView(title)
         
+        val pInfo = packageManager.getPackageInfo(packageName, 0)
+        val appVersionName = pInfo.versionName
+        
         val versionText = TextView(this).apply {
-            text = "Version: ${BuildConfig.VERSION_NAME}"
+            text = "Version: $appVersionName"
             textSize = 14f
             setTextColor(android.graphics.Color.GRAY)
             setPadding(0, 0, 0, 32)
@@ -144,10 +147,11 @@ class MainActivity : AppCompatActivity() {
                             val latestRelease = jsonArray.getJSONObject(0)
                             val tagName = latestRelease.getString("tag_name")
                             
-                            val currentVersion = "v" + BuildConfig.VERSION_NAME
+                            val pInfo = packageManager.getPackageInfo(packageName, 0)
+                            val currentVersion = "v" + pInfo.versionName
                             
                             // Simple string comparison for versions like v3.3.127
-                            if (tagName > currentVersion && currentVersion != "v3.3") {
+                            if (tagName > currentVersion && !currentVersion.startsWith("v3.3.126")) {
                                 withContext(Dispatchers.Main) {
                                     showUpdateDialog(tagName)
                                 }
