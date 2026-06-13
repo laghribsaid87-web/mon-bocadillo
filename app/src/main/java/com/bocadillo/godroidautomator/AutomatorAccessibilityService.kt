@@ -590,7 +590,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // 10. Send the order data
             Journal.log("Lancement requête HTTP globale...")
-            NetworkClient.sendOrderData(telephoneEcran, contenuEcran)
+            NetworkClient.sendOrderData(this, telephoneEcran, contenuEcran)
 
             // 11. Click "Annuler"
             Journal.log("Clic sur '$labelAnnuler'")

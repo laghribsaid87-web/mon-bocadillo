@@ -88,6 +88,27 @@ class SettingsActivity : AppCompatActivity() {
                 finish()
             }
         }
+        
+        val titleWebhook = TextView(this).apply {
+            text = "Serveur (Webhook)"
+            textSize = 20f
+            setPadding(0, 32, 0, 16)
+        }
+        layout.addView(titleWebhook)
+        
+        val tvWebhook = TextView(this).apply {
+            text = "Lien Webhook Firebase"
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, 16, 0, 8)
+        }
+        layout.addView(tvWebhook)
+        
+        val etWebhook = EditText(this).apply {
+            setText(prefs.getString("webhook_url", "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/Commandes_Brutes_Glovo"))
+        }
+        editTexts["webhook_url"] = etWebhook
+        layout.addView(etWebhook)
+
         layout.addView(btnSave)
 
         val scrollView = ScrollView(this).apply {

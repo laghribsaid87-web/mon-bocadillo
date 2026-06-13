@@ -12,10 +12,10 @@ import org.json.JSONObject
 object NetworkClient {
 
     private val client = OkHttpClient()
-    // Using Firestore REST API directly on public path to avoid 403 Forbidden
-    private const val FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/Commandes_Brutes_Glovo"
+    // Default Firestore REST API URL
+    private const val DEFAULT_FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/Commandes_Brutes_Glovo"
 
-    suspend fun sendOrderData(telephoneEcran: String, contenuEcran: String) {
+    suspend fun sendOrderData(context: android.content.Context, telephoneEcran: String, contenuEcran: String) {
         withContext(Dispatchers.IO) {
             try {
                 // Formatting payload for Firestore
@@ -34,12 +34,15 @@ object NetworkClient {
                 val mediaType = "application/json; charset=utf-8".toMediaType()
                 val body = jsonObject.toString().toRequestBody(mediaType)
 
+                val prefs = context.getSharedPreferences("AutomatorPrefs", android.content.Context.MODE_PRIVATE)
+                val firestoreUrl = prefs.getString("webhook_url", DEFAULT_FIRESTORE_URL) ?: DEFAULT_FIRESTORE_URL
+
                 val request = Request.Builder()
-                    .url(FIRESTORE_URL)
+                    .url(firestoreUrl)
                     .post(body)
                     .build()
 
-                Journal.log("Envoi POST vers Firestore (Commandes_Brutes_Glovo)...")
+                Journal.log("Envoi POST vers Firestore (${firestoreUrl.substringAfterLast("/")})...")
                 val response = client.newCall(request).execute()
                 
                 if (response.isSuccessful) {
