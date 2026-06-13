@@ -43,7 +43,7 @@ object OrderParser {
             }
             
             // Adjust yStartItems to be below the timer button ("mins") to avoid extracting header texts
-            if (text.matches(Regex(".*[0-9]+\\s*mins?.*", RegexOption.IGNORE_CASE))) {
+            if (text.matches(Regex("(?i).*[0-9]+\\s*mins?.*"))) {
                 if (rect.bottom > yStartItems) {
                     yStartItems = rect.bottom
                 }
