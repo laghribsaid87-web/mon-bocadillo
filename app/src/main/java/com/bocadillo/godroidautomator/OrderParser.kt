@@ -26,9 +26,6 @@ object OrderParser {
         var paymentMethod = "ONLINE" // Default
         val itemsList = mutableListOf<String>()
 
-        var yStartItems = 0
-        var yEndItems = 999999
-        
         var totalY = -1
 
         // 1. Find Order ID and Boundaries
@@ -39,23 +36,6 @@ object OrderParser {
             // Find Order ID (# followed by digits/letters)
             if (text.matches(Regex("^#[0-9A-Za-z]+.*"))) {
                 orderId = text.split(" ")[0]
-                if (yStartItems < rect.bottom) yStartItems = rect.bottom // Items start below the Order ID card
-            }
-            
-            // Adjust yStartItems to be below the timer button ("mins") to avoid extracting header texts
-            if (text.matches(Regex("(?i).*[0-9]+\\s*mins?.*"))) {
-                if (rect.bottom > yStartItems) {
-                    yStartItems = rect.bottom
-                }
-            }
-
-            // Find End of items ("Sous-total" or "TVA")
-            if (text.equals("Sous-total", ignoreCase = true) || 
-                text.equals("TVA (incl.)", ignoreCase = true) || 
-                text.equals("Total", ignoreCase = true)) {
-                if (rect.top < yEndItems) {
-                    yEndItems = rect.top // Items end above the totals section
-                }
             }
 
             // Find Total Amount
@@ -88,21 +68,18 @@ object OrderParser {
             val rect = node.first
             val text = node.second
             
-            // Allow a small margin (e.g. 50px) to ensure we don't miss the first item or last item
-            if (rect.top >= (yStartItems - 10) && rect.bottom <= (yEndItems + 10)) {
-                // Group by Y line (tolerance 20px)
-                var foundKey = -1
-                for (k in itemsGroupedByY.keys) {
-                    if (abs(k - rect.top) < 20) {
-                        foundKey = k
-                        break
-                    }
+            // Group by Y line (tolerance 20px)
+            var foundKey = -1
+            for (k in itemsGroupedByY.keys) {
+                if (abs(k - rect.top) < 20) {
+                    foundKey = k
+                    break
                 }
-                if (foundKey == -1) {
-                    itemsGroupedByY[rect.top] = mutableListOf(text)
-                } else {
-                    itemsGroupedByY[foundKey]!!.add(text)
-                }
+            }
+            if (foundKey == -1) {
+                itemsGroupedByY[rect.top] = mutableListOf(text)
+            } else {
+                itemsGroupedByY[foundKey]!!.add(text)
             }
         }
 
