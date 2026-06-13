@@ -8,7 +8,12 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONArray
 
 class MainActivity : AppCompatActivity() {
 
@@ -23,9 +28,17 @@ class MainActivity : AppCompatActivity() {
         val title = TextView(this).apply {
             text = "GoDroid Automator"
             textSize = 24f
-            setPadding(0, 0, 0, 32)
+            setPadding(0, 0, 0, 8)
         }
         layout.addView(title)
+        
+        val versionText = TextView(this).apply {
+            text = "Version: ${BuildConfig.VERSION_NAME}"
+            textSize = 14f
+            setTextColor(android.graphics.Color.GRAY)
+            setPadding(0, 0, 0, 32)
+        }
+        layout.addView(versionText)
         
         val btnAccessibility = Button(this).apply {
             text = "Activer l'Accessibilité (GoDroid Auto-Clicker)"
@@ -110,5 +123,53 @@ class MainActivity : AppCompatActivity() {
                 logView.text = if (logsList.isEmpty()) "Journal vide" else logsList.joinToString("\n")
             }
         }
+        
+        checkForUpdates()
+    }
+
+    private fun checkForUpdates() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder()
+                    .url("https://api.github.com/repos/laghribsaid87-web/mon-bocadillo/releases")
+                    .build()
+                
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val body = response.body?.string()
+                    if (!body.isNullOrEmpty()) {
+                        val jsonArray = JSONArray(body)
+                        if (jsonArray.length() > 0) {
+                            val latestRelease = jsonArray.getJSONObject(0)
+                            val tagName = latestRelease.getString("tag_name")
+                            
+                            val currentVersion = "v" + BuildConfig.VERSION_NAME
+                            
+                            // Simple string comparison for versions like v3.3.127
+                            if (tagName > currentVersion && currentVersion != "v3.3") {
+                                withContext(Dispatchers.Main) {
+                                    showUpdateDialog(tagName)
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun showUpdateDialog(newVersion: String) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Mise à jour disponible !")
+            .setMessage("Une nouvelle version ($newVersion) est disponible. Voulez-vous la télécharger ?")
+            .setPositiveButton("Télécharger") { _, _ ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.monbocadillo.ma/glovo"))
+                startActivity(intent)
+            }
+            .setNegativeButton("Plus tard", null)
+            .show()
     }
 }
