@@ -621,6 +621,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
             Journal.log("JSON généré: ${contenuEcran.take(100)}...")
 
+            // FAST KDS PUSH: Send immediately to Firebase without phone number
+            Journal.log("Envoi RAPIDE vers KDS (sans numéro)...")
+            NetworkClient.sendOrderData(this, "", contenuEcran)
+
             // 5. Click "Modifier"
             Journal.log("Clic sur '$labelModifier'")
             clickByText(labelModifier)
@@ -650,8 +654,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val telephoneEcran = extractAllText(rootInActiveWindow)
             Journal.log("Extraction num téléphone terminée.")
 
-            // 10. Send the order data
-            Journal.log("Lancement requête HTTP globale...")
+            // 10. Send the order data update (with phone)
+            Journal.log("Envoi UPDATE num téléphone vers Firestore...")
             NetworkClient.sendOrderData(this, telephoneEcran, contenuEcran)
 
             // 11. Click "Annuler"
