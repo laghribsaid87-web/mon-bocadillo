@@ -498,60 +498,48 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
             }
 
-            // 2. Wait and Open the new order by clicking its card
-            Journal.log("Attente de la nouvelle commande...")
+            // 2. Wait and Open the new order by clicking its card or "mins"
+            Journal.log("Attente de '$labelMins'...")
             
             // On cherche le bouton Accepter la commande qui n'apparait que pour les nouvelles commandes
             val foundBtn = waitUntilTextAppears(labelAccepter, 10000)
             if (foundBtn) {
                 Journal.log("Nouvelle commande détectée! Tentative d'ouverture...")
-                // On cherche le texte "produit" (qui est sur la carte de la commande)
-                // Mais pour être sûr de cliquer sur la NOUVELLE commande, on cherche à proximité du bouton Accepter
+                
+                // Le client confirme que seul le carré vert ("mins") est cliquable
                 var clicked = false
-                val root = rootInActiveWindow
-                if (root != null) {
-                    val referenceNodes = mutableListOf<AccessibilityNodeInfo>()
-                    findAllNodesWithTextRecursively(labelAccepter, root, referenceNodes)
-                    if (referenceNodes.isNotEmpty()) {
-                        val acceptNode = referenceNodes[0]
-                        // Remonter de 2 ou 3 niveaux pour avoir la carte entière
-                        var cardNode: AccessibilityNodeInfo? = acceptNode
-                        for (i in 0..5) {
-                            if (cardNode == null) break
-                            if (cardNode.isClickable) {
-                                cardNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                                clicked = true
-                                break
-                            }
-                            cardNode = cardNode.parent
-                        }
-                        
-                        // Si la carte n'est pas cliquable directement, on cherche "produit" dans la même carte
-                        if (!clicked) {
-                            cardNode = acceptNode
-                            for (i in 0..8) {
-                                if (cardNode == null) break
-                                val prodNode = findNodeWithTextRecursively("produit", cardNode)
-                                if (prodNode != null) {
-                                    var clickableProd: AccessibilityNodeInfo? = prodNode
-                                    while (clickableProd != null) {
-                                        if (clickableProd.isClickable) {
-                                            clickableProd.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                                            clicked = true
-                                            break
-                                        }
-                                        clickableProd = clickableProd.parent
-                                    }
+                
+                // 1. Essayer de cliquer sur "mins"
+                if (clickByText(labelMins)) {
+                    Journal.log("Clic sur '$labelMins' réussi!")
+                    clicked = true
+                } else {
+                    Journal.log("Attention: Clic normal sur '$labelMins' a échoué. Essai approfondi...")
+                    // 2. Essayer de trouver "mins" et de forcer le clic
+                    val root = rootInActiveWindow
+                    if (root != null) {
+                        val minsNodes = mutableListOf<AccessibilityNodeInfo>()
+                        findAllNodesWithTextRecursively(labelMins, root, minsNodes)
+                        for (minsNode in minsNodes) {
+                            var clickableNode: AccessibilityNodeInfo? = minsNode
+                            for (i in 0..5) {
+                                if (clickableNode == null) break
+                                if (clickableNode.isClickable) {
+                                    clickableNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                    Journal.log("Clic forcé sur conteneur de '$labelMins'")
+                                    clicked = true
+                                    break
                                 }
-                                if (clicked) break
-                                cardNode = cardNode.parent
+                                clickableNode = clickableNode.parent
                             }
+                            if (clicked) break
                         }
                     }
                 }
                 
+                // 3. Fallback sur "produit" si "mins" échoue toujours
                 if (!clicked) {
-                    Journal.log("Attention: Clic sur la carte a échoué. Essai sur 'produit'")
+                    Journal.log("Essai de cliquer sur 'produit'")
                     clickByText("produit") 
                 }
             } else {
@@ -567,7 +555,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             if (!orderOpened) {
                 Journal.log("La commande ne s'est pas ouverte ! Deuxième essai...")
-                clickByText("produit")
+                clickByText(labelMins)
                 if (!waitUntilTextAppears(labelModifier, 4000)) {
                     Journal.log("ERREUR: Impossible d'ouvrir la commande. Annulation pour éviter les erreurs.")
                     return // Stop sequence to avoid sending garbage data
