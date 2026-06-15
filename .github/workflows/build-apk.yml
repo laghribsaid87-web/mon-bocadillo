@@ -51,10 +51,7 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug || (
             ./gradlew assembleDebug --stacktrace > error.txt 2>&1
-            gh issue create --title "Build Failed" --body "Error log:
-            \`\`\`
-            $(cat error.txt | tail -n 200)
-            \`\`\`" --repo ${{ github.repository }} || true
+            node -e "const fs = require('fs'); let log = 'No log'; try { log = fs.readFileSync('error.txt', 'utf8').slice(-20000); } catch(e){} fetch('https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/Logs/github_error', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { log: { stringValue: log } } }) }).then(r => console.log(r.status));"
             exit 1
           )
         env:
