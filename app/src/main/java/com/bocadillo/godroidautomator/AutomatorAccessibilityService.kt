@@ -55,7 +55,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
         startPollingForReadyOrders()
     }
 
-    private suspend fun wakeUpScreenAndUnlock() {
+    private suspend fun wakeUpScreenAndUnlock(): Boolean {
+        var neededAction = false
         try {
             val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
@@ -64,6 +65,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 powerManager.isScreenOn
             }
             if (!isScreenOn) {
+                neededAction = true
                 Journal.log("Réveil de l'écran en cours...")
                 @Suppress("DEPRECATION")
                 val wakeLock = powerManager.newWakeLock(
@@ -76,6 +78,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
             if (keyguardManager.isKeyguardLocked) {
+                neededAction = true
                 Journal.log("Déverrouillage de l'écran...")
                 @Suppress("DEPRECATION")
                 val keyguardLock = keyguardManager.newKeyguardLock("GoDroidAutomator::KeyguardLock")
@@ -90,6 +93,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Journal.log("Erreur WakeUp: ${e.message}")
         }
+        return neededAction
     }
 
     private fun performSwipeUp() {
@@ -473,8 +477,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private suspend fun startAutomationSequence() {
         isSequenceRunning = true
         
-        wakeUpScreenAndUnlock()
-        delay(1000)
+        val neededWakeup = wakeUpScreenAndUnlock()
+        if (neededWakeup) {
+            delay(1000)
+        }
 
         val labelMins = getLabel("btn_mins", "mins")
         val labelModifier = getLabel("btn_modifier", "Modifier")
@@ -516,34 +522,42 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
 
             // 2. Wait and Open the new order by clicking its card or "mins"
-            Journal.log("Attente de '$labelMins'...")
+            Journal.log("Recherche rapide de '$labelMins'...")
             
-            // On cherche directement 'mins' (le carré vert) au lieu de 'Accepter' car 'Accepter' n'apparait qu'après ouverture
-            val foundMins = waitUntilTextAppears(labelMins, 10000)
-            if (foundMins) {
-                Journal.log("Nouvelle commande détectée! Tentative d'ouverture...")
-                
-                // Le client confirme que seul le carré vert ("mins") est cliquable (mais ACTION_CLICK est ignoré par Glovo)
-                var clicked = false
-                
-                // On va directement utiliser le Clic Physique (Gesture) sur "mins" pour forcer l'ouverture
+            val minsNodes = mutableListOf<AccessibilityNodeInfo>()
+            var foundMins = false
+            val startTimeSearch = System.currentTimeMillis()
+            while (System.currentTimeMillis() - startTimeSearch < 10000) {
                 val root = rootInActiveWindow
                 if (root != null) {
-                    val minsNodes = mutableListOf<AccessibilityNodeInfo>()
+                    minsNodes.clear()
                     findAllNodesWithTextRecursively(labelMins, root, minsNodes)
-                    
                     if (minsNodes.isNotEmpty()) {
-                        for (minsNode in minsNodes) {
-                            val success = dispatchClickGesture(minsNode)
-                            if (success) {
-                                Journal.log("Clic PHYSIQUE sur '$labelMins' réussi!")
-                                clicked = true
-                                kotlinx.coroutines.delay(800) // Attendre l'animation d'ouverture
-                                break
-                            }
-                        }
-                    } else {
-                        // Fallback si "mins" n'est pas trouvé
+                        foundMins = true
+                        break
+                    }
+                }
+                delay(100)
+            }
+
+            if (foundMins) {
+                Journal.log("Nouvelle commande détectée! Tentative d'ouverture...")
+                var clicked = false
+                
+                for (minsNode in minsNodes) {
+                    val success = dispatchClickGesture(minsNode)
+                    if (success) {
+                        Journal.log("Clic PHYSIQUE sur '$labelMins' réussi!")
+                        clicked = true
+                        kotlinx.coroutines.delay(800) // Attendre l'animation d'ouverture
+                        break
+                    }
+                }
+                
+                if (!clicked) {
+                    // Fallback si "mins" n'est pas cliqué physiquement
+                    val root = rootInActiveWindow
+                    if (root != null) {
                         val prodNodes = mutableListOf<AccessibilityNodeInfo>()
                         findAllNodesWithTextRecursively("produit", root, prodNodes)
                         for (prodNode in prodNodes) {
