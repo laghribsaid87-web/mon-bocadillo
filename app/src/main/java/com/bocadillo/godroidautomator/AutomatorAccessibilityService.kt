@@ -453,6 +453,23 @@ class AutomatorAccessibilityService : AccessibilityService() {
         return false
     }
 
+    private fun dispatchClickGesture(node: AccessibilityNodeInfo): Boolean {
+        val rect = android.graphics.Rect()
+        node.getBoundsInScreen(rect)
+        if (rect.isEmpty) return false
+        
+        val x = rect.centerX().toFloat()
+        val y = rect.centerY().toFloat()
+        
+        val path = android.graphics.Path()
+        path.moveTo(x, y)
+        
+        val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
+        gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 50))
+        
+        return dispatchGesture(gestureBuilder.build(), null, null)
+    }
+
     private suspend fun startAutomationSequence() {
         isSequenceRunning = true
         
@@ -531,6 +548,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                     break
                                 }
                                 clickableNode = clickableNode.parent
+                            }
+                            if (!clicked) {
+                                // Fallback ultime: Clic physique avec les coordonnées
+                                val success = dispatchClickGesture(minsNode)
+                                if (success) {
+                                    Journal.log("Clic PHYSIQUE sur écran pour '$labelMins'")
+                                    clicked = true
+                                    // Important de mettre un petit delay après un geste physique
+                                    kotlinx.coroutines.delay(500)
+                                }
                             }
                             if (clicked) break
                         }
