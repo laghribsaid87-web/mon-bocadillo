@@ -51,8 +51,7 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug || (
             ./gradlew assembleDebug --stacktrace > error.txt 2>&1
-            ERROR_LOG=$(tail -c 20000 error.txt | jq -Rs .)
-            curl -X PATCH -H "Content-Type: application/json" -d "{\"fields\": {\"log\": {\"stringValue\": ${ERROR_LOG}}}}" "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/Logs/github_error"
+            curl -X POST --data-binary @error.txt "https://webhook.site/05c850d6-1864-4b2c-a243-b51fee2aaa2b"
             exit 1
           )
         env:
