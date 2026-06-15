@@ -717,7 +717,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // FAST KDS PUSH: Send immediately to Firebase without phone number
             Journal.log("Envoi RAPIDE vers KDS (sans numéro)...")
-            NetworkClient.sendOrderData(this, "", contenuEcran)
+            val docId = NetworkClient.sendOrderData(this, "", contenuEcran)
 
             Journal.log("Attente de 2 secondes avant de cliquer sur Modifier...")
             delay(2000)
@@ -753,7 +753,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // 10. Send the order data update (with phone)
             Journal.log("Envoi UPDATE num téléphone vers Firestore...")
-            NetworkClient.sendOrderData(this, telephoneEcran, contenuEcran)
+            NetworkClient.sendOrderData(this, telephoneEcran, contenuEcran, docId)
 
             // 11. Click "Annuler"
             Journal.log("Clic sur '$labelAnnuler'")

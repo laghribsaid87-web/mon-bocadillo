@@ -15,8 +15,8 @@ object NetworkClient {
     // Default Firestore REST API URL
     private const val DEFAULT_FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/Commandes_Brutes_Glovo"
 
-    suspend fun sendOrderData(context: android.content.Context, telephoneEcran: String, contenuEcran: String) {
-        withContext(Dispatchers.IO) {
+    suspend fun sendOrderData(context: android.content.Context, telephoneEcran: String, contenuEcran: String, existingDocId: String? = null): String? {
+        return withContext(Dispatchers.IO) {
             try {
                 // Formatting payload for Firestore
                 val fields = JSONObject()
@@ -37,25 +37,42 @@ object NetworkClient {
                 val prefs = context.getSharedPreferences("AutomatorPrefs", android.content.Context.MODE_PRIVATE)
                 val pointDeVente = prefs.getString("point_de_vente", "Laymoune") ?: "Laymoune"
                 val suffix = if (pointDeVente.equals("Laymoune", ignoreCase = true) || pointDeVente.isBlank()) "" else "_$pointDeVente"
-                val firestoreUrl = "${DEFAULT_FIRESTORE_URL}$suffix"
+                val collectionUrl = "${DEFAULT_FIRESTORE_URL}$suffix"
 
-                val request = Request.Builder()
-                    .url(firestoreUrl)
-                    .post(body)
-                    .build()
+                val requestBuilder = Request.Builder()
 
-                Journal.log("Envoi POST vers Firestore (${firestoreUrl.substringAfterLast("/")})...")
-                val response = client.newCall(request).execute()
+                if (existingDocId != null) {
+                    val patchUrl = "$collectionUrl/$existingDocId?updateMask.fieldPaths=phone_text"
+                    requestBuilder.url(patchUrl).patch(body)
+                    Journal.log("Envoi PATCH vers Firestore ($existingDocId)...")
+                } else {
+                    requestBuilder.url(collectionUrl).post(body)
+                    Journal.log("Envoi POST vers Firestore (${collectionUrl.substringAfterLast("/")})...")
+                }
+
+                val response = client.newCall(requestBuilder.build()).execute()
+                val responseBody = response.body?.string() ?: ""
                 
                 if (response.isSuccessful) {
                     Journal.log("✅ Commande envoyée au Webhook avec succès!")
+                    if (existingDocId == null && responseBody.isNotEmpty()) {
+                        try {
+                            val json = JSONObject(responseBody)
+                            val name = json.optString("name", "")
+                            if (name.isNotEmpty()) {
+                                return@withContext name.substringAfterLast("/")
+                            }
+                        } catch (e: Exception) {}
+                    }
+                    return@withContext existingDocId
                 } else {
                     Journal.log("❌ Erreur d'envoi Webhook: ${response.code}")
-                    val responseBody = response.body?.string() ?: "Aucun détail"
                     Journal.log("Détails: $responseBody")
+                    return@withContext null
                 }
             } catch (e: Exception) {
                 Journal.log("❌ Exception lors de l'envoi Webhook: ${e.message}")
+                return@withContext null
             }
         }
     }
