@@ -27,6 +27,16 @@ object OrderParser {
         val itemsList = mutableListOf<String>()
 
         var totalY = -1
+        var totalX = -1
+
+        // First pass: Find "Total" to know which pane is the order details (useful for tablets)
+        for (node in nodesList) {
+            if (node.second.equals("Total", ignoreCase = true)) {
+                totalY = node.first.top
+                totalX = node.first.centerX()
+                break
+            }
+        }
 
         // 1. Find Order ID and Boundaries
         for (node in nodesList) {
@@ -35,12 +45,12 @@ object OrderParser {
 
             // Find Order ID (# followed by digits/letters)
             if (text.matches(Regex("^#[0-9A-Za-z]+.*"))) {
-                orderId = text.split(" ")[0]
-            }
-
-            // Find Total Amount
-            if (text.equals("Total", ignoreCase = true)) {
-                totalY = rect.top
+                // Ensure it's in the same horizontal pane as "Total" (ignore background lists)
+                if (totalX == -1 || abs(rect.centerX() - totalX) < 500) {
+                    if (orderId.isEmpty()) {
+                        orderId = text.split(" ")[0]
+                    }
+                }
             }
 
             // Find Payment Method

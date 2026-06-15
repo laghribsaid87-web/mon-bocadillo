@@ -2,6 +2,9 @@ package com.bocadillo.godroidautomator
 
 import android.content.Context
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -105,6 +108,21 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         layout.addView(btnSave)
+
+        val btnSetupArea = Button(this).apply {
+            text = "Configurer Zone de Lecture (Cadre)"
+            setPadding(0, 32, 0, 32)
+            setOnClickListener {
+                if (!Settings.canDrawOverlays(this@SettingsActivity)) {
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    startActivity(intent)
+                    Toast.makeText(this@SettingsActivity, "Veuillez autoriser l'affichage superposé", Toast.LENGTH_LONG).show()
+                } else {
+                    startActivity(Intent(this@SettingsActivity, OverlayActivity::class.java))
+                }
+            }
+        }
+        layout.addView(btnSetupArea)
 
         val scrollView = ScrollView(this).apply {
             addView(layout)

@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
@@ -25,6 +26,8 @@
         </activity>
 
         <activity android:name=".SettingsActivity" android:label="Paramètres Glovo" />
+        
+        <activity android:name=".OverlayActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <service
             android:name=".GoDroidNotificationService"
