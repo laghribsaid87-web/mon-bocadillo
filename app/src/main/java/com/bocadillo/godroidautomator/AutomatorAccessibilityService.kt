@@ -542,50 +542,86 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             if (foundMins) {
                 Journal.log("Nouvelle commande détectée! Tentative d'ouverture...")
-                var clicked = false
                 
-                for (minsNode in minsNodes) {
-                    val success = dispatchClickGesture(minsNode)
-                    if (success) {
-                        Journal.log("Clic PHYSIQUE sur '$labelMins' réussi!")
-                        clicked = true
-                        kotlinx.coroutines.delay(800) // Attendre l'animation d'ouverture
-                        break
+                var orderOpened = false
+                
+                // Try up to 3 times to click and open the order
+                for (attempt in 1..3) {
+                    Journal.log("Tentative d'ouverture #$attempt...")
+                    var clicked = false
+                    
+                    // Refresh mins nodes for retries
+                    if (attempt > 1) {
+                        minsNodes.clear()
+                        val refreshRoot = rootInActiveWindow
+                        if (refreshRoot != null) {
+                            findAllNodesWithTextRecursively(labelMins, refreshRoot, minsNodes)
+                        }
+                        if (minsNodes.isEmpty()) {
+                            // "mins" disappeared = order is already open
+                            Journal.log("'$labelMins' disparu - commande probablement déjà ouverte")
+                            orderOpened = true
+                            break
+                        }
                     }
-                }
-                
-                if (!clicked) {
-                    // Fallback si "mins" n'est pas cliqué physiquement
-                    val root = rootInActiveWindow
-                    if (root != null) {
-                        val prodNodes = mutableListOf<AccessibilityNodeInfo>()
-                        findAllNodesWithTextRecursively("produit", root, prodNodes)
-                        for (prodNode in prodNodes) {
-                            if (dispatchClickGesture(prodNode)) {
-                                Journal.log("Clic PHYSIQUE sur 'produit' réussi!")
-                                clicked = true
-                                kotlinx.coroutines.delay(800)
-                                break
+                    
+                    // Try physical click on each "mins" node
+                    for (minsNode in minsNodes) {
+                        val success = dispatchClickGesture(minsNode)
+                        if (success) {
+                            Journal.log("Clic PHYSIQUE sur '$labelMins' réussi!")
+                            clicked = true
+                            kotlinx.coroutines.delay(800)
+                            break
+                        }
+                    }
+                    
+                    // Fallback: try clicking "produit"
+                    if (!clicked) {
+                        val root = rootInActiveWindow
+                        if (root != null) {
+                            val prodNodes = mutableListOf<AccessibilityNodeInfo>()
+                            findAllNodesWithTextRecursively("produit", root, prodNodes)
+                            for (prodNode in prodNodes) {
+                                if (dispatchClickGesture(prodNode)) {
+                                    Journal.log("Clic PHYSIQUE sur 'produit' réussi!")
+                                    clicked = true
+                                    kotlinx.coroutines.delay(800)
+                                    break
+                                }
                             }
                         }
                     }
+                    
+                    // Fallback: standard accessibility click
+                    if (!clicked) {
+                        Journal.log("Essai standard sur '$labelMins'...")
+                        clickByText(labelMins)
+                    }
+                    
+                    // Wait for order details to load
+                    delay(1500)
+                    
+                    // VERIFY: Check if "Modifier" button appeared (confirms order details page is open)
+                    if (waitUntilTextAppears(labelModifier, 3000)) {
+                        Journal.log("✅ Commande ouverte avec succès! ('$labelModifier' détecté)")
+                        orderOpened = true
+                        break
+                    } else {
+                        Journal.log("⚠️ Tentative #$attempt échouée - '$labelModifier' non détecté sur l'écran")
+                    }
                 }
                 
-                if (!clicked) {
-                    Journal.log("Attention: Clic physique a échoué. Essai standard sur '$labelMins'...")
-                    if (clickByText(labelMins)) {
-                        Journal.log("Clic standard sur '$labelMins' effectué.")
-                    }
+                if (!orderOpened) {
+                    Journal.log("❌ Impossible d'ouvrir la commande après 3 tentatives.")
+                    isSequenceRunning = false
+                    return
                 }
             } else {
                 Journal.log("Aucune nouvelle commande avec '$labelMins' trouvée.")
                 isSequenceRunning = false
                 return
             }
-
-            // 3. Wait a short, fixed time for the order details to open (1.5 seconds)
-            Journal.log("Attente de l'ouverture de la commande (1.5s)...")
-            delay(1500)
 
             // 4. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
