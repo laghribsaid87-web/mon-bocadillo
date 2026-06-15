@@ -660,11 +660,17 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             // Load crop zone settings
             val prefs = getSharedPreferences("AutomatorPrefs", android.content.Context.MODE_PRIVATE)
-            val cropLeft = prefs.getInt("cropLeft", 0)
-            val cropRight = prefs.getInt("cropRight", 0)
-            val cropTop = prefs.getInt("cropTop", 0)
-            val cropBottom = prefs.getInt("cropBottom", 0)
-            val cropRect = if (cropRight > cropLeft && cropBottom > cropTop) android.graphics.Rect(cropLeft, cropTop, cropRight, cropBottom) else null
+            val numLeft = prefs.getInt("cropNumLeft", 0)
+            val numTop = prefs.getInt("cropNumTop", 0)
+            val numRight = prefs.getInt("cropNumRight", 0)
+            val numBottom = prefs.getInt("cropNumBottom", 0)
+            val rectNum = if (numRight > numLeft && numBottom > numTop) android.graphics.Rect(numLeft, numTop, numRight, numBottom) else null
+
+            val detLeft = prefs.getInt("cropDetLeft", 0)
+            val detTop = prefs.getInt("cropDetTop", 0)
+            val detRight = prefs.getInt("cropDetRight", 0)
+            val detBottom = prefs.getInt("cropDetBottom", 0)
+            val rectDet = if (detRight > detLeft && detBottom > detTop) android.graphics.Rect(detLeft, detTop, detRight, detBottom) else null
 
             // Wait for order number (#XXX) to appear as confirmation content is loaded
             Journal.log("Recherche du numéro de commande (#)...")
@@ -673,7 +679,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             while (System.currentTimeMillis() - startWait < 5000) {
                 val checkRoot = rootInActiveWindow
                 if (checkRoot != null) {
-                    val allText = extractAllText(checkRoot, cropRect)
+                    val allText = extractAllText(checkRoot, rectNum, rectDet)
                     val hasOrderNum = Regex("#[0-9A-Za-z]{3,}").containsMatchIn(allText)
                     if (hasOrderNum) {
                         Journal.log("✅ Numéro de commande détecté sur l'écran!")
@@ -688,9 +694,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
 
             // 5. Read full details (Items, Price, Order Num)
-            Journal.log("Lecture détails de la commande (avec cadre)...")
+            Journal.log("Lecture détails de la commande (avec cadres)...")
             val nodesListBefore = mutableListOf<Pair<android.graphics.Rect, String>>()
-            collectTextNodes(rootInActiveWindow, nodesListBefore, cropRect)
+            collectTextNodes(rootInActiveWindow, nodesListBefore, rectNum, rectDet)
             Journal.log("Nodes lus (avant scroll): ${nodesListBefore.size}")
             
             // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
@@ -707,7 +713,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             delay(1500) // Wait for scroll animation
             
             val nodesListAfter = mutableListOf<Pair<android.graphics.Rect, String>>()
-            collectTextNodes(rootInActiveWindow, nodesListAfter, cropRect)
+            collectTextNodes(rootInActiveWindow, nodesListAfter, rectNum, rectDet)
             Journal.log("Nodes lus (après scroll): ${nodesListAfter.size}")
             
             // Calcul du Scroll Delta pour corriger les coordonnées Y
@@ -765,7 +771,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
             }
             
-            val contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
+            val contenuEcran = OrderParser.parseOrderScreen(distinctNodes, rectNum)
             Journal.log("JSON généré: ${contenuEcran.take(200)}...")
 
             // FAST KDS PUSH: Send immediately to Firebase without phone number
@@ -882,7 +888,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         return false
     }
 
-    private fun extractAllText(node: AccessibilityNodeInfo?, cropRect: android.graphics.Rect? = null): String {
+    private fun extractAllText(node: AccessibilityNodeInfo?, rectNum: android.graphics.Rect? = null, rectDet: android.graphics.Rect? = null): String {
         if (node == null) return ""
         val sb = java.lang.StringBuilder()
         
@@ -890,7 +896,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val rect = android.graphics.Rect()
             node.getBoundsInScreen(rect)
             
-            val isInsideCrop = cropRect == null || cropRect.width() == 0 || cropRect.intersect(rect)
+            val isInsideCrop = (rectNum == null && rectDet == null) || 
+                               (rectNum != null && android.graphics.Rect.intersects(rectNum, rect)) || 
+                               (rectDet != null && android.graphics.Rect.intersects(rectDet, rect))
             
             if (isInsideCrop) {
                 val text = node.text?.toString()?.trim()
@@ -905,21 +913,23 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
         
         for (i in 0 until node.childCount) {
-            sb.append(extractAllText(node.getChild(i), cropRect))
+            sb.append(extractAllText(node.getChild(i), rectNum, rectDet))
         }
         return sb.toString()
     }
     
 
     
-    private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<Pair<android.graphics.Rect, String>>, cropRect: android.graphics.Rect? = null) {
+    private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<Pair<android.graphics.Rect, String>>, rectNum: android.graphics.Rect? = null, rectDet: android.graphics.Rect? = null) {
         if (node == null) return
         
         if (node.isVisibleToUser) {
             val rect = android.graphics.Rect()
             node.getBoundsInScreen(rect)
             
-            val isInsideCrop = cropRect == null || cropRect.width() == 0 || cropRect.intersect(rect)
+            val isInsideCrop = (rectNum == null && rectDet == null) || 
+                               (rectNum != null && android.graphics.Rect.intersects(rectNum, rect)) || 
+                               (rectDet != null && android.graphics.Rect.intersects(rectDet, rect))
             
             if (isInsideCrop) {
                 val text = node.text?.toString()?.trim()
@@ -934,7 +944,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
         
         for (i in 0 until node.childCount) {
-            collectTextNodes(node.getChild(i), list, cropRect)
+            collectTextNodes(node.getChild(i), list, rectNum, rectDet)
         }
     }
 

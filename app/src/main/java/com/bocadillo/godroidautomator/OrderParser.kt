@@ -8,7 +8,7 @@ import kotlin.math.abs
 
 object OrderParser {
 
-    fun parseOrderScreen(nodesList: MutableList<Pair<Rect, String>>): String {
+    fun parseOrderScreen(nodesList: MutableList<Pair<Rect, String>>, rectNum: android.graphics.Rect? = null): String {
         if (nodesList.isEmpty()) return "{}"
 
         // Sort by Y first, then X
@@ -45,8 +45,10 @@ object OrderParser {
 
             // Find Order ID (# followed by digits/letters)
             if (text.matches(Regex("^#[0-9A-Za-z]+.*"))) {
-                // Ensure it's in the same horizontal pane as "Total" (ignore background lists)
-                if (totalX == -1 || abs(rect.centerX() - totalX) < 500) {
+                val inHorizontalPane = totalX == -1 || abs(rect.centerX() - totalX) < 500
+                val inCropRect = rectNum == null || android.graphics.Rect.intersects(rectNum, rect)
+                
+                if (inHorizontalPane && inCropRect) {
                     if (orderId.isEmpty()) {
                         orderId = text.split(" ")[0]
                     }

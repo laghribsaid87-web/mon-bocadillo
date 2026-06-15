@@ -19,27 +19,41 @@ class OverlayActivity : Activity() {
         super.onCreate(savedInstanceState)
         
         val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
-        val savedLeft = prefs.getInt("cropLeft", 100)
-        val savedTop = prefs.getInt("cropTop", 200)
-        val savedRight = prefs.getInt("cropRight", 500)
-        val savedBottom = prefs.getInt("cropBottom", 800)
+        
+        // Load Num Rect
+        val numLeft = prefs.getInt("cropNumLeft", 100)
+        val numTop = prefs.getInt("cropNumTop", 100)
+        val numRight = prefs.getInt("cropNumRight", 400)
+        val numBottom = prefs.getInt("cropNumBottom", 250)
+        val rectNum = Rect(numLeft, numTop, numRight, numBottom)
 
-        val cropView = CropView(this, Rect(savedLeft, savedTop, savedRight, savedBottom))
+        // Load Details Rect
+        val detLeft = prefs.getInt("cropDetLeft", 100)
+        val detTop = prefs.getInt("cropDetTop", 300)
+        val detRight = prefs.getInt("cropDetRight", 500)
+        val detBottom = prefs.getInt("cropDetBottom", 800)
+        val rectDet = Rect(detLeft, detTop, detRight, detBottom)
+
+        val cropView = CropView(this, rectNum, rectDet)
 
         val btnSave = Button(this).apply {
             text = "Sauvegarder"
             setBackgroundColor(Color.parseColor("#4CAF50"))
             setTextColor(Color.WHITE)
             setOnClickListener {
-                val rect = cropView.getCropRect()
                 prefs.edit().apply {
-                    putInt("cropLeft", rect.left)
-                    putInt("cropTop", rect.top)
-                    putInt("cropRight", rect.right)
-                    putInt("cropBottom", rect.bottom)
+                    putInt("cropNumLeft", cropView.rectNum.left)
+                    putInt("cropNumTop", cropView.rectNum.top)
+                    putInt("cropNumRight", cropView.rectNum.right)
+                    putInt("cropNumBottom", cropView.rectNum.bottom)
+                    
+                    putInt("cropDetLeft", cropView.rectDet.left)
+                    putInt("cropDetTop", cropView.rectDet.top)
+                    putInt("cropDetRight", cropView.rectDet.right)
+                    putInt("cropDetBottom", cropView.rectDet.bottom)
                     apply()
                 }
-                Toast.makeText(this@OverlayActivity, "Zone sauvegardée !", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@OverlayActivity, "Zones sauvegardées !", Toast.LENGTH_SHORT).show()
                 finish()
             }
         }
@@ -57,13 +71,17 @@ class OverlayActivity : Activity() {
             setTextColor(Color.WHITE)
             setOnClickListener {
                 prefs.edit().apply {
-                    putInt("cropLeft", 0)
-                    putInt("cropTop", 0)
-                    putInt("cropRight", 0)
-                    putInt("cropBottom", 0)
+                    putInt("cropNumLeft", 0)
+                    putInt("cropNumTop", 0)
+                    putInt("cropNumRight", 0)
+                    putInt("cropNumBottom", 0)
+                    putInt("cropDetLeft", 0)
+                    putInt("cropDetTop", 0)
+                    putInt("cropDetRight", 0)
+                    putInt("cropDetBottom", 0)
                     apply()
                 }
-                Toast.makeText(this@OverlayActivity, "Zone désactivée (Lecture complète)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@OverlayActivity, "Zones désactivées (Lecture complète)", Toast.LENGTH_SHORT).show()
                 finish()
             }
         }
@@ -89,36 +107,56 @@ class OverlayActivity : Activity() {
         setContentView(mainLayout)
     }
 
-    class CropView(context: Context, private var cropRect: Rect) : View(context) {
+    class CropView(context: Context, var rectNum: Rect, var rectDet: Rect) : View(context) {
         private val paintBg = Paint().apply { color = Color.parseColor("#80000000") } // Semi-transparent black
-        private val paintBox = Paint().apply {
-            color = Color.GREEN
+        
+        private val paintBoxNum = Paint().apply {
+            color = Color.parseColor("#2196F3") // Blue
             style = Paint.Style.STROKE
             strokeWidth = 5f
         }
+        private val paintBoxDet = Paint().apply {
+            color = Color.parseColor("#4CAF50") // Green
+            style = Paint.Style.STROKE
+            strokeWidth = 5f
+        }
+        
+        private val paintText = Paint().apply {
+            color = Color.WHITE
+            textSize = 30f
+            isFakeBoldText = true
+        }
+
         private val paintCorner = Paint().apply { color = Color.RED }
 
-        private var draggingCorner = -1 // 0: TopLeft, 1: TopRight, 2: BottomRight, 3: BottomLeft, 4: Center (move all)
+        // dragging state: -1 = none, 0..4 = rectNum (0:TL, 1:TR, 2:BR, 3:BL, 4:Center)
+        //                 10..14 = rectDet (10:TL, 11:TR, 12:BR, 13:BL, 14:Center)
+        private var draggingState = -1 
         private var lastX = 0f
         private var lastY = 0f
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            // Draw background (darkened except for crop box)
-            canvas.drawRect(0f, 0f, width.toFloat(), cropRect.top.toFloat(), paintBg)
-            canvas.drawRect(0f, cropRect.top.toFloat(), cropRect.left.toFloat(), cropRect.bottom.toFloat(), paintBg)
-            canvas.drawRect(cropRect.right.toFloat(), cropRect.top.toFloat(), width.toFloat(), cropRect.bottom.toFloat(), paintBg)
-            canvas.drawRect(0f, cropRect.bottom.toFloat(), width.toFloat(), height.toFloat(), paintBg)
+            // Just draw a semi transparent background everywhere
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paintBg)
 
-            // Draw crop box
-            canvas.drawRect(cropRect, paintBox)
+            // Draw Rect Num (Blue)
+            canvas.drawRect(rectNum, paintBoxNum)
+            canvas.drawText("Numéro Commande (#)", rectNum.left.toFloat() + 10, rectNum.top.toFloat() + 35, paintText)
+            drawCorners(canvas, rectNum)
 
-            // Draw corners
+            // Draw Rect Det (Green)
+            canvas.drawRect(rectDet, paintBoxDet)
+            canvas.drawText("Détails (Articles + Prix)", rectDet.left.toFloat() + 10, rectDet.top.toFloat() + 35, paintText)
+            drawCorners(canvas, rectDet)
+        }
+
+        private fun drawCorners(canvas: Canvas, rect: Rect) {
             val r = 20f
-            canvas.drawCircle(cropRect.left.toFloat(), cropRect.top.toFloat(), r, paintCorner)
-            canvas.drawCircle(cropRect.right.toFloat(), cropRect.top.toFloat(), r, paintCorner)
-            canvas.drawCircle(cropRect.right.toFloat(), cropRect.bottom.toFloat(), r, paintCorner)
-            canvas.drawCircle(cropRect.left.toFloat(), cropRect.bottom.toFloat(), r, paintCorner)
+            canvas.drawCircle(rect.left.toFloat(), rect.top.toFloat(), r, paintCorner)
+            canvas.drawCircle(rect.right.toFloat(), rect.top.toFloat(), r, paintCorner)
+            canvas.drawCircle(rect.right.toFloat(), rect.bottom.toFloat(), r, paintCorner)
+            canvas.drawCircle(rect.left.toFloat(), rect.bottom.toFloat(), r, paintCorner)
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -129,30 +167,38 @@ class OverlayActivity : Activity() {
                 MotionEvent.ACTION_DOWN -> {
                     lastX = x
                     lastY = y
-                    draggingCorner = getTouchedCorner(x, y)
+                    draggingState = getTouchedCorner(x, y)
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (x - lastX).toInt()
                     val dy = (y - lastY).toInt()
 
-                    when (draggingCorner) {
-                        0 -> { cropRect.left += dx; cropRect.top += dy }
-                        1 -> { cropRect.right += dx; cropRect.top += dy }
-                        2 -> { cropRect.right += dx; cropRect.bottom += dy }
-                        3 -> { cropRect.left += dx; cropRect.bottom += dy }
-                        4 -> cropRect.offset(dx, dy)
+                    when (draggingState) {
+                        0 -> { rectNum.left += dx; rectNum.top += dy }
+                        1 -> { rectNum.right += dx; rectNum.top += dy }
+                        2 -> { rectNum.right += dx; rectNum.bottom += dy }
+                        3 -> { rectNum.left += dx; rectNum.bottom += dy }
+                        4 -> rectNum.offset(dx, dy)
+
+                        10 -> { rectDet.left += dx; rectDet.top += dy }
+                        11 -> { rectDet.right += dx; rectDet.top += dy }
+                        12 -> { rectDet.right += dx; rectDet.bottom += dy }
+                        13 -> { rectDet.left += dx; rectDet.bottom += dy }
+                        14 -> rectDet.offset(dx, dy)
                     }
 
                     // Enforce minimum size
-                    if (cropRect.width() < 100) cropRect.right = cropRect.left + 100
-                    if (cropRect.height() < 100) cropRect.bottom = cropRect.top + 100
+                    if (rectNum.width() < 100) rectNum.right = rectNum.left + 100
+                    if (rectNum.height() < 100) rectNum.bottom = rectNum.top + 100
+                    if (rectDet.width() < 100) rectDet.right = rectDet.left + 100
+                    if (rectDet.height() < 100) rectDet.bottom = rectDet.top + 100
 
                     lastX = x
                     lastY = y
                     invalidate()
                 }
                 MotionEvent.ACTION_UP -> {
-                    draggingCorner = -1
+                    draggingState = -1
                 }
             }
             return true
@@ -160,14 +206,21 @@ class OverlayActivity : Activity() {
 
         private fun getTouchedCorner(x: Float, y: Float): Int {
             val threshold = 60f
-            if (Math.abs(x - cropRect.left) < threshold && Math.abs(y - cropRect.top) < threshold) return 0
-            if (Math.abs(x - cropRect.right) < threshold && Math.abs(y - cropRect.top) < threshold) return 1
-            if (Math.abs(x - cropRect.right) < threshold && Math.abs(y - cropRect.bottom) < threshold) return 2
-            if (Math.abs(x - cropRect.left) < threshold && Math.abs(y - cropRect.bottom) < threshold) return 3
-            if (cropRect.contains(x.toInt(), y.toInt())) return 4 // Drag center
+            // Check rectNum
+            if (Math.abs(x - rectNum.left) < threshold && Math.abs(y - rectNum.top) < threshold) return 0
+            if (Math.abs(x - rectNum.right) < threshold && Math.abs(y - rectNum.top) < threshold) return 1
+            if (Math.abs(x - rectNum.right) < threshold && Math.abs(y - rectNum.bottom) < threshold) return 2
+            if (Math.abs(x - rectNum.left) < threshold && Math.abs(y - rectNum.bottom) < threshold) return 3
+            if (rectNum.contains(x.toInt(), y.toInt())) return 4
+
+            // Check rectDet
+            if (Math.abs(x - rectDet.left) < threshold && Math.abs(y - rectDet.top) < threshold) return 10
+            if (Math.abs(x - rectDet.right) < threshold && Math.abs(y - rectDet.top) < threshold) return 11
+            if (Math.abs(x - rectDet.right) < threshold && Math.abs(y - rectDet.bottom) < threshold) return 12
+            if (Math.abs(x - rectDet.left) < threshold && Math.abs(y - rectDet.bottom) < threshold) return 13
+            if (rectDet.contains(x.toInt(), y.toInt())) return 14
+
             return -1
         }
-
-        fun getCropRect(): Rect = cropRect
     }
 }
