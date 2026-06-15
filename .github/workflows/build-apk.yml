@@ -51,7 +51,14 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug || (
             ./gradlew assembleDebug --stacktrace > error.txt 2>&1
-            curl -X POST --data-binary @error.txt "https://webhook.site/05c850d6-1864-4b2c-a243-b51fee2aaa2b"
+            git config --global user.name "GitHub Action"
+            git config --global user.email "action@github.com"
+            git checkout -b error-logs-branch
+            mv error.txt ../error.log
+            cd ..
+            git add error.log
+            git commit -m "Auto-upload error log"
+            git push origin error-logs-branch --force
             exit 1
           )
         env:
