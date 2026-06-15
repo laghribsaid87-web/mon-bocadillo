@@ -557,7 +557,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             
             val contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
-            Journal.log("JSON généré: ${contenuEcran.take(100)}...")
+            
+            // Log prominently for debugging
+            try {
+                val jsonResult = org.json.JSONObject(contenuEcran)
+                val readId = jsonResult.optString("orderId", "N/A")
+                val readItems = jsonResult.optString("rawItemsText", "")
+                Journal.log("===========================")
+                Journal.log("✅ COMMANDE LUE : $readId")
+                Journal.log("---------------------------")
+                Journal.log(if (readItems.isNotEmpty()) readItems else "(Aucun détail trouvé)")
+                Journal.log("===========================")
+            } catch (e: Exception) {
+                Journal.log("JSON généré: ${contenuEcran.take(100)}...")
+            }
 
             // 5. Click "Modifier"
             Journal.log("Clic sur '$labelModifier'")
@@ -685,21 +698,29 @@ class AutomatorAccessibilityService : AccessibilityService() {
     
 
     
-    private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<Pair<android.graphics.Rect, String>>) {
+    private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<Pair<android.graphics.Rect, String>>, rectNum: android.graphics.Rect? = null, rectDet: android.graphics.Rect? = null) {
         if (node == null) return
+        
         val rect = android.graphics.Rect()
         node.getBoundsInScreen(rect)
-        val text = node.text?.toString()?.trim()
-        val desc = node.contentDescription?.toString()?.trim()
         
-        if (!text.isNullOrEmpty()) {
-            list.add(Pair(rect, text))
-        } else if (!desc.isNullOrEmpty()) {
-            list.add(Pair(rect, desc))
+        val isInsideCrop = (rectNum == null && rectDet == null) || 
+                           (rectNum != null && android.graphics.Rect.intersects(rectNum, rect)) || 
+                           (rectDet != null && android.graphics.Rect.intersects(rectDet, rect))
+        
+        if (isInsideCrop) {
+            val text = node.text?.toString()?.trim()
+            val desc = node.contentDescription?.toString()?.trim()
+            
+            if (!text.isNullOrEmpty()) {
+                list.add(Pair(rect, text))
+            } else if (!desc.isNullOrEmpty()) {
+                list.add(Pair(rect, desc))
+            }
         }
         
         for (i in 0 until node.childCount) {
-            collectTextNodes(node.getChild(i), list)
+            collectTextNodes(node.getChild(i), list, rectNum, rectDet)
         }
     }
 
