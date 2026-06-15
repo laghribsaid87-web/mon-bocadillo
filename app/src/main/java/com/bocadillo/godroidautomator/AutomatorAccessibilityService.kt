@@ -719,6 +719,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Envoi RAPIDE vers KDS (sans numéro)...")
             NetworkClient.sendOrderData(this, "", contenuEcran)
 
+            Journal.log("Attente de 2 secondes avant de cliquer sur Modifier...")
+            delay(2000)
+
             // 5. Click "Modifier"
             Journal.log("Clic sur '$labelModifier'")
             clickByText(labelModifier)
