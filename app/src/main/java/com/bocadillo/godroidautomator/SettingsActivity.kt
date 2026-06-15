@@ -118,7 +118,9 @@ class SettingsActivity : AppCompatActivity() {
                     startActivity(intent)
                     Toast.makeText(this@SettingsActivity, "Veuillez autoriser l'affichage superposé", Toast.LENGTH_LONG).show()
                 } else {
-                    startActivity(Intent(this@SettingsActivity, OverlayActivity::class.java))
+                    startService(Intent(this@SettingsActivity, OverlayService::class.java))
+                    Toast.makeText(this@SettingsActivity, "Ouvrez Glovo pour ajuster les cadres", Toast.LENGTH_LONG).show()
+                    finish()
                 }
             }
         }

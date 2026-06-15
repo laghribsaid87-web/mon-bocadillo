@@ -1,23 +1,46 @@
 package com.bocadillo.godroidautomator
 
-import android.app.Activity
+import android.app.Service
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PixelFormat
 import android.graphics.Rect
-import android.os.Bundle
+import android.os.IBinder
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.Toast
 
-class OverlayActivity : Activity() {
+class OverlayService : Service() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    private lateinit var windowManager: WindowManager
+    private lateinit var mainLayout: FrameLayout
+
+    override fun onBind(intent: Intent?): IBinder? {
+        return null
+    }
+
+    override fun onCreate() {
+        super.onCreate()
         
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.TOP or Gravity.START
+
         val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
         
         // Load Num Rect
@@ -53,8 +76,8 @@ class OverlayActivity : Activity() {
                     putInt("cropDetBottom", cropView.rectDet.bottom)
                     apply()
                 }
-                Toast.makeText(this@OverlayActivity, "Zones sauvegardées !", Toast.LENGTH_SHORT).show()
-                finish()
+                Toast.makeText(this@OverlayService, "Zones sauvegardées !", Toast.LENGTH_SHORT).show()
+                stopSelf()
             }
         }
 
@@ -62,7 +85,7 @@ class OverlayActivity : Activity() {
             text = "Annuler"
             setBackgroundColor(Color.parseColor("#F44336"))
             setTextColor(Color.WHITE)
-            setOnClickListener { finish() }
+            setOnClickListener { stopSelf() }
         }
 
         val btnClear = Button(this).apply {
@@ -81,30 +104,38 @@ class OverlayActivity : Activity() {
                     putInt("cropDetBottom", 0)
                     apply()
                 }
-                Toast.makeText(this@OverlayActivity, "Zones désactivées (Lecture complète)", Toast.LENGTH_SHORT).show()
-                finish()
+                Toast.makeText(this@OverlayService, "Zones désactivées (Lecture complète)", Toast.LENGTH_SHORT).show()
+                stopSelf()
             }
         }
 
-        val buttonsLayout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.HORIZONTAL
+        val buttonsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
             addView(btnSave)
             addView(btnClear)
             addView(btnCancel)
         }
 
-        val mainLayout = FrameLayout(this).apply {
+        mainLayout = FrameLayout(this).apply {
             addView(cropView)
             addView(buttonsLayout, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                 bottomMargin = 50
             })
         }
 
-        setContentView(mainLayout)
+        // Add to WindowManager
+        windowManager.addView(mainLayout, params)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::mainLayout.isInitialized) {
+            windowManager.removeView(mainLayout)
+        }
     }
 
     class CropView(context: Context, var rectNum: Rect, var rectDet: Rect) : View(context) {
