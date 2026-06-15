@@ -583,22 +583,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // 3. Wait until the order details are loaded (we check for 'Modifier' or 'Client')
-            Journal.log("Attente de l'ouverture de la commande...")
-            // On attend que le bouton Modifier apparaisse (il est dans les détails)
-            val orderOpened = waitUntilTextAppears(labelModifier, 4000)
-            
-            if (!orderOpened) {
-                Journal.log("La commande ne s'est pas ouverte ! Deuxième essai...")
-                clickByText(labelMins)
-                if (!waitUntilTextAppears(labelModifier, 4000)) {
-                    Journal.log("ERREUR: Impossible d'ouvrir la commande. Annulation pour éviter les erreurs.")
-                    return // Stop sequence to avoid sending garbage data
-                }
-            }
-            
-            // Wait extra time for the transition animation and list to fully load
-            delay(2000)
+            // 3. Wait a short, fixed time for the order details to open (1.5 seconds)
+            Journal.log("Attente de l'ouverture de la commande (1.5s)...")
+            delay(1500)
 
             // 4. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
