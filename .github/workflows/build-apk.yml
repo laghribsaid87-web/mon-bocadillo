@@ -50,11 +50,16 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug || (
-            ./gradlew assembleDebug --stacktrace > error.txt 2>&1
-            tail -n 100 error.txt > short_error.txt
-            curl -X POST --data-binary @short_error.txt "https://webhook.site/05c850d6-1864-4b2c-a243-b51fee2aaa2b"
+            ./gradlew assembleDebug --stacktrace > ../error.log 2>&1
             exit 1
           )
+
+      - name: Upload Error Log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ERROR-LOG
+          path: error.log
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
