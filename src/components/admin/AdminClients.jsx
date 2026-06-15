@@ -62,6 +62,7 @@ export default function AdminClients({
         });
 
         return allClients
+        .filter(c => !c.deleted)
         .map(c => {
             // Utiliser les données indexées au lieu de refiltrer tout le tableau safeOrders
             const clientOrdersMap = new Map();
@@ -130,7 +131,16 @@ export default function AdminClients({
         if(window.confirm(`Wach met2ked bghiti tsprimi ${selectedClients.length} comptes f de99a?`)) {
             showNotify("Jari l'msi7...", "info");
             try {
-                await Promise.all(selectedClients.map(id => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', id))));
+                await Promise.all(selectedClients.map(async id => {
+                    if (id.startsWith('glovo-')) {
+                        const phone = id.replace('glovo-', '');
+                        // Mark as deleted to prevent dynamic respawning
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', phone), { deleted: true }, { merge: true });
+                    } else {
+                        // For regular clients, we also set deleted: true just in case they have orders that might respawn them
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', id), { deleted: true }, { merge: true });
+                    }
+                }));
                 showNotify(`${selectedClients.length} comptes tms7o ✅`, "success");
                 setSelectedClients([]);
             } catch (e) {

@@ -23,6 +23,7 @@ const AdminMaintenance = lazy(() => import('../components/admin/AdminMaintenance
 const PosDashboard = lazy(() => import('./PosDashboard'));
 const AchatInventaire = lazy(() => import('./AchatInventaire'));
 const FicheTechnique = lazy(() => import('./FicheTechnique'));
+const KitchenReports = lazy(() => import('../components/admin/KitchenReports'));
 
 export default function AdminDashboard({ role, managerBranchId, orders, updateStatus, clientsList, onlineDrivers, settings, posStatuses, brand, setBrand, saveSettings, db, showNotify, handleReassignOrder, printTicket, defaultMenu, onLogout, appId }) {
     const [tab, setTab] = useState('active'); 
@@ -947,6 +948,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                 {renderNavItem({ id: "history", icon: <History size={20}/>, label: "Historique", hidden: !hasAccess('history') })}
                 {renderNavItem({ id: "analytics", icon: <TrendingUp size={20}/>, label: "Analyses & Stats", hidden: role === 'manager' })}
                 {renderNavItem({ id: "glovo_report", icon: <Calculator size={20}/>, label: "Rapport Glovo", hidden: role === 'manager' })}
+                {renderNavItem({ id: "kitchen_perf", icon: <ChefHat size={20}/>, label: "Perf. Cuisine", hidden: role === 'manager' })}
                 {renderNavItem({ id: "drivers", icon: <Truck size={20}/>, label: "Livreurs", badge: (clientsList||[]).filter(c => c.isDriver === true && (liveOnlineDrivers||[]).some(od => ((c.uid && od.uid === c.uid) || (od.phone && c.id && od.phone === c.id)) && isDriverOnline(od))).length, hidden: !hasAccess('drivers') })}
                 {renderNavItem({ id: "maps", icon: <MapIcon size={20}/>, label: "Live Maps", hidden: !hasAccess('maps') })}
                 {renderNavItem({ id: "clients", icon: <Users size={20}/>, label: "Livreurs & Comptes", hidden: !hasAccess('clients') })}
@@ -2108,6 +2110,10 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                         handleAddDriverSubmit={handleAddDriverSubmit}
                     />
                 )}
+
+                    {tab === 'kitchen_perf' && role === 'admin' && (
+                        <KitchenReports db={db} appId={appId} settings={settings} />
+                    )}
 
                     {tab === 'config' && role === 'admin' && (
                     <AdminConfig

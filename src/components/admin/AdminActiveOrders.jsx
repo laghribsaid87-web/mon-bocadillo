@@ -189,6 +189,9 @@ export default function AdminActiveOrders({
                     const dPhone = (clientsList||[]).find(c => (c.uid && c.uid === o.driverId) || (o.driverId && c.phone === o.driverId))?.phone || '';
                     const theme = getSourceTheme(o, index, brand.color);
 
+                    const clientData = (clientsList||[]).find(c => c.phone === o.phone);
+                    const cMapLink = o.mapsLink || ((o.lat && o.lng) ? `https://maps.google.com/?q=${o.lat},${o.lng}` : null) || ((clientData?.location?.lat && clientData?.location?.lng) ? `https://maps.google.com/?q=${clientData.location.lat},${clientData.location.lng}` : null) || (o.address && o.address.length > 5 ? `https://maps.google.com/?q=${encodeURIComponent(o.address)}` : null);
+
                     return (
                         <div key={o.id} className={`bg-white rounded-2xl shadow-lg border relative overflow-hidden flex flex-col hover:shadow-xl transition-all ${theme.cardClass}`} style={theme.cardStyle}>
                             {/* Top Border Indicator */}
@@ -255,6 +258,11 @@ export default function AdminActiveOrders({
                                         <div className="flex items-center gap-2 mt-0.5">
                                             <p className="text-[10px] text-green-700 font-bold flex items-center gap-1 bg-green-50 px-1.5 py-0.5 rounded border border-green-200"><Phone size={10} className="text-green-500"/> {o.phone && o.phone.length > 15 ? 'Sans Numéro' : (o.phone || 'Sans Numéro')}</p>
                                             <p className="text-[9px] font-bold text-gray-500 flex items-center gap-1 uppercase"><MapIcon size={10} className="text-gray-400"/> {o.nearestBranch?.name}</p>
+                                            {cMapLink && (
+                                                <a href={cMapLink} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-700 font-bold flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm" onClick={(e) => e.stopPropagation()}>
+                                                    <MapPin size={10} className="text-blue-500"/> Maps
+                                                </a>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex flex-col items-end shrink-0">

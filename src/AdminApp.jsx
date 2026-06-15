@@ -218,8 +218,20 @@ function AdminAppInner() {
                     let items = [];
                     let hasParsedSomething = false;
 
-                    // 1. OLD METHOD (JSON)
-                    if (orderData.raw_text) {
+                    // 1. Détection de l'ancien format (JSON) vs nouveau format (Texte Brut)
+                    let isOldJsonFormat = false;
+                    try {
+                        if (orderData.raw_text) {
+                            if (typeof orderData.raw_text === 'object') {
+                                isOldJsonFormat = true;
+                            } else if (typeof orderData.raw_text === 'string') {
+                                const t = orderData.raw_text.trim();
+                                if (t.startsWith('{') || t.startsWith('[')) isOldJsonFormat = true;
+                            }
+                        }
+                    } catch(e) {}
+
+                    if (isOldJsonFormat) {
                         let rawJson = typeof orderData.raw_text === 'string' ? JSON.parse(orderData.raw_text) : orderData.raw_text;
                         let phoneJson = orderData.phone_text ? (typeof orderData.phone_text === 'string' ? JSON.parse(orderData.phone_text) : orderData.phone_text) : null;
                         let content = rawJson.tout || rawJson;
@@ -252,11 +264,13 @@ function AdminAppInner() {
                         hasParsedSomething = true;
                     } 
                     
-                    // 2. NEW METHOD (TEXT MACRODROID in orderNote)
-                    else if (orderData.orderNote) {
-                        const text = String(orderData.orderNote);
+                    // 2. NEW METHOD (TEXT GODROID AUTOMATOR)
+                    else if (orderData.orderNote || orderData.raw_text || orderData.phone_text) {
+                        const textBody = String(orderData.raw_text || orderData.orderNote || "");
+                        const phoneBody = String(orderData.phone_text || "");
+                        const text = textBody + "\n" + phoneBody;
                         
-                        // Attempt to extract JSON from MacroDroid UI Dump
+                        // Attempt to extract JSON from GoDroid Automator UI Dump
                         let jsonStart = text.indexOf('{');
                         let arrayStart = text.indexOf('[{');
                         if (arrayStart !== -1 && (arrayStart < jsonStart || jsonStart === -1)) jsonStart = arrayStart;
@@ -315,14 +329,26 @@ function AdminAppInner() {
                                         price: item.price || 0 
                                     }); 
                                 });
-                            } catch (err) { console.error("Could not parse MacroDroid UI JSON", err); }
+                            } catch (err) { console.error("Could not parse GoDroid Automator UI JSON", err); }
                         }
 
-                        // Parse Phone Number using regex fallback (Trés permissif pour les numéros Glovo)
-                        // Cherche toute séquence de 9 à 15 chiffres (avec ou sans espaces/tirets/plus)
-                        const phoneMatch = text.replace(/[\s\-]/g, '').match(/(\+?\d{9,15})/);
-                        if (phoneMatch && phone === "Inconnu") {
-                            phone = phoneMatch[1].trim();
+                        // Parse Phone Number and Name using lines from phoneBody
+                        let phoneLines = phoneBody.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                        let phoneIndex = phoneLines.findIndex(l => l.replace(/[\s\-]/g, '').match(/^(\+?\d{9,15})$/));
+                        
+                        if (phoneIndex !== -1) {
+                            let extractedPhone = phoneLines[phoneIndex].replace(/[\s\-]/g, '').match(/(\+?\d{9,15})/)[1];
+                            if (phone === "Inconnu") phone = extractedPhone;
+                            if (phoneIndex > 0 && name === "Client Glovo") {
+                                name = phoneLines[phoneIndex - 1];
+                            }
+                        } else {
+                            // Backup regex for textBody
+                            const cleanText = text.replace(/[\s\-]/g, '');
+                            let phoneMatch = cleanText.match(/(\+?\d{9,15})/);
+                            if (phoneMatch && phone === "Inconnu") {
+                                phone = phoneMatch[1].trim();
+                            }
                         }
                         
                         // Fallback if no items extracted

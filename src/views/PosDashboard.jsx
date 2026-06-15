@@ -809,14 +809,16 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             if (o.source === 'pos') cPos += t;
             else if (o.source === 'telephone') cTel += t;
             else if (o.source === 'glovo') {
-                if (o.paymentMethod === 'espece') cGlovoEspece += t;
+                if (o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') cGlovoEspece += t;
                 else cGlovoEnLigne += t;
             }
             else cApp += t;
 
             (o.items || []).forEach(i => { 
                 const baseName = (i.name || '').split(' (Sans ')[0]; 
-                itemsMap[baseName] = (itemsMap[baseName] || 0) + i.qty; 
+                const sourcePrefix = o.source === 'glovo' ? 'Vente GLOVO : ' : 'Vente CAISSE : ';
+                const finalName = sourcePrefix + baseName;
+                itemsMap[finalName] = (itemsMap[finalName] || 0) + i.qty; 
             });
         });
 
@@ -1515,7 +1517,16 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         const branch = (settings?.branches || []).find(b => b.id === activeBranchId);
         const itemsHtml = dailyItemsList.map(([name, qty]) => `<div style="display:flex; justify-content:space-between;"><span>${qty}x ${name}</span><span></span></div>`).join('');
         
-        const repartitionHtml = isAdmin ? `\n            <p style="text-align:left; font-weight:bold; margin:5px 0;">Répartition C.A :</p>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Sur Place (Caisse):</span><span>${caPos} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Glovo (Espèce):</span><span>${caGlovoEspece} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Glovo (En Ligne):</span><span>${caGlovoEnLigne} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Web App:</span><span>${caApp} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Standard (Tél):</span><span>${caTel} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Achats (Dépenses):</span><span>-${totalAchats} DH</span></div>\n            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:bold;"><span>Net (Espèce Caisse + Glovo - Achats):</span><span>${(caPos + caGlovoEspece) - totalAchats} DH</span></div>\n            <hr style="border-top:1px dashed #000; margin:10px 0;"/>\n` : '';
+        const repartitionHtml = `\n
+            <p style="text-align:left; font-weight:bold; margin:5px 0;">Répartition C.A :</p>
+            ${isAdmin ? `<div style="display:flex; justify-content:space-between; font-size:12px;"><span>Sur Place (Caisse):</span><span>${caPos} DH</span></div>` : ''}
+            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:bold; color:#16a34a;"><span>Glovo (Espèce):</span><span>${caGlovoEspece} DH</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Glovo (En Ligne):</span><span>${caGlovoEnLigne} DH</span></div>
+            ${isAdmin ? `<div style="display:flex; justify-content:space-between; font-size:12px;"><span>Web App:</span><span>${caApp} DH</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Standard (Tél):</span><span>${caTel} DH</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span>Achats (Dépenses):</span><span>-${totalAchats} DH</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:bold;"><span>Net (Espèce Caisse + Glovo - Achats):</span><span>${(caPos + caGlovoEspece) - totalAchats} DH</span></div>` : ''}
+            <hr style="border-top:1px dashed #000; margin:10px 0;"/>\n`;
         
         const html = `<html><head><title>Rapport ${type}</title></head>
         <body style="font-family:monospace; padding:10px; font-size:14px; color:#000; text-align:center;">
@@ -2463,7 +2474,7 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                             <span className="font-black text-gray-900 text-lg">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
                                             <span className="text-sm font-bold text-gray-500">{o.customerName || o.name || o.phone}</span>
                                         </div>
-                                        <span className="font-black text-red-600 text-lg">{o.total} DH</span>
+                                        <span className="font-black text-red-600 text-lg">{o.total || '???'} DH</span>
                                     </div>
                                     <p className="text-sm text-red-600 font-bold bg-red-100/50 w-fit px-3 py-1 rounded-lg">
                                         🚨 {o.adminMessage ? o.adminMessage : 
@@ -2597,20 +2608,26 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                             <div className="flex flex-col">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-black text-xl text-yellow-600 uppercase">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
-                                                    {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && (
-                                                        <span className="text-[10px] text-green-700 bg-green-100 px-2 py-1 rounded-md border border-green-300 font-black animate-pulse">ESPECE 💵 $</span>
+                                                    {(o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? (
+                                                        <span className="text-[10px] text-green-700 bg-green-100 px-2 py-1 rounded-md border border-green-300 font-black animate-pulse">ESPECE 💵 À ENCAISSER: {o.total || '???'} DH</span>
+                                                    ) : (
+                                                        <span className="text-[10px] text-blue-700 bg-blue-100 px-2 py-1 rounded-md border border-blue-300 font-black">EN LIGNE 💳 (DÉJÀ PAYÉ)</span>
                                                     )}
                                                 </div>
                                                 <span className="text-xs font-bold text-gray-500 mt-1">{o.items?.length || 0} article(s)</span>
                                             </div>
                                             <div className="flex flex-col items-end">
-                                                <span className="font-black text-lg text-gray-900">{o.total} DH</span>
+                                                <span className="font-black text-lg text-gray-900">{o.total || '???'} DH</span>
                                             </div>
                                         </div>
-                                        {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && (
+                                        {(o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? (
                                             <div className="bg-green-100 border-2 border-green-400 text-green-800 p-3 rounded-lg text-center font-black animate-pulse shadow-sm flex flex-col">
                                                 <span className="text-xs uppercase opacity-80 mb-1">TOTAL À PAYER (CE QUE LE LIVREUR DOIT DONNER)</span>
-                                                <span className="text-2xl">{o.total} DH</span>
+                                                <span className="text-2xl">{o.total || '???'} DH</span>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-lg text-center font-bold shadow-sm">
+                                                <span className="text-xs uppercase opacity-80">Commande En Ligne (Déjà Payée)</span>
                                             </div>
                                         )}
                                         <button onClick={() => { 
@@ -2665,11 +2682,11 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                     </div>
                                     <div className="flex flex-col items-center border-l border-gray-100">
                                         <span className="text-[8px] text-gray-400 uppercase font-bold text-center">Glovo<br/>Espèce</span>
-                                        <span className="text-xs font-black text-green-600">{isAdmin ? `${caGlovoEspece} DH` : '***'}</span>
+                                        <span className="text-xs font-black text-green-600">{caGlovoEspece} DH</span>
                                     </div>
                                     <div className="flex flex-col items-center border-l border-gray-100">
                                         <span className="text-[8px] text-gray-400 uppercase font-bold text-center">Glovo<br/>En Ligne</span>
-                                        <span className="text-xs font-black text-green-600">{isAdmin ? `${caGlovoEnLigne} DH` : '***'}</span>
+                                        <span className="text-xs font-black text-green-600">{caGlovoEnLigne} DH</span>
                                     </div>
                                     <div className="flex flex-col items-center border-l border-gray-100">
                                         <span className="text-[8px] text-gray-400 uppercase font-bold text-center">Web App</span>
@@ -3012,7 +3029,8 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                                         updateStatus(o.id, 'ready');
                                                         showNotify("Commande marquée prête! ✅", "success");
                                                     }} className="flex-1 bg-orange-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-orange-600 transition-colors shadow-sm flex items-center justify-center gap-2">
-                                                        <ChefHat size={16}/> Marquer Prête
+                                                        <ChefHat size={16}/> 
+                                                        {o.source === 'glovo' && (o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? 'Prête (💶 À ENCAISSER CASH)' : 'Marquer Prête'}
                                                     </button>
                                                 )}
 

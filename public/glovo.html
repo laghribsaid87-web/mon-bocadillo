@@ -39,7 +39,7 @@
     </div>
 
     <script>
-        fetch('https://api.github.com/repos/laghribsaid87-web/mon-bocadillo/releases')
+        fetch('https://api.github.com/repos/laghribsaid87-web/mon-bocadillo/releases?_t=' + new Date().getTime())
             .then(response => response.json())
             .then(data => {
                 document.getElementById('loading').classList.add('hidden');

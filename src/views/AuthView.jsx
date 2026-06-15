@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageCircle, AlertTriangle, X, Share, PlusSquare, BellRing, Phone, User, Navigation, CheckCircle } from 'lucide-react';
+import { MessageCircle, AlertTriangle, X, Minus, Share, PlusSquare, BellRing, Phone, User, Navigation, CheckCircle } from 'lucide-react';
 import { doc, getDoc, updateDoc, increment, setDoc, serverTimestamp } from 'firebase/firestore';
 import { formatPhoneNumber, getWhatsAppFormat, getClosestBranch, buildMessage } from '../utils/helpers';
 import { DEFAULT_BRANCHES, DEFAULT_BRAND } from '../config/constants';
@@ -22,12 +22,10 @@ export default function AuthView({ onComplete, brand, settings, showNotify, db }
     
     const activeBranches = settings.branches || DEFAULT_BRANCHES; 
     const btnRadius = brand.buttonStyle === 'square' ? 'rounded-xl' : (brand.buttonStyle === 'rounded' ? 'rounded-2xl' : 'rounded-full');
-    
     useEffect(() => {
         // Zoom global de l'interface (Ajusté pour être un peu plus grand)
         document.documentElement.style.fontSize = '13px';
     }, []);
-
     useEffect(() => {
         const isIos = () => {
           const userAgent = window.navigator.userAgent.toLowerCase();
@@ -187,8 +185,30 @@ const proceedToGps = async (finalName, finalPhone) => {
         <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full mix-blend-multiply filter blur-[80px] opacity-40 animate-pulse z-0 pointer-events-none" style={{backgroundColor: brand.color}}></div>
         <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full mix-blend-multiply filter blur-[80px] opacity-30 animate-pulse z-0 pointer-events-none" style={{backgroundColor: brand.color, animationDelay: '2s'}}></div>
 
+        {/* Electron Window Controls */}
+        <div className="absolute top-4 right-4 z-[100] flex items-center gap-2">
+            <button onClick={() => {
+                if (window.require) {
+                    const { ipcRenderer } = window.require('electron');
+                    ipcRenderer.send('minimize-window');
+                }
+            }} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-black/5 rounded-xl transition-all shadow-sm backdrop-blur-sm bg-white/50 border border-white/20" title="Réduire">
+                <Minus size={18} strokeWidth={3} />
+            </button>
+            <button onClick={() => {
+                if (window.require) {
+                    const { ipcRenderer } = window.require('electron');
+                    ipcRenderer.send('close-window');
+                } else {
+                    window.close();
+                }
+            }} className="p-2 text-gray-400 hover:text-white hover:bg-red-500 rounded-xl transition-all shadow-sm backdrop-blur-sm bg-white/50 border border-white/20" title="Fermer">
+                <X size={18} strokeWidth={3} />
+            </button>
+        </div>
+
         {showInstallBtn && (
-          <div className="absolute top-6 right-6 z-50">
+          <div className="absolute top-16 right-4 z-50">
              <button onClick={handleInstallApp} className="px-5 py-2.5 text-[11px] font-black uppercase shadow-[0_10px_20px_rgba(0,0,0,0.15)] active:scale-95 transition-all animate-bounce rounded-full border-2 border-white/50 backdrop-blur-md" style={{backgroundColor: brand.color, color: '#000'}}>
                📲 Installer l'App
              </button>

@@ -182,7 +182,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
         prevOrdersRef.current = currentIds;
     }, [preparingOrders]);
 
-    // Extraction automatique du nmro de tlphone pour les commandes MacroDroid (Glovo)
+    // Extraction automatique du nmro de tlphone pour les commandes GoDroid Automator (Glovo)
     useEffect(() => {
         preparingOrders.forEach(async (order) => {
             if (order.source === 'glovo' && order.orderNote && !order.phone) {
@@ -269,15 +269,19 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     const markOrderAsReady = (orderId) => {
         const order = preparingOrders.find(o => o.id === orderId || o.orderNumber === orderId);
         if (order) {
+            const createdMs = order.createdAt?.seconds ? order.createdAt.seconds * 1000 : (order.offlineCreatedAt || Date.now());
+            const readyMs = Date.now();
+            const prepTimeMinutes = Math.max(1, Math.round((readyMs - createdMs) / 60000)); // Minimum 1 min
+
             // Si c'est une commande locale (WiFi), on émet l'event au WebSocket
             if (localSocketRef.current && wsConnected && (order.source === 'pos' || order.orderType === 'sur_place' || order.orderType === 'a_emporter')) {
-                localSocketRef.current.emit('update_local_status', { id: order.id, orderNumber: order.orderNumber, status: 'ready' });
+                localSocketRef.current.emit('update_local_status', { id: order.id, orderNumber: order.orderNumber, status: 'ready', prepTime: prepTimeMinutes });
                 // On met à jour l'état local immédiatement
                 setLocalOrders(prev => prev.filter(o => o.id !== orderId && o.orderNumber !== orderId));
             }
             
             // Toujours mettre à jour sur Firebase (pour l'écran TV et la caisse)
-            updateStatus(order.id, 'ready'); 
+            updateStatus(order.id, 'ready', { prepTime: prepTimeMinutes }); 
         }
     };
 
@@ -384,6 +388,10 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     ))}
                                 </select>
                             )}
+                            
+                            {/* 🔥 Jdid: Sélecteur du Chef (Staff Cuisine) supprimé selon la demande */}
+
+
                             {!isSoundEnabled && (
                                 <button onClick={enableSound} className="animate-pulse bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-2 transition-colors whitespace-nowrap ml-2">
                                     🔔 Activer Son
@@ -573,7 +581,9 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         );
                                     })()}
                                 </div>
-                            <button onClick={() => markOrderAsReady(o.id)} className="w-full py-3 text-white font-black text-xs uppercase tracking-wider transition-colors hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a' }}>{brand.texts?.btnKdsReady || 'Prêt'}</button>
+                            <button onClick={() => markOrderAsReady(o.id)} className="w-full py-3 text-white font-black text-xs uppercase tracking-wider transition-colors hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a' }}>
+                                {o.source === 'glovo' && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Prêt (💵 CASH)' : (brand.texts?.btnKdsReady || 'Prêt')}
+                            </button>
                             </div>
                         );
                     })}
@@ -683,9 +693,23 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                 })()}
                             </div>
                             
+                            
+                            {/* Warning pour Glovo Cash */}
+                            {o.source === 'glovo' && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && (
+                                <div className="p-3 bg-red-900/50 border-t border-b border-red-500/50 flex flex-col items-center justify-center text-center animate-pulse">
+                                    <span className="text-white font-black text-xl uppercase tracking-widest">⚠️ GLOVO ESPÈCE ⚠️</span>
+                                    <span className="text-red-200 font-bold text-sm">LE LIVREUR DOIT PAYER EN CASH</span>
+                                </div>
+                            )}
+
                             {/* Bouton de validation final */}
                             <div className="p-6 bg-neutral-900 border-t border-neutral-800 shrink-0">
-                                <button onClick={() => markOrderAsReady(o.id)} className="w-full py-6 text-white rounded-[1.5rem] font-black text-lg uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-3 hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a', boxShadow: `0 0 30px ${brand.kdsBtnReadyColor || '#16a34a'}40` }}><CheckCircle size={28} /> {o.source === 'pos' ? 'Prêt (Servi)' : (brand.texts?.btnKdsReady || 'Prêt (Wajad)')}</button>
+                                <button onClick={() => markOrderAsReady(o.id)} className="w-full py-6 text-white rounded-[1.5rem] font-black text-lg uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-3 hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a', boxShadow: `0 0 30px ${brand.kdsBtnReadyColor || '#16a34a'}40` }}>
+                                    <CheckCircle size={28} /> 
+                                    {o.source === 'pos' ? 'Prêt (Servi)' : 
+                                     (o.source === 'glovo' && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Prêt (💵 À ENCAISSER CASH)' : 
+                                     (brand.texts?.btnKdsReady || 'Prêt (Wajad)'))}
+                                </button>
                             </div>
                         </div>
                         );

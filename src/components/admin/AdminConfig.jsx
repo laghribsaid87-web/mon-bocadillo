@@ -111,7 +111,8 @@ export default function AdminConfig({
     editableBranches, setEditableBranches,
     configTab, setConfigTab,
     activeEditZone, setActiveEditZone,
-    db, appId, showNotify
+    db, appId, hasAccess, role, managerBranchId,
+    clientsList, showNotify
 }) {
     const [showSimulator, setShowSimulator] = useState(false);
     const [printersList, setPrintersList] = useState([]);
@@ -480,9 +481,59 @@ export default function AdminConfig({
                      )}
 
                      {previewApp === 'pos' && (
+                     <>
+                     {/* THEME SELECTOR POS */}
+                     <div id="section-pos-theme" className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden mt-8">
+                         <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 cursor-pointer flex justify-between items-center hover:bg-gray-100/50 transition-colors" onClick={() => toggleSec('pos_theme')}>
+                             <h3 className="font-bold text-gray-800 flex items-center gap-2"><Palette size={18} className="text-blue-500"/> 5. Thème Global de la Caisse (PRO)</h3>
+                             {expandedSec.pos_theme !== false ? <ChevronUp size={18} className="text-gray-500"/> : <ChevronDown size={18} className="text-gray-500"/>}
+                         </div>
+                         {expandedSec.pos_theme !== false && (
+                         <div className="p-6 animate-in slide-in-from-top-2">
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                 {/* Light Theme */}
+                                 <div 
+                                     onClick={() => setBrand({...brand, posTheme: 'light'})}
+                                     className={`cursor-pointer rounded-2xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${(!brand.posTheme || brand.posTheme === 'light') ? 'border-blue-500 bg-blue-50/50 shadow-md scale-105' : 'border-gray-200 hover:border-gray-300 bg-white'}`}
+                                 >
+                                     <div className="w-full h-24 bg-[#f4f7f6] rounded-xl border border-gray-200 flex flex-col overflow-hidden">
+                                         <div className="h-6 bg-white border-b border-gray-200 flex items-center px-2 gap-1"><div className="w-2 h-2 rounded-full bg-red-400"></div><div className="w-2 h-2 rounded-full bg-yellow-400"></div><div className="w-2 h-2 rounded-full bg-green-400"></div></div>
+                                         <div className="flex-1 flex p-2 gap-2"><div className="w-1/3 bg-white rounded shadow-sm"></div><div className="flex-1 bg-white rounded shadow-sm"></div></div>
+                                     </div>
+                                     <span className="font-black text-gray-800">Light & Minimaliste</span>
+                                 </div>
+
+                                 {/* Dark Theme */}
+                                 <div 
+                                     onClick={() => setBrand({...brand, posTheme: 'dark'})}
+                                     className={`cursor-pointer rounded-2xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${brand.posTheme === 'dark' ? 'border-blue-500 bg-blue-50/50 shadow-md scale-105' : 'border-gray-200 hover:border-gray-300 bg-white'}`}
+                                 >
+                                     <div className="w-full h-24 bg-neutral-900 rounded-xl border border-neutral-700 flex flex-col overflow-hidden">
+                                         <div className="h-6 bg-neutral-800 border-b border-neutral-700 flex items-center px-2 gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div><div className="w-2 h-2 rounded-full bg-yellow-500"></div><div className="w-2 h-2 rounded-full bg-green-500"></div></div>
+                                         <div className="flex-1 flex p-2 gap-2"><div className="w-1/3 bg-neutral-800 rounded shadow-sm"></div><div className="flex-1 bg-neutral-800 rounded shadow-sm"></div></div>
+                                     </div>
+                                     <span className="font-black text-gray-800">Dark Mode (Premium)</span>
+                                 </div>
+
+                                 {/* Navy Theme */}
+                                 <div 
+                                     onClick={() => setBrand({...brand, posTheme: 'navy'})}
+                                     className={`cursor-pointer rounded-2xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${brand.posTheme === 'navy' ? 'border-blue-500 bg-blue-50/50 shadow-md scale-105' : 'border-gray-200 hover:border-gray-300 bg-white'}`}
+                                 >
+                                     <div className="w-full h-24 bg-slate-50 rounded-xl border border-slate-200 flex flex-col overflow-hidden">
+                                         <div className="h-6 bg-[#0f172a] flex items-center px-2 gap-1"><div className="w-2 h-2 rounded-full bg-red-400"></div><div className="w-2 h-2 rounded-full bg-yellow-400"></div><div className="w-2 h-2 rounded-full bg-green-400"></div></div>
+                                         <div className="flex-1 flex p-2 gap-2"><div className="w-1/3 bg-white rounded border border-slate-200 shadow-sm"></div><div className="flex-1 bg-white rounded border border-slate-200 shadow-sm"></div></div>
+                                     </div>
+                                     <span className="font-black text-gray-800">Classique Pro (Navy)</span>
+                                 </div>
+                             </div>
+                         </div>
+                         )}
+                     </div>
+
                      <div id="section-pos-colors" className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden mt-8">
                          <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 cursor-pointer flex justify-between items-center hover:bg-gray-100/50 transition-colors" onClick={() => toggleSec('pos_colors')}>
-                             <h3 className="font-bold text-gray-800 flex items-center gap-2"><Palette size={18} className="text-blue-500"/> 5. Couleurs des Boutons d'En-tête (POS)</h3>
+                             <h3 className="font-bold text-gray-800 flex items-center gap-2"><Palette size={18} className="text-blue-500"/> 6. Couleurs des Boutons d'En-tête (POS)</h3>
                              {expandedSec.pos_colors !== false ? <ChevronUp size={18} className="text-gray-500"/> : <ChevronDown size={18} className="text-gray-500"/>}
                          </div>
                          {expandedSec.pos_colors !== false && (
@@ -518,6 +569,7 @@ export default function AdminConfig({
                          </div>
                          )}
                      </div>
+                     </>
                      )}
                  </div>
                  )}
@@ -939,6 +991,10 @@ export default function AdminConfig({
                                              </label>
                                          </div>
                                      </label>
+                                     <label className="block md:col-span-2 xl:col-span-3">
+                                             <span className="text-xs font-black text-gray-900 mb-1.5 block">Staff Cuisine (Séparés par des virgules)</span>
+                                             <input className="w-full bg-white border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all shadow-sm" value={Array.isArray(branch.kitchenStaff) ? branch.kitchenStaff.join(', ') : (branch.kitchenStaff || '')} onChange={e=>{const b=[...editableBranches]; b[idx].kitchenStaff=e.target.value.split(',').map(s=>s.trim()).filter(s=>s); setEditableBranches(b);}} placeholder="Ex: Simohamed, Yassine, Ayoub" />
+                                     </label>
                                  </div>
 
                                  {/* 🔥 MODULES AUTORISÉS (GESTION DES ACCÈS PAR AGENCE) */}
@@ -1008,6 +1064,30 @@ export default function AdminConfig({
                                                 <span className="text-xs font-bold text-gray-700">{btn.label}</span>
                                             </label>
                                         ))}
+                                    </div>
+                                </div>
+
+                                {/* 🔥 LIVREUR PAR DÉFAUT */}
+                                <div className="p-6 bg-purple-50/50 rounded-2xl border border-purple-100 shadow-sm mb-5 mt-5">
+                                    <h4 className="font-bold text-purple-900 mb-4 flex items-center gap-2">
+                                        <Truck size={18} /> Livreur par Défaut (Commandes / Glovo)
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <label className="block">
+                                            <span className="text-xs font-semibold text-purple-800 mb-1.5 block">Sélectionnez le livreur principal de cette agence</span>
+                                            <select
+                                                className="w-full bg-white border border-purple-200 px-4 py-2.5 rounded-xl text-sm font-medium text-purple-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none shadow-sm"
+                                                value={settings?.[`default_driver_${branch.id}`] || ''}
+                                                onChange={(e) => {
+                                                    saveSettings({ ...settings, [`default_driver_${branch.id}`]: e.target.value });
+                                                }}
+                                            >
+                                                <option value="">Aucun livreur par défaut</option>
+                                                {(clientsList || []).filter(c => c.isDriver).map(d => (
+                                                    <option key={d.uid || d.id} value={d.uid || d.id}>{d.name || d.phone}</option>
+                                                ))}
+                                            </select>
+                                        </label>
                                     </div>
                                 </div>
 

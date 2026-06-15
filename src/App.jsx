@@ -125,7 +125,102 @@ export default function App() {
     );
 
     const unsubOrders = onSnapshot(qOrders, (snap) => {
-      const ords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const ords = snap.docs.map(d => {
+        let orderData = d.data();
+        if (orderData.source === 'glovo' && orderData.raw_text && !orderData.parsedGlovo) {
+          try {
+            let rawJson = typeof orderData.raw_text === 'string' ? JSON.parse(orderData.raw_text) : orderData.raw_text;
+            let phoneJson = orderData.phone_text ? (typeof orderData.phone_text === 'string' ? JSON.parse(orderData.phone_text) : orderData.phone_text) : null;
+            
+            let content = rawJson.tout || rawJson;
+            let phoneContent = phoneJson ? (phoneJson.tout || phoneJson) : {};
+            
+            let items = [];
+            let name = "Client Glovo";
+            let phone = "";
+            let orderNumber = "";
+            let total = "";
+            
+            // Extract phone
+            for (let key in phoneContent) {
+              let val = phoneContent[key];
+              if (typeof val === 'string' && (val.includes('+212') || val.match(/^0[67]\d{8}$/))) {
+                phone = val.trim();
+              }
+            }
+            if(!phone && phoneContent["com.deliveryhero.rps.restaurantandroidapp:id/phone_number"]) {
+               phone = phoneContent["com.deliveryhero.rps.restaurantandroidapp:id/phone_number"];
+            }
+
+            // Extract order details
+            let itemsMap = {};
+            for (let key in content) {
+              let val = content[key];
+              if (typeof val !== 'string') continue;
+              
+              if (key.includes('customer_name')) name = val;
+              if (key.includes('order_number')) orderNumber = val;
+              if (key.includes('total_price')) total = val.replace('DH', '').trim();
+              
+              let m = key.match(/item_name\$(\d+)/);
+              if (m) {
+                let idx = m[1];
+                if (!itemsMap[idx]) itemsMap[idx] = {};
+                itemsMap[idx].name = val;
+              }
+              m = key.match(/multiplier_label\$(\d+)/);
+              if (m) {
+                let idx = m[1];
+                if (!itemsMap[idx]) itemsMap[idx] = {};
+                itemsMap[idx].qty = parseInt(val.replace('x', '').trim()) || 1;
+              }
+              m = key.match(/item_price\$(\d+)/);
+              if (m) {
+                let idx = m[1];
+                if (!itemsMap[idx]) itemsMap[idx] = {};
+                itemsMap[idx].price = parseFloat(val.replace(',', '.').replace('DH', '').trim()) || 0;
+              }
+            }
+            
+            Object.values(itemsMap).forEach(item => {
+               if(item.name) {
+                  items.push({
+                     name: item.name,
+                     qty: item.qty || 1,
+                     price: item.price || 0
+                  });
+               }
+            });
+            
+            orderData.customerName = name;
+            orderData.phone = phone || "Inconnu";
+            orderData.orderNumber = orderNumber;
+            orderData.total = total || "0";
+            orderData.items = items;
+            orderData.customerName = name;
+            orderData.phone = phone || "Inconnu";
+            orderData.orderNumber = orderNumber;
+            orderData.total = total || "0";
+            orderData.items = items;
+            orderData.parsedGlovo = true; // Flag to prevent re-parsing
+            
+            // 🔥 VERY IMPORTANT: Assign a branch so it shows up in KDS!
+            if (!orderData.nearestBranch) {
+               orderData.nearestBranch = { id: "laymoune", name: "Laymoune" }; 
+            }
+            
+          } catch(e) {
+            console.error("Erreur parsing Glovo JSON:", e);
+          }
+        }
+        
+        // Also fix any already existing ones
+        if (orderData.source === 'glovo' && !orderData.nearestBranch) {
+           orderData.nearestBranch = { id: "laymoune", name: "Laymoune" };
+        }
+        
+        return { id: d.id, ...orderData };
+      });
       setOrders(ords);
       
       let hasStatusChange = false;
@@ -150,6 +245,7 @@ export default function App() {
     
     if (updates.status) newStatus = updates.status; 
     
+
     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', id), {
       status: newStatus,
       updatedAt: serverTimestamp(),

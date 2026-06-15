@@ -1,0 +1,18 @@
+{
+  "orderNumber": "001",
+  "items": [
+    {
+      "id": "1",
+      "name": "Bocadillo (Sans Tomate)",
+      "category": "Sandwiches",
+      "price": 30,
+      "isEditingCartItemName": "Bocadillo",
+      "selectedSans": [
+        "Tomate"
+      ],
+      "selectedExtras": [],
+      "qty": 1
+    }
+  ],
+  "status": "preparing"
+}

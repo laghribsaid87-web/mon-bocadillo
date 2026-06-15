@@ -386,24 +386,161 @@ exports.verifyOrderSecurity = functions.firestore
         return null;
     });
 
-// 10. Webhook API Glovo (Pour recevoir les commandes en temps réel)
+// 10. Webhook API Glovo (Pour recevoir les commandes en temps réel + MacroDroid)
 exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if (req.method === 'OPTIONS') {
+        res.set('Access-Control-Allow-Methods', 'POST');
+        res.set('Access-Control-Allow-Headers', 'Content-Type');
+        res.status(204).send('');
+        return;
+    }
+
     if (req.method !== 'POST') {
         res.status(405).send('Method Not Allowed');
         return;
     }
 
     try {
-        const glovoOrder = req.body;
-        
+        const payload = Object.keys(req.body).length > 0 ? req.body : req.query;
+        const appId = "mon-bocadillo-menu";
+
+        // === CAS 1: Format MACRODROID (x-www-form-urlencoded ou json avec title/text) ===
+        if (payload.text || payload.title) {
+            let orderNumber = 'GLOVO';
+            const titleMatch = payload.title?.match(/#([A-Z0-9]+)/i);
+            if (titleMatch) orderNumber = titleMatch[1];
+            else if (payload.text) {
+                const textMatch = payload.text.match(/#([A-Z0-9]+)/i);
+                if (textMatch) orderNumber = textMatch[1];
+            }
+
+            // Fetch menuItems for categorization
+            const configSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("settings").doc("config").get();
+            const config = configSnap.exists ? configSnap.data() : {};
+            const menuItems = config.menuItems || [];
+
+            const parsedItems = [];
+            let currentItem = null;
+            const fullText = (payload.text || payload.title || '');
+            const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
+
+            for (let line of lines) {
+                // 1x BOCADILLO THON
+                const itemMatch = line.match(/^(\d+)\s*[xX]?\s+(.+)$/i);
+                if (itemMatch && !line.toLowerCase().startsWith('sans') && !line.toLowerCase().startsWith('- sans')) {
+                    const qty = parseInt(itemMatch[1]);
+                    let rawName = itemMatch[2].trim();
+                    
+                    // Nettoyer les tirets à la fin (ex: "Pizza Salami --")
+                    rawName = rawName.replace(/--.*$/, '').replace(/\*\*/g, '').trim();
+                    
+                    // Ignorer les lignes parasites (0x, mins, produit...)
+                    if (qty === 0) continue;
+                    if (!rawName || rawName.length < 2) continue;
+                    
+                    const lowerName = rawName.toLowerCase();
+                    const ignoreList = ['mins', 'min', 'produit', 'produits', 'grande', 'moyenne', 'petite', 'tva', 'total', 'sous-total'];
+                    if (ignoreList.includes(lowerName)) continue;
+                    if (lowerName.includes('produit xxxx') || lowerName.includes('commande test') || lowerName.includes('acceptée')) continue;
+
+                    // Remplacer par le nom exact du menu POS
+                    const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerName.replace(/[^a-z0-9]/g, '')) 
+                                     || menuItems.find(m => m.name.length >= 3 && lowerName.includes(m.name.toLowerCase()));
+
+                    currentItem = {
+                        name: matchedMenu ? matchedMenu.name : rawName, // Remplacer par le nom POS
+                        qty: qty,
+                        price: matchedMenu ? (matchedMenu.price || 0) : 0,
+                        category: matchedMenu ? (matchedMenu.category || 'Divers') : 'Divers',
+                        station: matchedMenu ? (matchedMenu.station || 'CHAUD') : 'CHAUD',
+                        sans: []
+                    };
+                    parsedItems.push(currentItem);
+                    continue;
+                }
+
+                if (currentItem) {
+                    if (line.toLowerCase().startsWith('- sans') || line.toLowerCase().startsWith('sans')) {
+                        const sansOpt = line.replace(/^-?\s*sans\s+/i, '').trim();
+                        currentItem.sans.push(sansOpt);
+                    }
+                }
+            }
+
+            const finalItems = parsedItems.length > 0 ? parsedItems.map(i => {
+                let finalName = i.name;
+                if (i.sans.length > 0) {
+                    finalName += ` (Sans ${i.sans.join(', ')})`;
+                }
+                return {
+                    name: finalName,
+                    qty: i.qty,
+                    price: 0,
+                    category: i.category,
+                    station: i.station
+                };
+            }) : [{ name: 'COMMANDE GLOVO (Texte non reconnu)', qty: 1, price: 0 }];
+
+            // Extract Total Price (Supports MAD, DH, DHS, dhs)
+            let total = 0;
+            const priceRegex = /([0-9]+[.,]?[0-9]*)\s*(MAD|DH|DHS)/gi;
+            let match;
+            while ((match = priceRegex.exec(fullText)) !== null) {
+                let parsed = parseFloat(match[1].replace(',', '.'));
+                if (!isNaN(parsed)) total = parsed;
+            }
+
+            // Fallback for Glovo's new format without MAD/DH
+            if (total === 0 || isNaN(total)) {
+                const fallbackRegex = /(?:total|payer)[^\d]*([0-9]+[.,][0-9]{2})/i;
+                const fallbackMatch = fullText.match(fallbackRegex);
+                if (fallbackMatch) {
+                    let parsed = parseFloat(fallbackMatch[1].replace(',', '.'));
+                    if (!isNaN(parsed)) total = parsed;
+                }
+            }
+
+            // Extract Payment Method (Cash vs Card)
+            let paymentMethod = 'card';
+            const cashMatch = fullText.match(/(\d+(?:[.,]\d+)?)\s*(cash|espèces?|espece)/i);
+            if (cashMatch) {
+                const cashValue = parseFloat(cashMatch[1].replace(',', '.'));
+                if (!isNaN(cashValue) && cashValue > 0) {
+                    paymentMethod = 'cash';
+                    if (total === 0 || isNaN(total)) total = cashValue; // Use cash value as total fallback
+                }
+            } else if (fullText.match(/(cash|espèces?|espece)/i)) {
+                paymentMethod = 'cash'; // Fallback if it just says 'espece' without the amount next to it
+            }
+
+            const newOrder = {
+                source: 'glovo',
+                status: 'preparing',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                orderNumber: orderNumber,
+                total: total,
+                paymentMethod: paymentMethod,
+                parsedGlovo: true,
+                items: finalItems,
+                customerName: 'Client Glovo',
+                phone: payload.title || '',
+                orderNote: payload.text || '',
+                nearestBranch: { id: payload.branchId || 'laymoune' }
+            };
+
+            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders').add(newOrder);
+            res.status(200).send({ success: true, message: 'MacroDroid Order injected' });
+            return;
+        }
+
+        // === CAS 2: Format OFFICIEL GLOVO API ===
+        const glovoOrder = payload;
         if (!glovoOrder || !glovoOrder.order_id) {
             res.status(400).send('Bad Request');
             return;
         }
 
-        const appId = "mon-bocadillo-menu";
-
-        // 🔥 MAPPING DES AGENCES (Glovo Store ID -> Mon Bocadillo Branch)
         const GLOVO_STORES_MAP = {
             "370282": { id: "laymoune", name: "Laymoune" },
             "249396": { id: "oum_rabii", name: "Oum Rabii" }
@@ -421,7 +558,6 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
             nearestBranch: assignedBranch,
             source: "glovo",
             orderType: "a_emporter",
-            // 🔥 Hada howa s-ster li beddelna bach yferrez l-Espèce 3la l-Prépayé
             paymentMethod: glovoOrder.payment_method === 'CASH' ? 'espece' : 'glovo',
             status: "pending", 
             total: glovoOrder.estimated_total_price / 100, 
@@ -570,3 +706,273 @@ Renvoie UNIQUEMENT un objet JSON valide avec cette structure stricte (pas de mar
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
+
+// 13. Process orders sent by GoDroid Automator APK
+async function handleGoDroidOrder(snap, context, branchId) {
+        const rawData = snap.data();
+        const appId = context.params.appId;
+        
+        if (!rawData || !rawData.raw_text) {
+            console.log("No valid raw_text found in the document");
+            return null;
+        }
+
+        try {
+            const rawTextString = typeof rawData.raw_text === 'object' ? rawData.raw_text.stringValue : String(rawData.raw_text);
+            const parsed = JSON.parse(rawTextString);
+            
+            const configSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("settings").doc("config").get();
+            const config = configSnap.exists ? configSnap.data() : {};
+            const menuItems = config.menuItems || [];
+            
+            let validOptionsMap = [];
+            const addOption = (opt) => {
+                if (opt && opt.trim().length > 2) {
+                    validOptionsMap.push({ original: opt.trim(), lower: opt.trim().toLowerCase() });
+                }
+            };
+            
+            (config.globalIngredients || []).forEach(addOption);
+            (config.globalChoices || []).forEach(addOption);
+            (config.globalExtras || []).forEach(e => addOption(e.name));
+            (config.globalDrinks || []).forEach(d => addOption(d.name));
+            
+            menuItems.forEach(item => {
+                if (item.removableIngredients) item.removableIngredients.split(',').forEach(addOption);
+                if (item.choices) item.choices.split(',').forEach(addOption);
+                if (item.variations) item.variations.forEach(v => addOption(v.name));
+                if (item.extras) item.extras.forEach(e => addOption(e.name));
+            });
+
+            const formatPOSNote = (note) => {
+                const originalNote = note.trim();
+                const lowerNote = originalNote.toLowerCase();
+                
+                if (lowerNote.startsWith('**')) return originalNote; // Keep custom notes
+                
+                let prefix = "";
+                let contentToMatch = lowerNote;
+                const qtyMatch = lowerNote.match(/^([0-9]+\s*x\s+)(.*)/i);
+                let isQty = false;
+                
+                if (qtyMatch) {
+                    prefix = originalNote.substring(0, qtyMatch[1].length);
+                    contentToMatch = qtyMatch[2].trim();
+                    isQty = true;
+                }
+
+                for (let optObj of validOptionsMap) {
+                    if (contentToMatch.includes(optObj.lower) || optObj.lower.includes(contentToMatch)) {
+                        return isQty ? prefix + optObj.original : optObj.original;
+                    }
+                }
+                
+                if (isQty) return originalNote; // Keep Glovo options
+                return null;
+            };
+            
+            const parsedItems = [];
+            let currentItemIndex = -1;
+            let cleanNotes = [];
+
+            for (let itemLine of parsed.items || []) {
+                let text = itemLine.trim().replace(/\s*--\s*$/, '').trim();
+                let lower = text.toLowerCase();
+                
+                if (!text || /^[0-9.,]+$/.test(text)) continue;
+                
+                // --- ROBUST GLOVO UI FILTERING ---
+                if (lower === 'aucune commande acceptée' || lower === 'aucun' || lower === 'aucune') continue;
+                if (lower.startsWith('#')) continue;
+                if (lower.includes('fermé') || lower.includes('horaires') || lower.includes('imprimer')) continue;
+                if (lower.includes('modifier') || lower.includes('nouvelle') || lower.includes('test restaurant')) continue;
+                if (lower.includes('produit xxxx') || lower.includes('xxxx-') || lower.includes('1 produit')) continue;
+                if (lower.includes('commande test') || lower.includes('accepter la commande')) continue;
+                if (lower.includes('sous-total') || lower.includes('tva') || lower === 'total' || lower.includes('à venir')) continue;
+                if (lower.includes('carte de crédit') || lower === 'cash' || lower === 'espece' || lower === 'glovo') continue;
+                if (lower.includes('test est proche') || lower.includes('prêt pour la livraison')) continue;
+                if (lower.includes('commandes groupées') || lower.includes('collectées ensemble')) continue;
+                if (lower.includes('min ') || lower.endsWith('min') || lower.includes('mins')) {
+                    if (!lower.match(/^[0-9]+\s*x\s+/)) continue; 
+                }
+                // ----------------------------------
+
+                const itemMatch = text.match(/^(\d+)\s*[xX]\s+(.+)$/i);
+                
+                if (itemMatch && !lower.startsWith('0 x ')) {
+                    const qty = parseInt(itemMatch[1]);
+                    let rawName = itemMatch[2].trim();
+                    const lowerName = rawName.toLowerCase();
+                    const ignoreList = ['mins', 'min', 'produit', 'produits', 'grande', 'moyenne', 'petite', 'tva', 'total', 'sous-total'];
+                    
+                    if (ignoreList.includes(lowerName)) continue;
+
+                    const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerName.replace(/[^a-z0-9]/g, '')) 
+                                     || menuItems.find(m => m.name.length >= 3 && lowerName.includes(m.name.toLowerCase()));
+
+                    if (matchedMenu) {
+                        parsedItems.push({
+                            name: matchedMenu.name,
+                            qty: qty,
+                            price: matchedMenu.price || 0,
+                            category: matchedMenu.category || 'Divers',
+                            station: matchedMenu.station || 'CHAUD',
+                            sans: []
+                        });
+                        currentItemIndex = parsedItems.length - 1;
+                    } else {
+                        if (!cleanNotes.includes(text)) cleanNotes.push(text);
+                        currentItemIndex = -1;
+                    }
+                } else {
+                    let theNoteToPush = text;
+                    if (lower.startsWith('acceptée')) {
+                        let noteIndex = text.indexOf('**');
+                        if (noteIndex !== -1) {
+                            theNoteToPush = text.substring(noteIndex).trim().replace(/\s+x\s+[a-zA-Z0-9_éèàê\s-]+$/i, '').trim();
+                        } else {
+                            theNoteToPush = "";
+                        }
+                    }
+
+                    let formattedNote = formatPOSNote(theNoteToPush);
+                    if (formattedNote) {
+                        if (currentItemIndex !== -1) {
+                            if (!parsedItems[currentItemIndex].sans.includes(formattedNote)) {
+                                parsedItems[currentItemIndex].sans.push(formattedNote);
+                            }
+                        } else {
+                            if (!cleanNotes.includes(formattedNote)) {
+                                cleanNotes.push(formattedNote);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Finally, format item names with their attached notes/options so the KDS renders them
+            // The POS KitchenDashboard uses item.name.split(' (Sans ') to extract options
+            for (let item of parsedItems) {
+                if (item.sans && item.sans.length > 0) {
+                    item.name = item.name + ' (Sans ' + item.sans.join(', ') + ')';
+                }
+            }
+
+            const finalNotes = cleanNotes.join("\n");
+            
+            const total = parsed.total || 0;
+            const paymentMethod = parsed.paymentMethod && parsed.paymentMethod.toUpperCase() === 'CASH' ? 'espece' : 'glovo';
+            
+            const orderNumber = parsed.orderId.replace('#', '') || 'GLOVO';
+
+            let phone = 'GLOVO';
+            let customerName = 'Client Glovo';
+            
+            const rawPhoneText = (rawData.phone_text && rawData.phone_text.stringValue) ? rawData.phone_text.stringValue : (rawData.phone_text || '');
+            if (rawPhoneText) {
+                let phoneLines = String(rawPhoneText).split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                let phoneIndex = phoneLines.findIndex(l => l.replace(/[\s\-]/g, '').match(/^(\+?\d{9,15})$/));
+                
+                if (phoneIndex !== -1) {
+                    phone = phoneLines[phoneIndex].replace(/[\s\-]/g, '').match(/(\+?\d{9,15})/)[1];
+                    if (phoneIndex > 0) {
+                        customerName = phoneLines[phoneIndex - 1];
+                    }
+                } else {
+                    const cleanText = String(rawPhoneText).replace(/[\s\-]/g, '');
+                    let phoneMatch = cleanText.match(/(\+?\d{9,15})/);
+                    if (phoneMatch) {
+                        phone = phoneMatch[1].trim();
+                    }
+                }
+            }
+            
+            let cleanPhone = phone;
+            if (cleanPhone && cleanPhone !== "Inconnu" && cleanPhone !== "GLOVO") {
+                cleanPhone = cleanPhone.replace(/\s/g, '').replace(/^\+212/, '0');
+            }
+
+            // Check for duplicates (same orderNumber today)
+            // If duplicate found, check if we need to update the phone number
+            if (orderNumber !== 'GLOVO' && orderNumber !== '00') {
+                const existingQuery = await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders')
+                    .where('source', '==', 'glovo')
+                    .where('orderNumber', '==', orderNumber)
+                    .get();
+
+                const twelveHoursAgo = Date.now() - 12 * 60 * 60 * 1000;
+                let existingDocRef = null;
+                existingQuery.forEach(doc => {
+                    const data = doc.data();
+                    if (data.createdAt && data.createdAt.toDate().getTime() > twelveHoursAgo) {
+                        existingDocRef = doc.ref;
+                    }
+                });
+
+                if (existingDocRef) {
+                    if (cleanPhone && cleanPhone !== "GLOVO") {
+                        console.log(`Order ${orderNumber} already exists. Updating phone number to ${cleanPhone}`);
+                        await existingDocRef.update({
+                            client_phone: cleanPhone,
+                            client_name: customerName
+                        });
+                        await snap.ref.update({ processed: true, note: 'duplicate_phone_updated' });
+                    } else {
+                        console.log(`Order ${orderNumber} already exists today. Ignoring duplicate scrape.`);
+                        await snap.ref.update({ processed: true, duplicate: true });
+                    }
+                    return null;
+                }
+            }
+
+            const newOrder = {
+                source: 'glovo',
+                status: 'preparing',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                orderNumber: parsed.orderId.replace('#', '') || 'GLOVO',
+                total: total,
+                paymentMethod: paymentMethod,
+                parsedGlovo: true,
+                items: parsedItems.length > 0 ? parsedItems : [{ name: 'COMMANDE GLOVO (Extraction)', qty: 1, price: 0 }],
+                customerName: customerName,
+                phone: cleanPhone || 'GLOVO',
+                orderNote: finalNotes || '',
+                nearestBranch: { id: branchId }
+            };
+
+            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders').add(newOrder);
+            
+            // Save Client Document so they appear in IDARA
+            if (cleanPhone && cleanPhone !== "Inconnu" && cleanPhone !== "GLOVO") {
+                const clientRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('clients').doc(cleanPhone);
+                await clientRef.set({
+                    phone: cleanPhone,
+                    name: customerName,
+                    source: "glovo",
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    blocked: false,
+                    isDriver: false
+                }, { merge: true });
+            }
+            
+            // Mark the raw doc as processed
+            await snap.ref.update({ processed: true });
+            
+            return null;
+        } catch (error) {
+            console.error("Error processing GoDroid JSON:", error);
+            return null;
+        }
+}
+
+exports.processGoDroidAutomatorOrders = functions.firestore
+    .document('artifacts/{appId}/public/data/Commandes_Brutes_Glovo/{docId}')
+    .onCreate((snap, context) => handleGoDroidOrder(snap, context, 'laymoune'));
+
+exports.processGoDroidAutomatorOrders_OumRabii = functions.firestore
+    .document('artifacts/{appId}/public/data/Commandes_Brutes_Glovo_OumRabii/{docId}')
+    .onCreate((snap, context) => handleGoDroidOrder(snap, context, 'oum_rabii'));
+
+exports.processGoDroidAutomatorOrders_Zoubire = functions.firestore
+    .document('artifacts/{appId}/public/data/Commandes_Brutes_Glovo_Zoubire/{docId}')
+    .onCreate((snap, context) => handleGoDroidOrder(snap, context, 'zoubire'));
