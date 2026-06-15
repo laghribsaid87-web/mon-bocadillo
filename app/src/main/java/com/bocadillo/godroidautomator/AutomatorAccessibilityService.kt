@@ -654,10 +654,36 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // 4. Read full details (Items, Price, Order Num)
+            // 4. Wait for order content to fully render
+            Journal.log("Attente du chargement complet du contenu (2s)...")
+            delay(2000)
+            
+            // Wait for order number (#XXX) to appear as confirmation content is loaded
+            Journal.log("Recherche du numéro de commande (#)...")
+            var orderNumberFound = false
+            val startWait = System.currentTimeMillis()
+            while (System.currentTimeMillis() - startWait < 5000) {
+                val checkRoot = rootInActiveWindow
+                if (checkRoot != null) {
+                    val allText = extractAllText(checkRoot)
+                    val hasOrderNum = Regex("#[0-9A-Za-z]{3,}").containsMatchIn(allText)
+                    if (hasOrderNum) {
+                        Journal.log("✅ Numéro de commande détecté sur l'écran!")
+                        orderNumberFound = true
+                        break
+                    }
+                }
+                delay(300)
+            }
+            if (!orderNumberFound) {
+                Journal.log("⚠️ Numéro de commande non détecté, lecture quand même...")
+            }
+
+            // 5. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
             val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
             collectTextNodes(rootInActiveWindow, nodesList)
+            Journal.log("Nodes lus (avant scroll): ${nodesList.size}")
             
             // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
             Journal.log("Défilement vers le bas pour lire la suite...")
@@ -673,6 +699,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             delay(1500) // Wait for scroll animation
             
             collectTextNodes(rootInActiveWindow, nodesList)
+            Journal.log("Nodes lus (total après scroll): ${nodesList.size}")
             
             // Remove approximate duplicates (same text and similar Y position)
             val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
@@ -686,7 +713,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             
             val contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
-            Journal.log("JSON généré: ${contenuEcran.take(100)}...")
+            Journal.log("JSON généré: ${contenuEcran.take(200)}...")
 
             // FAST KDS PUSH: Send immediately to Firebase without phone number
             Journal.log("Envoi RAPIDE vers KDS (sans numéro)...")
