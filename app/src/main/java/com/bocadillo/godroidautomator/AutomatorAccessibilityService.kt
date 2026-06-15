@@ -548,62 +548,93 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 // Try up to 3 times to click and open the order
                 for (attempt in 1..3) {
                     Journal.log("Tentative d'ouverture #$attempt...")
+                    
+                    // ALWAYS refresh node references (avoid stale nodes/coordinates)
+                    minsNodes.clear()
+                    val freshRoot = rootInActiveWindow
+                    if (freshRoot != null) {
+                        findAllNodesWithTextRecursively(labelMins, freshRoot, minsNodes)
+                    }
+                    
+                    if (minsNodes.isEmpty()) {
+                        // "mins" disappeared = order might already be open
+                        Journal.log("'$labelMins' disparu - commande probablement déjà ouverte")
+                        orderOpened = true
+                        break
+                    }
+                    
                     var clicked = false
                     
-                    // Refresh mins nodes for retries
-                    if (attempt > 1) {
-                        minsNodes.clear()
-                        val refreshRoot = rootInActiveWindow
-                        if (refreshRoot != null) {
-                            findAllNodesWithTextRecursively(labelMins, refreshRoot, minsNodes)
+                    for (minsNode in minsNodes) {
+                        // Log exact position for debugging
+                        val rect = android.graphics.Rect()
+                        minsNode.getBoundsInScreen(rect)
+                        Journal.log("'$labelMins' trouvé à: x=${rect.centerX()}, y=${rect.centerY()}, bounds=$rect")
+                        
+                        // STRATEGY 1: Accessibility click on clickable PARENT (the card)
+                        // This is the MOST RELIABLE method
+                        var clickableParent: AccessibilityNodeInfo? = minsNode
+                        while (clickableParent != null && !clickableParent.isClickable) {
+                            clickableParent = clickableParent.parent
                         }
-                        if (minsNodes.isEmpty()) {
-                            // "mins" disappeared = order is already open
-                            Journal.log("'$labelMins' disparu - commande probablement déjà ouverte")
-                            orderOpened = true
+                        if (clickableParent != null) {
+                            clickableParent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            Journal.log("Clic ACCESSIBILITE sur la carte (parent cliquable) réussi!")
+                            clicked = true
+                            delay(1000)
                             break
                         }
-                    }
-                    
-                    // Try physical click on each "mins" node
-                    for (minsNode in minsNodes) {
+                        
+                        // STRATEGY 2: Physical gesture click on the node
                         val success = dispatchClickGesture(minsNode)
                         if (success) {
-                            Journal.log("Clic PHYSIQUE sur '$labelMins' réussi!")
+                            Journal.log("Clic PHYSIQUE sur '$labelMins' à (${rect.centerX()}, ${rect.centerY()})")
                             clicked = true
-                            kotlinx.coroutines.delay(800)
+                            delay(1000)
                             break
                         }
                     }
                     
-                    // Fallback: try clicking "produit"
+                    // STRATEGY 3: Fallback - try clicking "produit" text
                     if (!clicked) {
                         val root = rootInActiveWindow
                         if (root != null) {
                             val prodNodes = mutableListOf<AccessibilityNodeInfo>()
                             findAllNodesWithTextRecursively("produit", root, prodNodes)
                             for (prodNode in prodNodes) {
+                                // Try accessibility click first
+                                var clickableParent: AccessibilityNodeInfo? = prodNode
+                                while (clickableParent != null && !clickableParent.isClickable) {
+                                    clickableParent = clickableParent.parent
+                                }
+                                if (clickableParent != null) {
+                                    clickableParent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                    Journal.log("Clic ACCESSIBILITE sur 'produit' réussi!")
+                                    clicked = true
+                                    delay(1000)
+                                    break
+                                }
                                 if (dispatchClickGesture(prodNode)) {
                                     Journal.log("Clic PHYSIQUE sur 'produit' réussi!")
                                     clicked = true
-                                    kotlinx.coroutines.delay(800)
+                                    delay(1000)
                                     break
                                 }
                             }
                         }
                     }
                     
-                    // Fallback: standard accessibility click
+                    // STRATEGY 4: Last resort - standard clickByText
                     if (!clicked) {
-                        Journal.log("Essai standard sur '$labelMins'...")
+                        Journal.log("Essai clickByText sur '$labelMins'...")
                         clickByText(labelMins)
                     }
                     
                     // Wait for order details to load
-                    delay(1500)
+                    delay(2000)
                     
                     // VERIFY: Check if "Modifier" button appeared (confirms order details page is open)
-                    if (waitUntilTextAppears(labelModifier, 3000)) {
+                    if (waitUntilTextAppears(labelModifier, 5000)) {
                         Journal.log("✅ Commande ouverte avec succès! ('$labelModifier' détecté)")
                         orderOpened = true
                         break
