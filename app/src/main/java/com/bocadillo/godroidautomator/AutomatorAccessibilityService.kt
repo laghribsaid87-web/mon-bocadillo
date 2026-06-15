@@ -518,9 +518,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 2. Wait and Open the new order by clicking its card or "mins"
             Journal.log("Attente de '$labelMins'...")
             
-            // On cherche le bouton Accepter la commande qui n'apparait que pour les nouvelles commandes
-            val foundBtn = waitUntilTextAppears(labelAccepter, 10000)
-            if (foundBtn) {
+            // On cherche directement 'mins' (le carré vert) au lieu de 'Accepter' car 'Accepter' n'apparait qu'après ouverture
+            val foundMins = waitUntilTextAppears(labelMins, 10000)
+            if (foundMins) {
                 Journal.log("Nouvelle commande détectée! Tentative d'ouverture...")
                 
                 // Le client confirme que seul le carré vert ("mins") est cliquable (mais ACTION_CLICK est ignoré par Glovo)
@@ -564,7 +564,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                 }
             } else {
-                Journal.log("Aucune nouvelle commande avec '$labelAccepter' trouvée.")
+                Journal.log("Aucune nouvelle commande avec '$labelMins' trouvée.")
                 isSequenceRunning = false
                 return
             }
