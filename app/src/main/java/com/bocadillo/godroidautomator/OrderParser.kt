@@ -102,7 +102,18 @@ object OrderParser {
             itemsList.add(lineTexts.joinToString(" "))
         }
 
-        // 3. Build structured JSON
+        // 3. Filter items using the "1 x to MAD" rule
+        val fullText = itemsList.joinToString("\n")
+        val firstXMatch = Regex("\\d+\\s*[xX]").find(fullText)
+        val lastMadIndex = fullText.lastIndexOf("MAD", ignoreCase = true)
+        
+        val finalItemsList = if (firstXMatch != null && lastMadIndex != -1 && lastMadIndex > firstXMatch.range.first) {
+            fullText.substring(firstXMatch.range.first, lastMadIndex + 3).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        } else {
+            itemsList
+        }
+
+        // 4. Build structured JSON
         val json = JSONObject()
         json.put("orderId", orderId)
         json.put("source", "GLOVO")
@@ -110,13 +121,12 @@ object OrderParser {
         json.put("paymentMethod", paymentMethod)
         
         val itemsArray = JSONArray()
-        for (line in itemsList) {
-            itemsArray.put(line) // We send the lines exactly as they appear in the grey frame
+        for (line in finalItemsList) {
+            itemsArray.put(line) 
         }
         json.put("items", itemsArray)
         
-        // We can also send the raw concatenated items text for fallback
-        json.put("rawItemsText", itemsList.joinToString("\n"))
+        json.put("rawItemsText", finalItemsList.joinToString("\n"))
 
         return json.toString()
     }

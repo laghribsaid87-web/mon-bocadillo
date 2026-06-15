@@ -772,7 +772,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             
             val contenuEcran = OrderParser.parseOrderScreen(distinctNodes, rectNum)
-            Journal.log("JSON généré: ${contenuEcran.take(200)}...")
+            
+            // Log prominently for debugging
+            try {
+                val jsonResult = org.json.JSONObject(contenuEcran)
+                val readId = jsonResult.optString("orderId", "N/A")
+                val readItems = jsonResult.optString("rawItemsText", "")
+                Journal.log("===========================")
+                Journal.log("✅ COMMANDE LUE : $readId")
+                Journal.log("---------------------------")
+                Journal.log(if (readItems.isNotEmpty()) readItems else "(Aucun détail trouvé)")
+                Journal.log("===========================")
+            } catch (e: Exception) {
+                Journal.log("JSON généré: ${contenuEcran.take(200)}...")
+            }
 
             // FAST KDS PUSH: Send immediately to Firebase without phone number
             Journal.log("Envoi RAPIDE vers KDS (sans numéro)...")
