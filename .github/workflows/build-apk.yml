@@ -47,7 +47,18 @@ jobs:
 
       - name: Build APK (Android)
         working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleDebug
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug || (
+            ./gradlew assembleDebug --stacktrace > error.txt 2>&1
+            gh issue create --title "Build Failed" --body "Error log:
+            \`\`\`
+            $(cat error.txt | tail -n 200)
+            \`\`\`" --repo ${{ github.repository }} || true
+            exit 1
+          )
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Renommer l'APK pour la Release
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Mon-Bocadillo-Livreur-v${{ steps.version.outputs.VERSION }}.apk
