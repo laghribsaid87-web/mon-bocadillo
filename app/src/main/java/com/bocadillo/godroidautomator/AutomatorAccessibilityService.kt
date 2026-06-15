@@ -523,51 +523,45 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (foundBtn) {
                 Journal.log("Nouvelle commande détectée! Tentative d'ouverture...")
                 
-                // Le client confirme que seul le carré vert ("mins") est cliquable
+                // Le client confirme que seul le carré vert ("mins") est cliquable (mais ACTION_CLICK est ignoré par Glovo)
                 var clicked = false
                 
-                // 1. Essayer de cliquer sur "mins"
-                if (clickByText(labelMins)) {
-                    Journal.log("Clic sur '$labelMins' réussi!")
-                    clicked = true
-                } else {
-                    Journal.log("Attention: Clic normal sur '$labelMins' a échoué. Essai approfondi...")
-                    // 2. Essayer de trouver "mins" et de forcer le clic
-                    val root = rootInActiveWindow
-                    if (root != null) {
-                        val minsNodes = mutableListOf<AccessibilityNodeInfo>()
-                        findAllNodesWithTextRecursively(labelMins, root, minsNodes)
+                // On va directement utiliser le Clic Physique (Gesture) sur "mins" pour forcer l'ouverture
+                val root = rootInActiveWindow
+                if (root != null) {
+                    val minsNodes = mutableListOf<AccessibilityNodeInfo>()
+                    findAllNodesWithTextRecursively(labelMins, root, minsNodes)
+                    
+                    if (minsNodes.isNotEmpty()) {
                         for (minsNode in minsNodes) {
-                            var clickableNode: AccessibilityNodeInfo? = minsNode
-                            for (i in 0..5) {
-                                if (clickableNode == null) break
-                                if (clickableNode.isClickable) {
-                                    clickableNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                                    Journal.log("Clic forcé sur conteneur de '$labelMins'")
-                                    clicked = true
-                                    break
-                                }
-                                clickableNode = clickableNode.parent
+                            val success = dispatchClickGesture(minsNode)
+                            if (success) {
+                                Journal.log("Clic PHYSIQUE sur '$labelMins' réussi!")
+                                clicked = true
+                                kotlinx.coroutines.delay(800) // Attendre l'animation d'ouverture
+                                break
                             }
-                            if (!clicked) {
-                                // Fallback ultime: Clic physique avec les coordonnées
-                                val success = dispatchClickGesture(minsNode)
-                                if (success) {
-                                    Journal.log("Clic PHYSIQUE sur écran pour '$labelMins'")
-                                    clicked = true
-                                    // Important de mettre un petit delay après un geste physique
-                                    kotlinx.coroutines.delay(500)
-                                }
+                        }
+                    } else {
+                        // Fallback si "mins" n'est pas trouvé
+                        val prodNodes = mutableListOf<AccessibilityNodeInfo>()
+                        findAllNodesWithTextRecursively("produit", root, prodNodes)
+                        for (prodNode in prodNodes) {
+                            if (dispatchClickGesture(prodNode)) {
+                                Journal.log("Clic PHYSIQUE sur 'produit' réussi!")
+                                clicked = true
+                                kotlinx.coroutines.delay(800)
+                                break
                             }
-                            if (clicked) break
                         }
                     }
                 }
                 
-                // 3. Fallback sur "produit" si "mins" échoue toujours
                 if (!clicked) {
-                    Journal.log("Essai de cliquer sur 'produit'")
-                    clickByText("produit") 
+                    Journal.log("Attention: Clic physique a échoué. Essai standard sur '$labelMins'...")
+                    if (clickByText(labelMins)) {
+                        Journal.log("Clic standard sur '$labelMins' effectué.")
+                    }
                 }
             } else {
                 Journal.log("Aucune nouvelle commande avec '$labelAccepter' trouvée.")
