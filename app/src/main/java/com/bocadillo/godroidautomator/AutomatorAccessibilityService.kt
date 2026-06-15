@@ -681,9 +681,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // 5. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
-            val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
-            collectTextNodes(rootInActiveWindow, nodesList)
-            Journal.log("Nodes lus (avant scroll): ${nodesList.size}")
+            val nodesListBefore = mutableListOf<Pair<android.graphics.Rect, String>>()
+            collectTextNodes(rootInActiveWindow, nodesListBefore)
+            Journal.log("Nodes lus (avant scroll): ${nodesListBefore.size}")
             
             // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
             Journal.log("Défilement vers le bas pour lire la suite...")
@@ -698,8 +698,53 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             delay(1500) // Wait for scroll animation
             
-            collectTextNodes(rootInActiveWindow, nodesList)
-            Journal.log("Nodes lus (total après scroll): ${nodesList.size}")
+            val nodesListAfter = mutableListOf<Pair<android.graphics.Rect, String>>()
+            collectTextNodes(rootInActiveWindow, nodesListAfter)
+            Journal.log("Nodes lus (après scroll): ${nodesListAfter.size}")
+            
+            // Calcul du Scroll Delta pour corriger les coordonnées Y
+            val deltas = mutableMapOf<Int, Int>()
+            for (nb in nodesListBefore) {
+                for (na in nodesListAfter) {
+                    if (nb.second == na.second) {
+                        val dy = nb.first.top - na.first.top
+                        if (dy > 10) { // On cherche les éléments qui ont monté
+                            var foundKey = -1
+                            for (k in deltas.keys) {
+                                if (kotlin.math.abs(k - dy) < 20) {
+                                    foundKey = k
+                                    break
+                                }
+                            }
+                            if (foundKey == -1) {
+                                deltas[dy] = 1
+                            } else {
+                                deltas[foundKey] = deltas[foundKey]!! + 1
+                            }
+                        }
+                    }
+                }
+            }
+            
+            var bestDelta = 0
+            var maxCount = 0
+            for (entry in deltas) {
+                if (entry.value > maxCount) {
+                    maxCount = entry.value
+                    bestDelta = entry.key
+                }
+            }
+            Journal.log("Décalage de l'écran calculé: +$bestDelta pixels")
+            
+            val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
+            nodesList.addAll(nodesListBefore)
+            
+            for (na in nodesListAfter) {
+                val newRect = android.graphics.Rect(na.first)
+                newRect.top += bestDelta
+                newRect.bottom += bestDelta
+                nodesList.add(Pair(newRect, na.second))
+            }
             
             // Remove approximate duplicates (same text and similar Y position)
             val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
@@ -832,14 +877,18 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private fun extractAllText(node: AccessibilityNodeInfo?): String {
         if (node == null) return ""
         val sb = java.lang.StringBuilder()
-        val text = node.text?.toString()?.trim()
-        if (!text.isNullOrEmpty()) {
-            sb.append(text).append("\n")
+        
+        if (node.isVisibleToUser) {
+            val text = node.text?.toString()?.trim()
+            if (!text.isNullOrEmpty()) {
+                sb.append(text).append("\n")
+            }
+            val desc = node.contentDescription?.toString()?.trim()
+            if (!desc.isNullOrEmpty()) {
+                sb.append(desc).append("\n")
+            }
         }
-        val desc = node.contentDescription?.toString()?.trim()
-        if (!desc.isNullOrEmpty()) {
-            sb.append(desc).append("\n")
-        }
+        
         for (i in 0 until node.childCount) {
             sb.append(extractAllText(node.getChild(i)))
         }
@@ -850,15 +899,18 @@ class AutomatorAccessibilityService : AccessibilityService() {
     
     private fun collectTextNodes(node: AccessibilityNodeInfo?, list: MutableList<Pair<android.graphics.Rect, String>>) {
         if (node == null) return
-        val rect = android.graphics.Rect()
-        node.getBoundsInScreen(rect)
-        val text = node.text?.toString()?.trim()
-        val desc = node.contentDescription?.toString()?.trim()
         
-        if (!text.isNullOrEmpty()) {
-            list.add(Pair(rect, text))
-        } else if (!desc.isNullOrEmpty()) {
-            list.add(Pair(rect, desc))
+        if (node.isVisibleToUser) {
+            val rect = android.graphics.Rect()
+            node.getBoundsInScreen(rect)
+            val text = node.text?.toString()?.trim()
+            val desc = node.contentDescription?.toString()?.trim()
+            
+            if (!text.isNullOrEmpty()) {
+                list.add(Pair(rect, text))
+            } else if (!desc.isNullOrEmpty()) {
+                list.add(Pair(rect, desc))
+            }
         }
         
         for (i in 0 until node.childCount) {
