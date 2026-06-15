@@ -51,7 +51,8 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug || (
             ./gradlew assembleDebug --stacktrace > error.txt 2>&1
-            node -e "const fs = require('fs'); let log = 'No log'; try { log = fs.readFileSync('error.txt', 'utf8').slice(-20000); } catch(e){} fetch('https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/Logs/github_error', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { log: { stringValue: log } } }) }).then(r => console.log(r.status));"
+            ERROR_LOG=$(tail -c 20000 error.txt | jq -Rs .)
+            curl -X PATCH -H "Content-Type: application/json" -d "{\"fields\": {\"log\": {\"stringValue\": ${ERROR_LOG}}}}" "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/Logs/github_error"
             exit 1
           )
         env:
