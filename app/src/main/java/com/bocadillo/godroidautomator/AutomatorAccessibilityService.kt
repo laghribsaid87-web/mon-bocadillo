@@ -1149,15 +1149,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         }
                         collectResults(resultRoot)
                         
-                        var bestToggle: AccessibilityNodeInfo? = null
-                        var maxRight = -1
+                        val clickableItemsOnRow = mutableListOf<AccessibilityNodeInfo>()
                         
                         for (node in allResults) {
                             val r = android.graphics.Rect()
                             node.getBoundsInScreen(r)
                             
                             // Is it on the same horizontal row?
-                            // We give a tolerance of 60 pixels above and below
                             val centerY = productRect.centerY()
                             if (r.top <= centerY + 60 && r.bottom >= centerY - 60) {
                                 
@@ -1169,19 +1167,32 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 if (clickableNode != null && clickableNode.isClickable) {
                                     val clickRect = android.graphics.Rect()
                                     clickableNode.getBoundsInScreen(clickRect)
-                                    // Make sure we don't just click the product name itself if possible, we want the far right button
-                                    if (clickRect.right > maxRight) {
-                                        maxRight = clickRect.right
-                                        bestToggle = clickableNode
+                                    
+                                    // Make sure it's to the right of the product text
+                                    if (clickRect.left > productRect.right) {
+                                        // Avoid adding the exact same node multiple times
+                                        if (!clickableItemsOnRow.contains(clickableNode)) {
+                                            clickableItemsOnRow.add(clickableNode)
+                                        }
                                     }
                                 }
                             }
                         }
                         
+                        // Sort by X coordinate to order them left-to-right
+                        clickableItemsOnRow.sortBy { 
+                            val rect = android.graphics.Rect()
+                            it.getBoundsInScreen(rect)
+                            rect.left 
+                        }
+                        
+                        // The switch is the FIRST item to the right of the text. The arrow is the SECOND item.
+                        val bestToggle = clickableItemsOnRow.firstOrNull()
+                        
                         if (bestToggle != null) {
                             bestToggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                             clickedToggle = true
-                            Journal.log("Clic sur le bouton vert à côté du produit!")
+                            Journal.log("Clic sur la première boutona verte à droite du produit!")
                         }
                     }
                 }
