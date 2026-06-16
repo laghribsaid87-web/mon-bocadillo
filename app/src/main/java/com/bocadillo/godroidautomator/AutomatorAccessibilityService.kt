@@ -527,36 +527,73 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // 4. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
-            val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
-            collectTextNodes(rootInActiveWindow, nodesList)
             
-            // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
-            Journal.log("Défilement vers le bas pour lire la suite...")
-            val rootForScroll = rootInActiveWindow
-            if (rootForScroll != null) {
-                val scrollableNode = findScrollableNode(rootForScroll)
-                if (scrollableNode != null) {
-                    scrollableNode.performAction(4096) // 4096 = ACTION_SCROLL_FORWARD
+            val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
+            val numLeft = prefs.getInt("cropNumLeft", 0)
+            val numTop = prefs.getInt("cropNumTop", 0)
+            val numRight = prefs.getInt("cropNumRight", 0)
+            val numBottom = prefs.getInt("cropNumBottom", 0)
+            val rectNum = if (numRight > numLeft && numBottom > numTop) android.graphics.Rect(numLeft, numTop, numRight, numBottom) else null
+
+            val detLeft = prefs.getInt("cropDetLeft", 0)
+            val detTop = prefs.getInt("cropDetTop", 0)
+            val detRight = prefs.getInt("cropDetRight", 0)
+            val detBottom = prefs.getInt("cropDetBottom", 0)
+            val rectDet = if (detRight > detLeft && detBottom > detTop) android.graphics.Rect(detLeft, detTop, detRight, detBottom) else null
+
+            var contenuEcran = "{}"
+            var useOcr = false
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                Journal.log("Capture d'écran (OCR) en cours...")
+                val bitmap = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
+                if (bitmap != null) {
+                    useOcr = true
+                    Journal.log("Analyse d'image par Intelligence Artificielle...")
+                    val fullText = OcrHelper.extractTextFromBitmap(bitmap, null)
+                    val textItems = OcrHelper.extractTextFromBitmap(bitmap, rectDet)
+                    val textNum = OcrHelper.extractTextFromBitmap(bitmap, rectNum)
+                    
+                    contenuEcran = OrderParser.parseOcrScreen(textItems, textNum, fullText)
                 } else {
-                    performSwipeUp()
+                    Journal.log("Échec capture d'écran, utilisation méthode classique.")
                 }
-            }
-            delay(1500) // Wait for scroll animation
-            
-            collectTextNodes(rootInActiveWindow, nodesList)
-            
-            // Remove approximate duplicates (same text and similar Y position)
-            val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
-            for (node in nodesList) {
-                val isDuplicate = distinctNodes.any { 
-                    it.second == node.second && kotlin.math.abs(it.first.top - node.first.top) < 30 
-                }
-                if (!isDuplicate) {
-                    distinctNodes.add(node)
-                }
+            } else {
+                Journal.log("Android < 11. Utilisation méthode classique.")
             }
             
-            val contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
+            if (!useOcr) {
+                val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
+                collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                
+                // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
+                Journal.log("Défilement vers le bas pour lire la suite...")
+                val rootForScroll = rootInActiveWindow
+                if (rootForScroll != null) {
+                    val scrollableNode = findScrollableNode(rootForScroll)
+                    if (scrollableNode != null) {
+                        scrollableNode.performAction(4096) // 4096 = ACTION_SCROLL_FORWARD
+                    } else {
+                        performSwipeUp()
+                    }
+                }
+                delay(1500) // Wait for scroll animation
+                
+                collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                
+                // Remove approximate duplicates (same text and similar Y position)
+                val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
+                for (node in nodesList) {
+                    val isDuplicate = distinctNodes.any { 
+                        it.second == node.second && kotlin.math.abs(it.first.top - node.first.top) < 30 
+                    }
+                    if (!isDuplicate) {
+                        distinctNodes.add(node)
+                    }
+                }
+                
+                contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
+            }
             
             // Log prominently for debugging
             try {

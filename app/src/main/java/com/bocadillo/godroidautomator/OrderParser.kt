@@ -125,4 +125,57 @@ object OrderParser {
         return json.toString()
     }
 
+    fun parseOcrScreen(textItems: String, textNum: String, fullScreenText: String): String {
+        // 1. Extract Order ID from textNum or fullScreenText
+        var orderId = ""
+        val numMatch = Regex("#[0-9A-Za-z]+").find(textNum)
+        if (numMatch != null) {
+            orderId = numMatch.value
+        } else {
+            val fullMatch = Regex("#[0-9A-Za-z]+").find(fullScreenText)
+            if (fullMatch != null) {
+                orderId = fullMatch.value
+            }
+        }
+
+        // 2. Extract Payment Method
+        var paymentMethod = "ONLINE"
+        val lowerText = fullScreenText.lowercase()
+        if (lowerText.contains("cash") || lowerText.contains("espèce") || lowerText.contains("espece") || lowerText.contains("espèces")) {
+            paymentMethod = "CASH"
+        } else if (lowerText.contains("carte de crédit") || lowerText.contains("credit") || lowerText.contains("en ligne")) {
+            paymentMethod = "CREDIT_CARD"
+        }
+
+        // 3. Extract items using "1 x to MAD/Total" rule on textItems
+        val firstXMatch = Regex("(?i)\\d+\\s*x").find(textItems)
+        val madIndex = textItems.lastIndexOf("MAD", ignoreCase = true)
+        val totalIndex = textItems.lastIndexOf("Total", ignoreCase = true)
+        val sousTotalIndex = textItems.lastIndexOf("Sous-total", ignoreCase = true)
+        val endIndex = maxOf(madIndex, totalIndex, sousTotalIndex)
+        
+        val finalItemsList = if (firstXMatch != null && endIndex != -1 && endIndex > firstXMatch.range.first) {
+            var actualEnd = textItems.indexOf('\n', endIndex)
+            if (actualEnd == -1) actualEnd = textItems.length
+            textItems.substring(firstXMatch.range.first, actualEnd).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        } else {
+            textItems.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        }
+
+        // 4. Build JSON
+        val json = JSONObject()
+        json.put("orderId", orderId)
+        json.put("source", "GLOVO")
+        json.put("total", 0.0) // We skip total amount since it's not super important and complex to parse
+        json.put("paymentMethod", paymentMethod)
+        
+        val itemsArray = JSONArray()
+        for (line in finalItemsList) {
+            itemsArray.put(line) 
+        }
+        json.put("items", itemsArray)
+        json.put("rawItemsText", finalItemsList.joinToString("\n"))
+
+        return json.toString()
+    }
 }
