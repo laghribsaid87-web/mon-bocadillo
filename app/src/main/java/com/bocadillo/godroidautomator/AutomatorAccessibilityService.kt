@@ -1059,16 +1059,48 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // Priority 3: Dispatch gesture tap to the coordinates of an ImageView that might be the search icon
             if (!searchClicked) {
                 Journal.log("Dernier recours: Tenter de trouver une loupe sans ID...")
+                
+                val debugDump = StringBuilder()
+                var possibleSearchNode: AccessibilityNodeInfo? = null
+                var maxRight = -1
+                
                 for (node in allNodes) {
                     val id = node.viewIdResourceName?.toString() ?: ""
                     val cls = node.className?.toString() ?: ""
                     
-                    if (cls == "android.widget.ImageView" && id.isEmpty()) {
-                        // Could be the search icon, but we don't know without an ID.
-                        // We will just try clickByText on some default standard Android content descriptions if any.
+                    if (cls.contains("ImageView") || cls.contains("ImageButton")) {
+                        val r = android.graphics.Rect()
+                        node.getBoundsInScreen(r)
+                        debugDump.append("Class: $cls, ID: $id, Desc: ${node.contentDescription}, Bounds: [${r.left},${r.top},${r.right},${r.bottom}]\n")
+                        
+                        // We will guess the search icon is the rightmost ImageView in the top half of the screen
+                        if (r.top < 600 && r.right > maxRight) {
+                            maxRight = r.right
+                            possibleSearchNode = node
+                        }
                     }
                 }
-                clickByText("Rechercher")
+                
+                if (possibleSearchNode != null) {
+                    var clickableNode: AccessibilityNodeInfo? = possibleSearchNode
+                    while (clickableNode != null && !clickableNode.isClickable) {
+                        clickableNode = clickableNode.parent
+                    }
+                    if (clickableNode != null && clickableNode.isClickable) {
+                        Journal.log("Guessing search icon at rightmost top ImageView!")
+                        clickableNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        searchClicked = true
+                    }
+                }
+                
+                // Still didn't work? Try generic text fallback and DUMP to firebase!
+                if (!searchClicked) {
+                    clickByText("Rechercher")
+                    Journal.log("Envoi du dump debug à Firebase pour analyse...")
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        NetworkClient.dumpDebugInfo(debugDump.toString())
+                    }
+                }
             }
             
             delay(1000)
