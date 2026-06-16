@@ -94,15 +94,17 @@ object OrderParser {
         val fullText = itemsList.joinToString("\n")
         val firstXMatch = Regex("(?i)\\d+\\s*x").find(fullText)
         
-        val madIndex = fullText.lastIndexOf("MAD", ignoreCase = true)
-        val totalIndex = fullText.lastIndexOf("Total", ignoreCase = true)
-        val sousTotalIndex = fullText.lastIndexOf("Sous-total", ignoreCase = true)
-        val endIndex = maxOf(madIndex, totalIndex, sousTotalIndex)
+        val madIndex = fullText.indexOf("MAD", ignoreCase = true)
+        val totalIndex = fullText.indexOf("Total", ignoreCase = true)
+        val sousTotalIndex = fullText.indexOf("Sous-total", ignoreCase = true)
         
-        val finalItemsList = if (firstXMatch != null && endIndex != -1 && endIndex > firstXMatch.range.first) {
-            var actualEnd = fullText.indexOf('\n', endIndex)
-            if (actualEnd == -1) actualEnd = fullText.length
-            fullText.substring(firstXMatch.range.first, actualEnd).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        var endIndex = Int.MAX_VALUE
+        if (madIndex != -1 && madIndex > (firstXMatch?.range?.first ?: -1) && madIndex < endIndex) endIndex = madIndex
+        if (totalIndex != -1 && totalIndex > (firstXMatch?.range?.first ?: -1) && totalIndex < endIndex) endIndex = totalIndex
+        if (sousTotalIndex != -1 && sousTotalIndex > (firstXMatch?.range?.first ?: -1) && sousTotalIndex < endIndex) endIndex = sousTotalIndex
+        
+        val finalItemsList = if (firstXMatch != null && endIndex != Int.MAX_VALUE) {
+            fullText.substring(firstXMatch.range.first, endIndex).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         } else {
             itemsList
         }
@@ -149,15 +151,20 @@ object OrderParser {
 
         // 3. Extract items using "1 x to MAD/Total" rule on textItems
         val firstXMatch = Regex("(?i)\\d+\\s*x").find(textItems)
-        val madIndex = textItems.lastIndexOf("MAD", ignoreCase = true)
-        val totalIndex = textItems.lastIndexOf("Total", ignoreCase = true)
-        val sousTotalIndex = textItems.lastIndexOf("Sous-total", ignoreCase = true)
-        val endIndex = maxOf(madIndex, totalIndex, sousTotalIndex)
         
-        val finalItemsList = if (firstXMatch != null && endIndex != -1 && endIndex > firstXMatch.range.first) {
-            var actualEnd = textItems.indexOf('\n', endIndex)
-            if (actualEnd == -1) actualEnd = textItems.length
-            textItems.substring(firstXMatch.range.first, actualEnd).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        val madIndex = textItems.indexOf("MAD", ignoreCase = true)
+        val totalIndex = textItems.indexOf("Total", ignoreCase = true)
+        val sousTotalIndex = textItems.indexOf("Sous-total", ignoreCase = true)
+        
+        var endIndex = Int.MAX_VALUE
+        if (madIndex != -1 && madIndex > (firstXMatch?.range?.first ?: -1) && madIndex < endIndex) endIndex = madIndex
+        if (totalIndex != -1 && totalIndex > (firstXMatch?.range?.first ?: -1) && totalIndex < endIndex) endIndex = totalIndex
+        if (sousTotalIndex != -1 && sousTotalIndex > (firstXMatch?.range?.first ?: -1) && sousTotalIndex < endIndex) endIndex = sousTotalIndex
+        
+        val finalItemsList = if (firstXMatch != null && endIndex != Int.MAX_VALUE) {
+            textItems.substring(firstXMatch.range.first, endIndex).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        } else if (firstXMatch != null) {
+            textItems.substring(firstXMatch.range.first).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         } else {
             textItems.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         }
