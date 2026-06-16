@@ -581,7 +581,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     useOcr = true
                     Journal.log("Analyse d'image par Intelligence Artificielle...")
                     val fullText = OcrHelper.extractTextFromBitmap(bitmap, null)
-                    val textItems = OcrHelper.extractTextFromBitmap(bitmap, rectDet)
+                    // We now use the full text for items to avoid the crop rectangle cutting off the top items
+                    val textItems = fullText
                     val textNum = OcrHelper.extractTextFromBitmap(bitmap, rectNum)
                     
                     contenuEcran = OrderParser.parseOcrScreen(textItems, textNum, fullText)
