@@ -553,7 +553,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             
             // Wait extra time for the transition animation and list to fully load
-            delay(2000)
+            delay(2500)
 
             // 4. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
