@@ -1136,8 +1136,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 if (!clickedToggle) {
                     val productNodes = resultRoot.findAccessibilityNodeInfosByText(glovoName)
                     if (productNodes != null && productNodes.isNotEmpty()) {
-                        // Find the one that actually matches the name best, or just the first
-                        val productNode = productNodes[0]
+                        // Filter out the search box (EditText) to find the actual list item (TextView)
+                        val actualProductNodes = productNodes.filter { it.className?.toString() == "android.widget.TextView" }
+                        val productNode = if (actualProductNodes.isNotEmpty()) actualProductNodes[0] else productNodes[0]
+                        
                         val productRect = android.graphics.Rect()
                         productNode.getBoundsInScreen(productRect)
                         
