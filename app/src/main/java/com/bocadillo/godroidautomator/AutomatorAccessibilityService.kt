@@ -1119,21 +1119,98 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
 
             // 5. Find the toggle switch for the product and click it
-            delay(1000) // Wait for search results
+            delay(2000) // Wait for search results
             Journal.log("Désactivation du produit...")
             val resultRoot = rootInActiveWindow
             
-            // Search results might just be a list, so we look for a toggle switch (usually a Switch widget)
-            // Or we just click the first switch we see
             var clickedToggle = false
             if (resultRoot != null) {
                 val switches = findNodesByClassName(resultRoot, "android.widget.Switch")
                 if (switches.isNotEmpty()) {
                     switches[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     clickedToggle = true
-                    Journal.log("Clic sur le switch")
-                } else {
+                    Journal.log("Clic sur le switch (android.widget.Switch)")
+                } 
+                
+                // Fallback: Find the product name, and click the rightmost clickable item on its row!
+                if (!clickedToggle) {
+                    val productNodes = resultRoot.findAccessibilityNodeInfosByText(glovoName)
+                    if (productNodes != null && productNodes.isNotEmpty()) {
+                        // Find the one that actually matches the name best, or just the first
+                        val productNode = productNodes[0]
+                        val productRect = android.graphics.Rect()
+                        productNode.getBoundsInScreen(productRect)
+                        
+                        val allResults = mutableListOf<AccessibilityNodeInfo>()
+                        fun collectResults(n: AccessibilityNodeInfo?) {
+                            if (n == null) return
+                            allResults.add(n)
+                            for (i in 0 until n.childCount) collectResults(n.getChild(i))
+                        }
+                        collectResults(resultRoot)
+                        
+                        var bestToggle: AccessibilityNodeInfo? = null
+                        var maxRight = -1
+                        
+                        for (node in allResults) {
+                            val r = android.graphics.Rect()
+                            node.getBoundsInScreen(r)
+                            
+                            // Is it on the same horizontal row?
+                            // We give a tolerance of 60 pixels above and below
+                            val centerY = productRect.centerY()
+                            if (r.top <= centerY + 60 && r.bottom >= centerY - 60) {
+                                
+                                var clickableNode: AccessibilityNodeInfo? = node
+                                while (clickableNode != null && !clickableNode.isClickable) {
+                                    clickableNode = clickableNode.parent
+                                }
+                                
+                                if (clickableNode != null && clickableNode.isClickable) {
+                                    val clickRect = android.graphics.Rect()
+                                    clickableNode.getBoundsInScreen(clickRect)
+                                    // Make sure we don't just click the product name itself if possible, we want the far right button
+                                    if (clickRect.right > maxRight) {
+                                        maxRight = clickRect.right
+                                        bestToggle = clickableNode
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (bestToggle != null) {
+                            bestToggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            clickedToggle = true
+                            Journal.log("Clic sur le bouton vert à côté du produit!")
+                        }
+                    }
+                }
+                
+                if (!clickedToggle) {
                     Journal.log("Aucun Switch trouvé dans les résultats")
+                    
+                    // Dump to Firebase so we can see what the row actually contains!
+                    val debugDump = StringBuilder()
+                    val allResults = mutableListOf<AccessibilityNodeInfo>()
+                    fun collect(n: AccessibilityNodeInfo?) {
+                        if (n == null) return
+                        allResults.add(n)
+                        for (i in 0 until n.childCount) collect(n.getChild(i))
+                    }
+                    collect(resultRoot)
+                    for (node in allResults) {
+                        val id = node.viewIdResourceName?.toString() ?: ""
+                        val cls = node.className?.toString() ?: ""
+                        val txt = node.text?.toString() ?: ""
+                        val r = android.graphics.Rect()
+                        node.getBoundsInScreen(r)
+                        if (r.width() > 0 && r.height() > 0) {
+                            debugDump.append("Class: $cls, ID: $id, Text: $txt, Desc: ${node.contentDescription}, Bounds: [${r.left},${r.top},${r.right},${r.bottom}], Clickable: ${node.isClickable}\n")
+                        }
+                    }
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        NetworkClient.dumpDebugInfo("SEARCH RESULTS DUMP:\n" + debugDump.toString())
+                    }
                 }
             }
 
