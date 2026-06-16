@@ -611,8 +611,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // NO FAST KDS PUSH: We wait until we have the phone number to send everything at once
 
-            Journal.log("Attente de 2 secondes avant de cliquer sur Modifier...")
-            delay(2000)
+            delay(500)
 
             // 5. Click "Modifier"
             Journal.log("Clic sur '$labelModifier'")
@@ -636,7 +635,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             waitUntilTextAppears(labelAnnuler, 4000)
             
             // Attendre un peu que la page charge complètement le numéro et le nom
-            delay(1500)
+            delay(800)
 
             // 9. Read Phone number from this screen
             Journal.log("Lecture du numéro de téléphone...")
@@ -934,9 +933,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
     private suspend fun returnToNewOrdersTab() {
         Journal.log("Retour à la page Aperçu des commandes...")
-        delay(1000)
+        delay(500)
         performGlobalAction(GLOBAL_ACTION_BACK)
-        delay(1000)
+        delay(500)
         
         // Try clicking tabs to ensure we are on the new orders list
         if (clickByText("Aperçu des commandes")) {
