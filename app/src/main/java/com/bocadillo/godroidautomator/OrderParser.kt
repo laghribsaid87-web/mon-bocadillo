@@ -169,11 +169,21 @@ object OrderParser {
             textItems.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         }
 
-        // 4. Build JSON
+        // 4. Extract Total Amount
+        var totalAmount = 0.0
+        // Find all prices with MAD or DH (e.g. "150,00 MAD", "150.00 MAD", "15 MAD")
+        val priceMatches = Regex("(\\d+[.,]?\\d*)\\s*(?:MAD|DH)", RegexOption.IGNORE_CASE).findAll(fullScreenText).toList()
+        if (priceMatches.isNotEmpty()) {
+            // The last price on the screen is almost always the Total
+            val lastPriceStr = priceMatches.last().groupValues[1].replace(",", ".")
+            totalAmount = lastPriceStr.toDoubleOrNull() ?: 0.0
+        }
+
+        // 5. Build JSON
         val json = JSONObject()
         json.put("orderId", orderId)
         json.put("source", "GLOVO")
-        json.put("total", 0.0) // We skip total amount since it's not super important and complex to parse
+        json.put("total", totalAmount)
         json.put("paymentMethod", paymentMethod)
         
         val itemsArray = JSONArray()
