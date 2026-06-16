@@ -313,6 +313,28 @@ class AutomatorAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         
+        // 1. Déclenchement par Notification (Ultra-rapide)
+        if (event.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+            val packageName = event.packageName?.toString() ?: ""
+            if (packageName.contains("deliveryhero", ignoreCase = true) || packageName.contains("glovo", ignoreCase = true)) {
+                
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastTriggerTime < 10000) return // Debounce 10 seconds
+                lastTriggerTime = currentTime
+                
+                Journal.log("🔔 Notification reçue ! Déclenchement IMMÉDIAT !")
+                coroutineScope.launch {
+                    sequenceMutex.withLock {
+                        if (!isSequenceRunning) {
+                            startAutomationSequence()
+                        }
+                    }
+                }
+                return
+            }
+        }
+        
+        // 2. Déclenchement par Visuel (Si l'app est déjà ouverte)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val labelMins = getLabel("btn_mins", "mins")
             val root = rootInActiveWindow ?: return
