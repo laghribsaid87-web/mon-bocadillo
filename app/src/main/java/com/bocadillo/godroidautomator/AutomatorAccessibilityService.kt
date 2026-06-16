@@ -995,11 +995,59 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // 3. Click the Search icon (Loupe)
             Journal.log("Clic sur l'icône de recherche (Loupe)")
             val searchNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/action_search")
+            var searchClicked = false
             if (searchNodes != null && searchNodes.isNotEmpty()) {
                 searchNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                searchClicked = true
             } else {
-                // Fallback, try content description
-                clickByText("Rechercher") || clickByText("Search")
+                // Fallback 1: try content description
+                searchClicked = clickByText("Rechercher") || clickByText("Search")
+                
+                // Fallback 2: Find the last ImageView inside the Toolbar (which is usually the search icon)
+                if (!searchClicked) {
+                    val toolbarNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
+                    if (toolbarNodes != null && toolbarNodes.isNotEmpty()) {
+                        val toolbar = toolbarNodes[0]
+                        val imageViews = findNodesByClassName(toolbar, "android.widget.ImageView")
+                        // Sometimes the search icon is an ImageButton or TextView inside ActionMenuView
+                        val imageButtons = findNodesByClassName(toolbar, "android.widget.ImageButton")
+                        val textViews = findNodesByClassName(toolbar, "android.widget.TextView")
+                        
+                        // Let's just click the rightmost clickable item in the toolbar
+                        var rightmostNode: AccessibilityNodeInfo? = null
+                        var maxLeft = -1
+                        
+                        val allChildren = mutableListOf<AccessibilityNodeInfo>()
+                        allChildren.addAll(imageViews)
+                        allChildren.addAll(imageButtons)
+                        allChildren.addAll(textViews)
+                        
+                        for (child in allChildren) {
+                            val rect = android.graphics.Rect()
+                            child.getBoundsInScreen(rect)
+                            // We only want clickable items or items with clickable parents
+                            var isClickable = false
+                            var cNode: AccessibilityNodeInfo? = child
+                            while (cNode != null) {
+                                if (cNode.isClickable) {
+                                    isClickable = true
+                                    break
+                                }
+                                cNode = cNode.parent
+                            }
+                            
+                            if (isClickable && rect.left > maxLeft) {
+                                maxLeft = rect.left
+                                rightmostNode = cNode // The clickable one
+                            }
+                        }
+                        
+                        if (rightmostNode != null) {
+                            rightmostNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            searchClicked = true
+                        }
+                    }
+                }
             }
             delay(1000)
 
