@@ -92,7 +92,7 @@ object OrderParser {
 
         // 3. Filter items using the "1 x to MAD/Total" rule
         val fullText = itemsList.joinToString("\n")
-        val firstXMatch = Regex("(?i)\\d+\\s*x").find(fullText)
+        val firstXMatch = Regex("(?i)\\d+[ \\t\\xA0]*[xX×]").find(fullText)
         
         val madIndex = fullText.indexOf("MAD", ignoreCase = true)
         val totalIndex = fullText.indexOf("Total", ignoreCase = true)
@@ -150,7 +150,7 @@ object OrderParser {
         }
 
         // 3. Extract items using "1 x to MAD/Total" rule on textItems
-        val firstXMatch = Regex("(?i)\\d+\\s*x").find(textItems)
+        val firstXMatch = Regex("(?i)\\d+[ \\t\\xA0]*[xX×]").find(textItems)
         
         val madIndex = textItems.indexOf("MAD", ignoreCase = true)
         val totalIndex = textItems.indexOf("Total", ignoreCase = true)
