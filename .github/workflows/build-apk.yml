@@ -23,6 +23,9 @@ jobs:
         with:
           gradle-version: '8.1.1'
 
+      - name: Inject Version Name
+        run: sed -i 's/versionName = "3.3"/versionName = "3.3.${{ github.run_number }}"/g' app/build.gradle.kts
+
       - name: Build APK (Android)
         run: gradle assembleDebug
 

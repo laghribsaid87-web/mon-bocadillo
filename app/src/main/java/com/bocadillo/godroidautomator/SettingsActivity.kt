@@ -2,6 +2,9 @@ package com.bocadillo.godroidautomator
 
 import android.content.Context
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -75,6 +78,21 @@ class SettingsActivity : AppCompatActivity() {
             layout.addView(et)
         }
 
+        val tvWebhook = TextView(this).apply {
+            text = "Sélectionnez votre Point de Vente :"
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, 16, 0, 8)
+        }
+        layout.addView(tvWebhook)
+        
+        val branches = arrayOf("Laymoune", "OumRabii", "Zoubire")
+        val spinnerWebhook = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@SettingsActivity, android.R.layout.simple_spinner_dropdown_item, branches)
+            val savedBranch = prefs.getString("point_de_vente", "Laymoune")
+            setSelection(branches.indexOf(savedBranch).takeIf { it >= 0 } ?: 0)
+        }
+        layout.addView(spinnerWebhook)
+
         val btnSave = Button(this).apply {
             text = "Sauvegarder"
             setPadding(0, 32, 0, 32)
@@ -83,12 +101,30 @@ class SettingsActivity : AppCompatActivity() {
                 for ((key, et) in editTexts) {
                     editor.putString(key, et.text.toString().trim())
                 }
+                editor.putString("point_de_vente", spinnerWebhook.selectedItem.toString())
                 editor.apply()
                 Toast.makeText(this@SettingsActivity, "Paramètres sauvegardés !", Toast.LENGTH_SHORT).show()
                 finish()
             }
         }
         layout.addView(btnSave)
+
+        val btnSetupArea = Button(this).apply {
+            text = "Configurer Zone de Lecture (Cadre)"
+            setPadding(0, 32, 0, 32)
+            setOnClickListener {
+                if (!Settings.canDrawOverlays(this@SettingsActivity)) {
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    startActivity(intent)
+                    Toast.makeText(this@SettingsActivity, "Veuillez autoriser l'affichage superposé", Toast.LENGTH_LONG).show()
+                } else {
+                    startService(Intent(this@SettingsActivity, OverlayService::class.java))
+                    Toast.makeText(this@SettingsActivity, "Ouvrez Glovo pour ajuster les cadres", Toast.LENGTH_LONG).show()
+                    finish()
+                }
+            }
+        }
+        layout.addView(btnSetupArea)
 
         val scrollView = ScrollView(this).apply {
             addView(layout)

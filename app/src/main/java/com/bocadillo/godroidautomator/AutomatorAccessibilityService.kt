@@ -606,8 +606,15 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 Journal.log(if (readItems.isNotEmpty()) readItems else "(Aucun détail trouvé)")
                 Journal.log("===========================")
             } catch (e: Exception) {
-                Journal.log("JSON généré: ${contenuEcran.take(100)}...")
+                Journal.log("JSON généré: ${contenuEcran.take(200)}...")
             }
+
+            // FAST KDS PUSH: Send immediately to Firebase without phone number
+            Journal.log("Envoi RAPIDE vers KDS (sans numéro)...")
+            val docId = NetworkClient.sendOrderData(this@AutomatorAccessibilityService, "", contenuEcran)
+
+            Journal.log("Attente de 2 secondes avant de cliquer sur Modifier...")
+            delay(2000)
 
             // 5. Click "Modifier"
             Journal.log("Clic sur '$labelModifier'")
@@ -638,9 +645,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val telephoneEcran = extractAllText(rootInActiveWindow)
             Journal.log("Extraction num téléphone terminée.")
 
-            // 10. Send the order data
-            Journal.log("Lancement requête HTTP globale...")
-            NetworkClient.sendOrderData(telephoneEcran, contenuEcran)
+            // 10. Send the order data update (with phone)
+            Journal.log("Envoi UPDATE num téléphone vers Firestore...")
+            NetworkClient.sendOrderData(this@AutomatorAccessibilityService, telephoneEcran, contenuEcran, docId)
 
             // 11. Click "Annuler"
             Journal.log("Clic sur '$labelAnnuler'")
