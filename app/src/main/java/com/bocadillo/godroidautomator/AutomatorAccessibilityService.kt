@@ -1134,22 +1134,29 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 
                 // Fallback: Find the product name, and click the rightmost clickable item on its row!
                 if (!clickedToggle) {
-                    val productNodes = resultRoot.findAccessibilityNodeInfosByText(glovoName)
-                    if (productNodes != null && productNodes.isNotEmpty()) {
-                        // Filter out the search box (EditText) to find the actual list item (TextView)
-                        val actualProductNodes = productNodes.filter { it.className?.toString() == "android.widget.TextView" }
-                        val productNode = if (actualProductNodes.isNotEmpty()) actualProductNodes[0] else productNodes[0]
-                        
+                    val allResults = mutableListOf<AccessibilityNodeInfo>()
+                    fun collectResults(n: AccessibilityNodeInfo?) {
+                        if (n == null) return
+                        allResults.add(n)
+                        for (i in 0 until n.childCount) collectResults(n.getChild(i))
+                    }
+                    collectResults(resultRoot)
+
+                    // Find the product node manually to avoid findAccessibilityNodeInfosByText bugs
+                    var productNode: AccessibilityNodeInfo? = null
+                    val cleanGlovoName = glovoName.trim()
+                    
+                    for (node in allResults) {
+                        val txt = node.text?.toString() ?: ""
+                        if (txt.contains(cleanGlovoName, ignoreCase = true) && node.className?.toString() == "android.widget.TextView") {
+                            productNode = node
+                            break
+                        }
+                    }
+
+                    if (productNode != null) {
                         val productRect = android.graphics.Rect()
                         productNode.getBoundsInScreen(productRect)
-                        
-                        val allResults = mutableListOf<AccessibilityNodeInfo>()
-                        fun collectResults(n: AccessibilityNodeInfo?) {
-                            if (n == null) return
-                            allResults.add(n)
-                            for (i in 0 until n.childCount) collectResults(n.getChild(i))
-                        }
-                        collectResults(resultRoot)
                         
                         val clickableItemsOnRow = mutableListOf<AccessibilityNodeInfo>()
                         
