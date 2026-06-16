@@ -141,8 +141,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             }
                             continue // skip ready orders check in this tick
                         }
+                        // 2. Check for Rupture de Stock trigger from KDS
+                        val ruptureGlovoName = NetworkClient.checkRuptureTrigger()
+                        if (ruptureGlovoName != null) {
+                            sequenceMutex.withLock {
+                                startRuptureSequence(ruptureGlovoName)
+                            }
+                            continue
+                        }
 
-                        // 2. Normal check for Ready Orders
+                        // 3. Normal check for Ready Orders
                         val readyOrders = NetworkClient.checkReadyOrders()
                         for (order in readyOrders) {
                             if (!processedReadyOrders.contains(order.documentId)) {
@@ -153,7 +161,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             }
                         }
 
-                        // 3. Check Visually for "mins" on screen (Fallback for missed notifications)
+                        // 4. Check Visually for "mins" on screen (Fallback for missed notifications)
                         triggerFallbackVisualCheck()
                     }
                 } catch (e: Exception) {
@@ -920,6 +928,154 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
+    private suspend fun startRuptureSequence(glovoName: String) {
+        isSequenceRunning = true
+        try {
+            Journal.log("=== DÉBUT SÉQUENCE RUPTURE DE STOCK ===")
+            Journal.log("Produit à désactiver: $glovoName")
+            
+            wakeUpScreenAndUnlock()
+            delay(1000)
+
+            // 1. Open app
+            var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
+            val pm = packageManager
+            val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+            for (app in packages) {
+                val appName = pm.getApplicationLabel(app).toString()
+                if (appName.equals("goDroid", ignoreCase = true) || appName.equals("Glovo Partner", ignoreCase = true)) {
+                    targetPackage = app.packageName
+                    break
+                }
+            }
+
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(applicationContext, "Rupture de Stock: $glovoName !", android.widget.Toast.LENGTH_LONG).show()
+            }
+
+            val currentPackage = rootInActiveWindow?.packageName?.toString()
+            if (currentPackage != targetPackage) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    Journal.log("Ouverture de l'app: $targetPackage")
+                    delay(1000)
+                }
+            }
+
+            delay(1500)
+
+            // 2. Open Menu (Drawer) and click "Menu" (for products)
+            Journal.log("Ouverture du menu")
+            val root = rootInActiveWindow
+            if (root != null) {
+                if (!clickByText("Ouvrir le tiroir de navigation")) {
+                    val drawerNodes = root.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
+                    if (drawerNodes.isNotEmpty()) {
+                        val toolbar = drawerNodes[0]
+                        if (toolbar.childCount > 0) {
+                            val firstChild = toolbar.getChild(0)
+                            if (firstChild != null && firstChild.isClickable) {
+                                firstChild.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            }
+                        }
+                    } else {
+                        clickByText("Menu")
+                    }
+                }
+            }
+            delay(1000)
+            
+            Journal.log("Clic sur 'Menu'")
+            clickByText("Menu")
+            delay(1000)
+
+            // 3. Click the Search icon (Loupe)
+            Journal.log("Clic sur l'icône de recherche (Loupe)")
+            val searchNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/action_search")
+            if (searchNodes != null && searchNodes.isNotEmpty()) {
+                searchNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            } else {
+                // Fallback, try content description
+                clickByText("Rechercher") || clickByText("Search")
+            }
+            delay(1000)
+
+            // 4. Type the product name
+            Journal.log("Saisie du produit: $glovoName")
+            val searchBoxNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/search_src_text")
+            if (searchBoxNodes != null && searchBoxNodes.isNotEmpty()) {
+                val searchBox = searchBoxNodes[0]
+                val arguments = android.os.Bundle()
+                arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, glovoName)
+                searchBox.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+                delay(1000)
+            } else {
+                Journal.log("Erreur: Barre de recherche introuvable")
+            }
+
+            // 5. Find the toggle switch for the product and click it
+            delay(1000) // Wait for search results
+            Journal.log("Désactivation du produit...")
+            val resultRoot = rootInActiveWindow
+            
+            // Search results might just be a list, so we look for a toggle switch (usually a Switch widget)
+            // Or we just click the first switch we see
+            var clickedToggle = false
+            if (resultRoot != null) {
+                val switches = findNodesByClassName(resultRoot, "android.widget.Switch")
+                if (switches.isNotEmpty()) {
+                    switches[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    clickedToggle = true
+                    Journal.log("Clic sur le switch")
+                } else {
+                    Journal.log("Aucun Switch trouvé dans les résultats")
+                }
+            }
+
+            delay(1000)
+            
+            // 6. Click "Indisponible aujourd'hui"
+            if (clickedToggle) {
+                Journal.log("Clic sur 'Indisponible aujourd'hui'")
+                clickByText("Indisponible aujourd'hui")
+                delay(1000)
+            }
+
+            // 7. Clean up and return
+            Journal.log("Retour à l'Aperçu des commandes...")
+            // Clear search or close search
+            val closeSearchNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/search_close_btn")
+            if (closeSearchNodes != null && closeSearchNodes.isNotEmpty()) {
+                closeSearchNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+            delay(500)
+            
+            // Back out of search screen
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            delay(500)
+            // Back out of menu screen
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            delay(500)
+            
+            // Open drawer and go to Aperçu des commandes
+            clickByText("Ouvrir le tiroir de navigation")
+            delay(500)
+            clickByText("Aperçu des commandes")
+            delay(1000)
+
+            // Mark as handled
+            NetworkClient.markRuptureTriggerHandled()
+            Journal.log("=== SÉQUENCE RUPTURE TERMINÉE ===")
+            
+        } catch (e: Exception) {
+            Journal.log("ERREUR RUPTURE: ${e.message}")
+        } finally {
+            isSequenceRunning = false
+        }
+    }
+
     private fun findNodesWithText(node: AccessibilityNodeInfo?, text: String): List<AccessibilityNodeInfo> {
         val result = mutableListOf<AccessibilityNodeInfo>()
         if (node == null) return result
@@ -938,6 +1094,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
         
         for (i in 0 until node.childCount) {
             result.addAll(findNodesWithText(node.getChild(i), text))
+        }
+        return result
+    }
+
+    private fun findNodesByClassName(node: AccessibilityNodeInfo?, className: String): List<AccessibilityNodeInfo> {
+        val result = mutableListOf<AccessibilityNodeInfo>()
+        if (node == null) return result
+        
+        if (node.className?.toString() == className) {
+            result.add(node)
+        }
+        
+        for (i in 0 until node.childCount) {
+            result.addAll(findNodesByClassName(node.getChild(i), className))
         }
         return result
     }
