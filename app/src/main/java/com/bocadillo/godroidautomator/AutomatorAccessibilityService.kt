@@ -217,11 +217,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(launchIntent)
                     Journal.log("Ouverture de l'app: $targetPackage")
-                    delay(2000)
+                    delay(1000)
                 }
             }
 
-            delay(3000)
+            delay(1500)
 
             // 1.5 Open Menu (Drawer) and click "Aperçu des commandes"
             Journal.log("Ouverture du menu")
@@ -242,15 +242,15 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                 }
             }
-            delay(2000)
+            delay(500)
             Journal.log("Clic sur 'Aperçu des commandes'")
             clickByText("Aperçu des commandes")
-            delay(2000)
+            delay(1000)
 
             // 2. Click on "Acceptée" tab
             Journal.log("Clic sur l'onglet '$labelAcceptee'")
             clickByText(labelAcceptee)
-            delay(2000)
+            delay(1000)
 
             // 3. Find the order on the screen
             val orderTextToFind = orderNumber.replace("#", "")
@@ -258,7 +258,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             // If we can click the exact order number
             if (clickByText(orderTextToFind)) {
-                delay(1500)
+                delay(500)
                 Journal.log("Clic sur '$labelPret' pour $orderTextToFind")
                 
                 val clickedInSameContainer = clickButtonInSameContainer(orderTextToFind, labelPret)
@@ -267,7 +267,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     clickByText(labelPret)
                 }
                 
-                delay(2000)
+                delay(1000)
                 
                 // Handle Dialogs
                 val screenText = extractAllText(rootInActiveWindow)
@@ -289,7 +289,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     clickByText(labelConfirmer)
                 }
                 
-                delay(2000)
+                delay(500)
                 // Mark as clicked in Firestore
                 NetworkClient.markOrderAsGlovoReady(documentId)
                 Journal.log("=== SÉQUENCE PRÊT TERMINÉE ===")
@@ -662,11 +662,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 clickByText(labelCompris)
             }
             
-            delay(1000)
+            delay(500)
             
             // 14. Return to New Orders Tab
             returnToNewOrdersTab()
-
+            delay(500)
             Journal.log("=== AUTOMATISATION TERMINEE ===")
         } catch (e: Exception) {
             Journal.log("ERREUR FATALE: ${e.message}")
