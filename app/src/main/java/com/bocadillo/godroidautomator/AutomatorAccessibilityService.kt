@@ -994,61 +994,83 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             // 3. Click the Search icon (Loupe)
             Journal.log("Clic sur l'icône de recherche (Loupe)")
-            val searchNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/action_search")
             var searchClicked = false
-            if (searchNodes != null && searchNodes.isNotEmpty()) {
-                searchNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                searchClicked = true
-            } else {
-                // Fallback 1: try content description
-                searchClicked = clickByText("Rechercher") || clickByText("Search")
+            
+            // Collect all nodes to find anything related to search
+            val allNodes = mutableListOf<AccessibilityNodeInfo>()
+            fun collectAllNodes(node: AccessibilityNodeInfo?) {
+                if (node == null) return
+                allNodes.add(node)
+                for (i in 0 until node.childCount) {
+                    collectAllNodes(node.getChild(i))
+                }
+            }
+            collectAllNodes(rootInActiveWindow)
+            
+            // Priority 1: Exact matches or well-known search IDs
+            for (node in allNodes) {
+                val id = node.viewIdResourceName?.toString() ?: ""
+                val desc = node.contentDescription?.toString() ?: ""
+                val cls = node.className?.toString() ?: ""
                 
-                // Fallback 2: Find the last ImageView inside the Toolbar (which is usually the search icon)
-                if (!searchClicked) {
-                    val toolbarNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
-                    if (toolbarNodes != null && toolbarNodes.isNotEmpty()) {
-                        val toolbar = toolbarNodes[0]
-                        val imageViews = findNodesByClassName(toolbar, "android.widget.ImageView")
-                        // Sometimes the search icon is an ImageButton or TextView inside ActionMenuView
-                        val imageButtons = findNodesByClassName(toolbar, "android.widget.ImageButton")
-                        val textViews = findNodesByClassName(toolbar, "android.widget.TextView")
+                if (id.endsWith(":id/action_search") || id.endsWith(":id/search_button") || 
+                    desc.equals("Rechercher", ignoreCase = true) || desc.equals("Search", ignoreCase = true)) {
+                    
+                    var clickableNode: AccessibilityNodeInfo? = node
+                    while (clickableNode != null && !clickableNode.isClickable) {
+                        clickableNode = clickableNode.parent
+                    }
+                    if (clickableNode != null && clickableNode.isClickable) {
+                        clickableNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        searchClicked = true
+                        break
+                    } else if (node.isClickable) {
+                        node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        searchClicked = true
+                        break
+                    }
+                }
+            }
+            
+            // Priority 2: Fuzzy matches on ID and Desc
+            if (!searchClicked) {
+                for (node in allNodes) {
+                    val id = node.viewIdResourceName?.toString() ?: ""
+                    val desc = node.contentDescription?.toString() ?: ""
+                    val cls = node.className?.toString() ?: ""
+                    
+                    if ((id.contains("search", ignoreCase = true) || desc.contains("search", ignoreCase = true) || desc.contains("recherch", ignoreCase = true))
+                        && (cls.contains("Image") || cls.contains("Button") || cls.contains("Text") || cls.contains("Layout"))) {
                         
-                        // Let's just click the rightmost clickable item in the toolbar
-                        var rightmostNode: AccessibilityNodeInfo? = null
-                        var maxLeft = -1
-                        
-                        val allChildren = mutableListOf<AccessibilityNodeInfo>()
-                        allChildren.addAll(imageViews)
-                        allChildren.addAll(imageButtons)
-                        allChildren.addAll(textViews)
-                        
-                        for (child in allChildren) {
-                            val rect = android.graphics.Rect()
-                            child.getBoundsInScreen(rect)
-                            // We only want clickable items or items with clickable parents
-                            var isClickable = false
-                            var cNode: AccessibilityNodeInfo? = child
-                            while (cNode != null) {
-                                if (cNode.isClickable) {
-                                    isClickable = true
-                                    break
-                                }
-                                cNode = cNode.parent
-                            }
-                            
-                            if (isClickable && rect.left > maxLeft) {
-                                maxLeft = rect.left
-                                rightmostNode = cNode // The clickable one
-                            }
+                        var clickableNode: AccessibilityNodeInfo? = node
+                        while (clickableNode != null && !clickableNode.isClickable) {
+                            clickableNode = clickableNode.parent
                         }
-                        
-                        if (rightmostNode != null) {
-                            rightmostNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        if (clickableNode != null && clickableNode.isClickable) {
+                            Journal.log("Loupe trouvée par fallback: $id / $desc")
+                            clickableNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                             searchClicked = true
+                            break
                         }
                     }
                 }
             }
+            
+            // Priority 3: Dispatch gesture tap to the coordinates of an ImageView that might be the search icon
+            if (!searchClicked) {
+                Journal.log("Dernier recours: Tenter de trouver une loupe sans ID...")
+                for (node in allNodes) {
+                    val id = node.viewIdResourceName?.toString() ?: ""
+                    val cls = node.className?.toString() ?: ""
+                    
+                    if (cls == "android.widget.ImageView" && id.isEmpty()) {
+                        // Could be the search icon, but we don't know without an ID.
+                        // We will just try clickByText on some default standard Android content descriptions if any.
+                    }
+                }
+                clickByText("Rechercher")
+            }
+            
             delay(1000)
 
             // 4. Type the product name
