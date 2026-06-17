@@ -395,7 +395,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (topRightNodes.isNotEmpty()) {
                 Journal.log("Bouton X trouvé en haut à droite, clic en cours...")
                 // Click the one closest to the top right
-                val xNode = topRightNodes.minByOrNull { it.boundsInScreen.top }
+                val xNode = topRightNodes.minByOrNull { 
+                    val r = android.graphics.Rect()
+                    it.getBoundsInScreen(r)
+                    r.top
+                }
                 xNode?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 closed = true
             }
