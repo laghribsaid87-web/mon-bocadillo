@@ -1409,6 +1409,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
         Journal.log("Retour à la page Aperçu des commandes...")
         delay(500)
 
+        // Try to see if Aperçu des commandes is already visible (e.g. if drawer was already opened)
+        if (clickByText("Aperçu des commandes")) {
+            Journal.log("Aperçu des commandes trouvé directement.")
+            delay(500)
+            return
+        }
+
         // Try to find the drawer icon (3 bars) first to avoid pressing BACK unnecessarily
         if (clickByText("Ouvrir le tiroir de navigation")) {
             Journal.log("Tiroir de navigation ouvert directement.")
