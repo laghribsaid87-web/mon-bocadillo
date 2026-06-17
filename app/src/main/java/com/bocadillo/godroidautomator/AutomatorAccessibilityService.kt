@@ -1310,23 +1310,30 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 delay(1000)
             }
 
-            // 7. Clean up and return
-            Journal.log("Retour à l'Aperçu des commandes...")
-            // Clear search or close search
-            val closeSearchNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/search_close_btn")
-            if (closeSearchNodes != null && closeSearchNodes.isNotEmpty()) {
-                closeSearchNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            // 7. Navigation de retour demandée (1 Back -> 3 tirets -> Aperçu)
+            Journal.log("Bouton retour Android (1 fois)...")
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            delay(1000)
+
+            Journal.log("Clic sur les 3 tirets (Tiroir de navigation)...")
+            if (!clickByText("Ouvrir le tiroir de navigation")) {
+                val drawerNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
+                if (drawerNodes != null && drawerNodes.isNotEmpty()) {
+                    val toolbar = drawerNodes[0]
+                    if (toolbar.childCount > 0) {
+                        val firstChild = toolbar.getChild(0)
+                        if (firstChild != null && firstChild.isClickable) {
+                            firstChild.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        }
+                    }
+                }
             }
+            delay(1000)
+
+            Journal.log("Clic sur 'Aperçu des commandes'...")
+            clickByText("Aperçu des commandes")
             delay(500)
-            
-            // Back out of search screen
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            delay(500)
-            // Back out of menu screen
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            delay(500)
-            
-            // Open drawer and go to Aperçu des commandes is moved to finally
+
             // Mark as handled
             NetworkClient.markRuptureTriggerHandled()
             Journal.log("=== SÉQUENCE RUPTURE TERMINÉE ===")
@@ -1334,7 +1341,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Journal.log("ERREUR RUPTURE: ${e.message}")
         } finally {
-            returnToNewOrdersTab()
             isSequenceRunning = false
         }
     }
