@@ -380,13 +380,59 @@ class AutomatorAccessibilityService : AccessibilityService() {
             nodeText.contains("Bienvenue dans la", ignoreCase = true)) {
             
             Journal.log("Popup 'Nouvelle version de Go' détectée. Fermeture en cours...")
-            // The safest and most reliable way to close a generic popup on Android is the BACK button.
-            // If there's an X button it's usually just an ImageView. We'll use BACK.
-            performGlobalAction(GLOBAL_ACTION_BACK)
+            
+            var closed = false
+            // 1. Try to find an X button by finding all clickable nodes in the top right corner
+            val displayMetrics = resources.displayMetrics
+            val clickableNodes = findClickableNodes(root)
+            val topRightNodes = clickableNodes.filter { node ->
+                val rect = android.graphics.Rect()
+                node.getBoundsInScreen(rect)
+                // Filter nodes in the top 20% and right 30% of the screen
+                rect.top < displayMetrics.heightPixels * 0.2 && rect.left > displayMetrics.widthPixels * 0.7
+            }
+            
+            if (topRightNodes.isNotEmpty()) {
+                Journal.log("Bouton X trouvé en haut à droite, clic en cours...")
+                // Click the one closest to the top right
+                val xNode = topRightNodes.minByOrNull { it.boundsInScreen.top }
+                xNode?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                closed = true
+            }
+
+            // 2. If we didn't find the X button, try generic terms
+            if (!closed) {
+                val closeLabels = listOf("Fermer", "Close", "Ignorer", "Dismiss", "Annuler")
+                for (label in closeLabels) {
+                    if (clickByText(label)) {
+                        Journal.log("Popup fermée via le bouton '$label'")
+                        closed = true
+                        break
+                    }
+                }
+            }
+            
+            // 3. Fallback: The safest and most reliable way to close a generic popup on Android is the BACK button.
+            if (!closed) {
+                Journal.log("Tentative avec le bouton Retour Android...")
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
             
             // Wait a little bit for the popup to disappear
-            Thread.sleep(1000)
+            Thread.sleep(1500)
         }
+    }
+
+    private fun findClickableNodes(node: AccessibilityNodeInfo?): List<AccessibilityNodeInfo> {
+        val list = mutableListOf<AccessibilityNodeInfo>()
+        if (node == null) return list
+        if (node.isClickable) {
+            list.add(node)
+        }
+        for (i in 0 until node.childCount) {
+            list.addAll(findClickableNodes(node.getChild(i)))
+        }
+        return list
     }
 
     private fun isNodeClickable(node: AccessibilityNodeInfo?): Boolean {
