@@ -51,6 +51,7 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug || (
             ./gradlew assembleDebug --stacktrace > ../error.log 2>&1
+            cat ../error.log
             exit 1
           )
 
