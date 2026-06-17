@@ -142,10 +142,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             continue // skip ready orders check in this tick
                         }
                         // 2. Check for Rupture de Stock trigger from KDS
-                        val ruptureGlovoName = NetworkClient.checkRuptureTrigger()
-                        if (ruptureGlovoName != null) {
+                        val ruptureTask = NetworkClient.checkRuptureTrigger()
+                        if (ruptureTask != null) {
                             sequenceMutex.withLock {
-                                startRuptureSequence(ruptureGlovoName)
+                                startRuptureSequence(ruptureTask.glovoName, ruptureTask.action)
                             }
                             continue
                         }
@@ -996,11 +996,19 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
-    private suspend fun startRuptureSequence(glovoName: String) {
+    private suspend fun startRuptureSequence(glovoName: String, action: String = "rupture") {
         isSequenceRunning = true
+        
+        wakeUpScreenAndUnlock()
+        delay(1000)
+
         try {
             Journal.log("=== DÉBUT SÉQUENCE RUPTURE DE STOCK ===")
-            Journal.log("Produit à désactiver: $glovoName")
+            if (action.equals("disponible", ignoreCase = true) || action.equals("activer", ignoreCase = true)) {
+                Journal.log("Produit à activer: $glovoName")
+            } else {
+                Journal.log("Produit à désactiver: $glovoName")
+            }
             
             wakeUpScreenAndUnlock()
             delay(1000)
@@ -1303,11 +1311,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             delay(1000)
             
-            // 6. Click "Indisponible aujourd'hui"
+            // 6. Click "Indisponible aujourd'hui" ONLY if deactivating
             if (clickedToggle) {
-                Journal.log("Clic sur 'Indisponible aujourd'hui'")
-                clickByText("Indisponible aujourd'hui")
-                delay(1000)
+                if (action.equals("disponible", ignoreCase = true) || action.equals("activer", ignoreCase = true)) {
+                    Journal.log("Produit réactivé avec succès (Pas de popup).")
+                    delay(500)
+                } else {
+                    Journal.log("Clic sur 'Indisponible aujourd'hui'")
+                    clickByText("Indisponible aujourd'hui")
+                    delay(1000)
+                }
             }
 
             // 7. Navigation de retour demandée (1 Back -> 3 tirets -> Aperçu)

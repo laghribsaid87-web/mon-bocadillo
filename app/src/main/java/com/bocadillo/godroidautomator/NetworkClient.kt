@@ -291,7 +291,9 @@ object NetworkClient {
         }
     }
 
-    suspend fun checkRuptureTrigger(): String? {
+    data class RuptureTask(val glovoName: String, val action: String)
+
+    suspend fun checkRuptureTrigger(): RuptureTask? {
         return withContext(Dispatchers.IO) {
             try {
                 val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_rupture"
@@ -306,9 +308,10 @@ object NetworkClient {
                     val status = fields.optJSONObject("status")?.optString("stringValue", "")
                     val glovoName = fields.optJSONObject("glovoName")?.optString("stringValue", "")
                     val isHandled = fields.optJSONObject("isHandled")?.optBoolean("booleanValue", true) ?: true
+                    val action = fields.optJSONObject("action")?.optString("stringValue", "rupture") ?: "rupture"
                     
                     if (status == "pending_robot" && !isHandled && !glovoName.isNullOrEmpty()) {
-                        return@withContext glovoName
+                        return@withContext RuptureTask(glovoName, action)
                     }
                 }
             } catch (e: Exception) {
