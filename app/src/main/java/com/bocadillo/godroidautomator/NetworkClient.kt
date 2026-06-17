@@ -236,7 +236,8 @@ object NetworkClient {
                 val jsonStr = """
                 {
                   "fields": {
-                    "count": { "integerValue": "$count" }
+                    "count": { "integerValue": "$count" },
+                    "updatedAt": { "timestampValue": "${java.time.Instant.now().toString()}" }
                   }
                 }
                 """.trimIndent()
