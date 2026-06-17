@@ -1339,10 +1339,40 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private suspend fun returnToNewOrdersTab() {
         Journal.log("Retour à la page Aperçu des commandes...")
         delay(500)
+
+        // Try to find the drawer icon (3 bars) first to avoid pressing BACK unnecessarily
+        if (clickByText("Ouvrir le tiroir de navigation")) {
+            Journal.log("Tiroir de navigation ouvert directement.")
+            delay(1000)
+            clickByText("Aperçu des commandes")
+            delay(500)
+            return
+        }
+
+        // If drawer is not found, we might be in an order detail, dropdown, or search.
+        // Try closing search if it exists
+        val closeSearchNodes = rootInActiveWindow?.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/search_close_btn")
+        if (closeSearchNodes != null && closeSearchNodes.isNotEmpty()) {
+            Journal.log("Fermeture de la recherche...")
+            closeSearchNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            delay(500)
+        }
+
+        // Press BACK to exit the current sub-screen (like order detail or search)
+        Journal.log("Bouton retour Android pour quitter le sous-menu...")
         performGlobalAction(GLOBAL_ACTION_BACK)
-        delay(500)
-        
-        // Try clicking tabs to ensure we are on the new orders list
+        delay(1000)
+
+        // Try opening drawer again
+        if (clickByText("Ouvrir le tiroir de navigation")) {
+            Journal.log("Tiroir ouvert après retour.")
+            delay(1000)
+            clickByText("Aperçu des commandes")
+            delay(500)
+            return
+        }
+
+        // Fallback: click tabs if visible
         if (clickByText("Aperçu des commandes")) {
             delay(500)
         } else if (clickByText("Nouvelle")) {
