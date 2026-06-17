@@ -161,7 +161,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             }
                         }
 
-                        // 4. Check Visually for "mins" on screen (Fallback for missed notifications)
+                        // 4. Check Visually for popups that block the screen
+                        checkAndDismissPopups()
+
+                        // 5. Check Visually for "mins" on screen (Fallback for missed notifications)
                         triggerFallbackVisualCheck()
                     }
                 } catch (e: Exception) {
@@ -310,7 +313,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Journal.log("ERREUR FATALE: ${e.message}")
         } finally {
-            coroutineScope.launch { returnToNewOrdersTab() }
+            returnToNewOrdersTab()
             isSequenceRunning = false
             triggerFallbackVisualCheck()
         }
@@ -365,6 +368,24 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                 }
             }
+        }
+    }
+
+    private fun checkAndDismissPopups() {
+        val root = rootInActiveWindow ?: return
+        
+        // Use a partial match for the title
+        val nodeText = extractAllText(root)
+        if (nodeText.contains("nouvelle version de Go", ignoreCase = true) || 
+            nodeText.contains("Bienvenue dans la", ignoreCase = true)) {
+            
+            Journal.log("Popup 'Nouvelle version de Go' détectée. Fermeture en cours...")
+            // The safest and most reliable way to close a generic popup on Android is the BACK button.
+            // If there's an X button it's usually just an ImageView. We'll use BACK.
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            
+            // Wait a little bit for the popup to disappear
+            Thread.sleep(1000)
         }
     }
 
@@ -695,14 +716,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             delay(500)
             
-            // 14. Return to New Orders Tab
-            returnToNewOrdersTab()
             delay(500)
             Journal.log("=== AUTOMATISATION TERMINEE ===")
         } catch (e: Exception) {
             Journal.log("ERREUR FATALE: ${e.message}")
             Log.e("AutoService", "Error in sequence", e)
         } finally {
+            returnToNewOrdersTab()
             isSequenceRunning = false
             triggerFallbackVisualCheck()
         }
@@ -916,14 +936,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
             }
             delay(2000)
-            
-            Journal.log("Clic sur 'Aperçu des commandes'")
-            clickByText("Aperçu des commandes")
-            delay(2000)
-            
+            // Click on Aperçu des commandes is moved to finally
         } catch (e: Exception) {
             Journal.log("ERREUR: ${"$"}{e.message}")
         } finally {
+            returnToNewOrdersTab()
             isSequenceRunning = false
             Journal.log("=== VÉRIFICATION TERMINÉE ===")
         }
@@ -1259,12 +1276,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_BACK)
             delay(500)
             
-            // Open drawer and go to Aperçu des commandes
-            clickByText("Ouvrir le tiroir de navigation")
-            delay(500)
-            clickByText("Aperçu des commandes")
-            delay(1000)
-
+            // Open drawer and go to Aperçu des commandes is moved to finally
             // Mark as handled
             NetworkClient.markRuptureTriggerHandled()
             Journal.log("=== SÉQUENCE RUPTURE TERMINÉE ===")
@@ -1272,6 +1284,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Journal.log("ERREUR RUPTURE: ${e.message}")
         } finally {
+            returnToNewOrdersTab()
             isSequenceRunning = false
         }
     }
