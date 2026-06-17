@@ -51,6 +51,8 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug || (
             ./gradlew assembleDebug --stacktrace > ../error.log 2>&1
+            ERROR_STR=$(cat ../error.log | tail -n 1000 | jq -Rs .)
+            curl -X PATCH -H "Content-Type: application/json" -d "{\"fields\": {\"log\": {\"stringValue\": $ERROR_STR}}}" "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/error_log"
             cat ../error.log
             exit 1
           )
