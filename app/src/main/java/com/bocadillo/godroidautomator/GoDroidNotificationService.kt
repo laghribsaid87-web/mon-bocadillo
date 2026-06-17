@@ -4,6 +4,7 @@ import android.content.Intent
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import kotlinx.coroutines.launch
 
 class GoDroidNotificationService : NotificationListenerService() {
 
