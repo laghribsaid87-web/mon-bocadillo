@@ -257,6 +257,39 @@ object NetworkClient {
         }
     }
 
+    suspend fun incrementCancelledOrderCount() {
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_cancellations_count"
+                
+                // Fetch current count
+                val request = Request.Builder().url(url).build()
+                val response = client.newCall(request).execute()
+                var currentCount = 0
+                
+                if (response.isSuccessful) {
+                    val bodyString = response.body?.string()
+                    if (bodyString != null) {
+                        val rootObj = org.json.JSONObject(bodyString)
+                        val fields = rootObj.optJSONObject("fields")
+                        if (fields != null) {
+                            val countObj = fields.optJSONObject("count")
+                            if (countObj != null) {
+                                currentCount = countObj.optInt("integerValue", 0)
+                            }
+                        }
+                    }
+                }
+                
+                // Increment and send
+                sendCancelledOrderCount(currentCount + 1)
+                
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in incrementCancelledOrderCount", e)
+            }
+        }
+    }
+
     suspend fun checkRuptureTrigger(): String? {
         return withContext(Dispatchers.IO) {
             try {

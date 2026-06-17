@@ -29,6 +29,8 @@ class GoDroidNotificationService : NotificationListenerService() {
                                   title.contains("Commande", ignoreCase = true) ||
                                   text.contains("Nouvelle commande", ignoreCase = true)
 
+        val isCancelNotification = title.contains("annulé", ignoreCase = true) || text.contains("annulé", ignoreCase = true)
+
         if (isTargetApp) {
             Journal.log("Notif reçue: pkg=$packageName, app=$appName, titre=$title")
         }
@@ -40,6 +42,12 @@ class GoDroidNotificationService : NotificationListenerService() {
             val intent = Intent("com.bocadillo.godroidautomator.START_SEQUENCE")
             intent.setPackage(applicationContext.packageName)
             sendBroadcast(intent)
+        } else if (isTargetApp && isCancelNotification) {
+            Journal.log("MATCH! Notification d'annulation détectée! Mise à jour du compteur...")
+            
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                NetworkClient.incrementCancelledOrderCount()
+            }
         }
     }
 
