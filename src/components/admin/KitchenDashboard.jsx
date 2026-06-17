@@ -12,7 +12,7 @@ const getGlovoName = (caisseName) => {
         "Bocadillo Thon": "Bocadillo Thon",
         "Bocadillo Tangérois": "Bocadillo Tangérois",
         "Bocadillo Cheese": "Bocadillio Cheese",
-        "Bocadillo Complet (شمالي)": "Bocadillo Complet",
+        "Bocadillo Complet (\u0634\u0645\u0627\u0644\u064A)": "Bocadillo Complet",
         "Tortillia Cheese": "Bocadillo Tortilla Cheese",
         "Sandwiche Poulet": "Sandwich Brochettes de Poulet",
         "Sandwiche Viande Hachée": "Sandwich Viande Hachée",
@@ -32,7 +32,7 @@ const getGlovoName = (caisseName) => {
         "Thon": "\"Extra\" Thon",
         "Charcuterie": "\"Extra\" Charcuterie",
         "Fromage": "\"Extra\" Fromage",
-        "Oeuf": "\"Extra\" Œuf"
+        "Oeuf": "\"Extra\" \u0152uf"
     };
     return mapping[name] || name;
 };
