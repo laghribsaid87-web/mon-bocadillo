@@ -6,6 +6,37 @@ import { formatSansIngredient } from '../../utils/helpers';
 import LiveTimer from '../LiveTimer';
 import { io } from 'socket.io-client';
 
+const getGlovoName = (caisseName) => {
+    const name = caisseName?.trim();
+    const mapping = {
+        "Bocadillo Thon": "Bocadillo Thon",
+        "Bocadillo Tangérois": "Bocadillo Tangérois",
+        "Bocadillo Cheese": "Bocadillio Cheese",
+        "Bocadillo Complet (شمالي)": "Bocadillo Complet",
+        "Tortillia Cheese": "Bocadillo Tortilla Cheese",
+        "Sandwiche Poulet": "Sandwich Brochettes de Poulet",
+        "Sandwiche Viande Hachée": "Sandwich Viande Hachée",
+        "Sandwiche Saucisse": "Sandwich Saucisse de Bœuf",
+        "Sandwiche Mixte": "Sandwich Mixte",
+        "Sandwiche Américain": "Sandwiche Américain",
+        "Toi et Moi": "Formule Toi et Moi",
+        "Formule Gourmand": "Formule Gourmande",
+        "Coca-Cola": "Coca-Cola",
+        "Pepsi": "PEPSI",
+        "Mirinda Pomme": "Mirinda Pomme",
+        "7up": "7up",
+        "Mirinda Orange": "Mirinda Orange",
+        "Jus d'orange": "Jus d'Orange",
+        "Eau 50 Cl": "Eau minérale",
+        "Cornet de Frite": "\"Extra\" Frites",
+        "Thon": "\"Extra\" Thon",
+        "Charcuterie": "\"Extra\" Charcuterie",
+        "Fromage": "\"Extra\" Fromage",
+        "Oeuf": "\"Extra\" Œuf"
+    };
+    return mapping[name] || name;
+};
+
 export default function KitchenDashboard({ activeOrders, updateStatus, printTicket, brand, settings, profile }) {
     // État pour cocher/rayer les articles préparés individuellement
     const [checkedItems, setCheckedItems] = useState({});
@@ -940,7 +971,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     // Delay to overwrite the Cloud Function's default config_sync trigger
                                     setTimeout(() => {
                                         setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'glovo_rupture'), {
-                                            glovoName: item.name,
+                                            glovoName: getGlovoName(item.name),
                                             status: 'pending_robot',
                                             action: isRupture ? 'rupture' : 'disponible',
                                             isHandled: false,
