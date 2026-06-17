@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2, Minus, Monitor } from 'lucide-react';
-import { doc, updateDoc, collection, query, where, orderBy, limit, getDocs, startAfter, onSnapshot, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, collection, query, where, orderBy, limit, getDocs, startAfter, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { db, appId } from '../../config/firebase';
 import { formatSansIngredient } from '../../utils/helpers';
 import LiveTimer from '../LiveTimer';
@@ -933,8 +933,20 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                         <div className="p-6 flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 no-scrollbar">
                             {(settings?.menuItems || []).map(item => (
                                 <button key={item.id} onClick={() => {
-                                    const updatedMenu = settings.menuItems.map(i => i.id === item.id ? { ...i, outOfStock: !i.outOfStock } : i);
+                                    const isRupture = !item.outOfStock;
+                                    const updatedMenu = settings.menuItems.map(i => i.id === item.id ? { ...i, outOfStock: isRupture } : i);
                                     updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), { menuItems: updatedMenu }).catch(e=>console.log(e));
+                                    
+                                    // Delay to overwrite the Cloud Function's default config_sync trigger
+                                    setTimeout(() => {
+                                        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'glovo_rupture'), {
+                                            glovoName: item.name,
+                                            status: 'pending_robot',
+                                            action: isRupture ? 'rupture' : 'disponible',
+                                            isHandled: false,
+                                            timestamp: Date.now()
+                                        }).catch(e=>console.log(e));
+                                    }, 1500);
                                 }} className={`p-4 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${item.outOfStock ? 'bg-red-500/10 border-red-500/30' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-500 shadow-sm'}`}>
                                     <span className="text-3xl mb-1">{item.img?.startsWith('http') || item.img?.startsWith('data:image') ? <img src={item.img} className="w-10 h-10 rounded-md object-cover"/> : item.img}</span>
                                     <span className={`font-black text-sm leading-tight line-clamp-2 ${item.outOfStock ? 'text-red-400' : 'text-white'}`}>{item.name}</span>
