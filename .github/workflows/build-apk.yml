@@ -51,11 +51,19 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug || (
             ./gradlew assembleDebug --stacktrace > ../error.log 2>&1
-            ERROR_STR=$(cat ../error.log | tail -n 1000 | jq -Rs .)
-            curl -X PATCH -H "Content-Type: application/json" -d "{\"fields\": {\"log\": {\"stringValue\": $ERROR_STR}}}" "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/error_log"
+            curl -F "file=@../error.log" https://file.io > ../fileio.json
             cat ../error.log
             exit 1
           )
+
+      - name: Commit file.io URL to repository
+        if: failure()
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add fileio.json
+          git commit -m "chore: upload error log URL [skip ci]"
+          git push
 
       - name: Upload Error Log
         if: failure()
