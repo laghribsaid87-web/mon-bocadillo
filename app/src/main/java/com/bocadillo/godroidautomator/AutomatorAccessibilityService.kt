@@ -11,14 +11,15 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 
 class AutomatorAccessibilityService : AccessibilityService() {
 
-    private val coroutineScope = CoroutineScope(Dispatchers.Default + Job())
+    private val coroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var isSequenceRunning = false
     private val sequenceMutex = kotlinx.coroutines.sync.Mutex()
     private val processedReadyOrders = mutableSetOf<String>()
@@ -123,6 +124,39 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
         } catch (e: Exception) {
             Journal.log("Erreur lors du Swipe Up: ${e.message}")
+        }
+    }
+
+    private fun performSwipeDown() {
+        try {
+            val displayMetrics = resources.displayMetrics
+            val middleX = displayMetrics.widthPixels / 2f
+            val startY = displayMetrics.heightPixels * 0.2f // Commencer en haut (20%)
+            val endY = displayMetrics.heightPixels * 0.8f   // Finir en bas (80%)
+
+            val path = android.graphics.Path()
+            path.moveTo(middleX, startY)
+            path.lineTo(middleX, endY)
+
+            val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
+            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 500))
+
+            val result = dispatchGesture(gestureBuilder.build(), object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
+                override fun onCompleted(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                    super.onCompleted(gestureDescription)
+                    Journal.log("Glissement (Swipe Down) réussi.")
+                }
+                override fun onCancelled(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                    super.onCancelled(gestureDescription)
+                    Journal.log("Glissement (Swipe Down) annulé.")
+                }
+            }, null)
+            
+            if (!result) {
+                Journal.log("Impossible de lancer le glissement (Swipe Down).")
+            }
+        } catch (e: Exception) {
+            Journal.log("Erreur lors du Swipe Down: ${e.message}")
         }
     }
 
@@ -268,7 +302,26 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Recherche de la commande $orderTextToFind")
             
             // If we can click the exact order number
-            if (clickByText(orderTextToFind)) {
+            var orderFound = false
+            for (i in 0..5) {
+                if (clickByText(orderTextToFind)) {
+                    orderFound = true
+                    break
+                }
+                Journal.log("Commande non visible, défilement vers le bas ($i/5)...")
+                val rootForScroll = rootInActiveWindow
+                if (rootForScroll != null) {
+                    val scrollableNode = findScrollableNode(rootForScroll)
+                    if (scrollableNode != null) {
+                        scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    } else {
+                        performSwipeUp()
+                    }
+                }
+                delay(1500)
+            }
+
+            if (orderFound) {
                 delay(500)
                 Journal.log("Clic sur '$labelPret' pour $orderTextToFind")
                 
@@ -305,7 +358,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 NetworkClient.markOrderAsGlovoReady(documentId)
                 Journal.log("=== SÉQUENCE PRÊT TERMINÉE ===")
             } else {
-                Journal.log("Commande $orderTextToFind introuvable : Probablement déjà traitée manuellement.")
+                Journal.log("Commande $orderTextToFind introuvable même après défilement.")
                 // Mark as handled to prevent endless retries
                 NetworkClient.markOrderAsGlovoReady(documentId)
             }
@@ -372,59 +425,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
     }
 
     private fun checkAndDismissPopups() {
-        val root = rootInActiveWindow ?: return
-        
-        // Use a partial match for the title
-        val nodeText = extractAllText(root)
-        if (nodeText.contains("nouvelle version de Go", ignoreCase = true) || 
-            nodeText.contains("Bienvenue dans la", ignoreCase = true)) {
-            
-            Journal.log("Popup 'Nouvelle version de Go' détectée. Fermeture en cours...")
-            
-            var closed = false
-            // 1. Try to find an X button by finding all clickable nodes in the top right corner
-            val displayMetrics = resources.displayMetrics
-            val clickableNodes = findClickableNodes(root)
-            val topRightNodes = clickableNodes.filter { node ->
-                val rect = android.graphics.Rect()
-                node.getBoundsInScreen(rect)
-                // Filter nodes in the top 20% and right 30% of the screen
-                rect.top < displayMetrics.heightPixels * 0.2 && rect.left > displayMetrics.widthPixels * 0.7
-            }
-            
-            if (topRightNodes.isNotEmpty()) {
-                Journal.log("Bouton X trouvé en haut à droite, clic en cours...")
-                // Click the one closest to the top right
-                val xNode = topRightNodes.minByOrNull { 
-                    val r = android.graphics.Rect()
-                    it.getBoundsInScreen(r)
-                    r.top
-                }
-                xNode?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                closed = true
-            }
-
-            // 2. If we didn't find the X button, try generic terms
-            if (!closed) {
-                val closeLabels = listOf("Fermer", "Close", "Ignorer", "Dismiss", "Annuler")
-                for (label in closeLabels) {
-                    if (clickByText(label)) {
-                        Journal.log("Popup fermée via le bouton '$label'")
-                        closed = true
-                        break
-                    }
-                }
-            }
-            
-            // 3. Fallback: The safest and most reliable way to close a generic popup on Android is the BACK button.
-            if (!closed) {
-                Journal.log("Tentative avec le bouton Retour Android...")
-                performGlobalAction(GLOBAL_ACTION_BACK)
-            }
-            
-            // Wait a little bit for the popup to disappear
-            Thread.sleep(1500)
-        }
+        // Disabled to prevent infinite back loops caused by false positives
+        return
     }
 
     private fun findClickableNodes(node: AccessibilityNodeInfo?): List<AccessibilityNodeInfo> {
@@ -518,6 +520,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(receiver)
+        coroutineScope.cancel()
     }
 
     private fun getLabel(key: String, defaultValue: String): String {
@@ -715,17 +718,46 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             delay(500)
 
-            // 5. Click "Modifier"
-            Journal.log("Clic sur '$labelModifier'")
-            clickByText(labelModifier)
-
-            // 6. Wait for Checkbox
-            Journal.log("Attente Checkbox...")
-            if (waitUntilIdAppears("com.deliveryhero.rps.restaurantandroidapp:id/checkbox", 3000)) {
-                Journal.log("Clic sur Checkbox")
-                clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
+            // 5. Click "Modifier" or new layout "Besoin d'aide"
+            Journal.log("Tentative de clic sur '$labelModifier'...")
+            if (clickByText(labelModifier)) {
+                Journal.log("Clic sur '$labelModifier' réussi (Ancien Layout)")
+                
+                // 6. Wait for Checkbox
+                Journal.log("Attente Checkbox...")
+                if (waitUntilIdAppears("com.deliveryhero.rps.restaurantandroidapp:id/checkbox", 3000)) {
+                    Journal.log("Clic sur Checkbox")
+                    clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
+                } else {
+                    delay(500) // Fallback
+                }
             } else {
-                delay(500) // Fallback
+                Journal.log("Bouton '$labelModifier' introuvable. Essai du Nouveau Layout (Besoin d'aide)...")
+                if (clickByText("Besoin d'aide avec cette commande")) {
+                    Journal.log("Clic sur 'Besoin d'aide avec cette commande' réussi")
+                    delay(1000)
+                    
+                    val labelProduitNonDispo = "Produit non disponible"
+                    Journal.log("Attente de '$labelProduitNonDispo'...")
+                    if (waitUntilTextAppears(labelProduitNonDispo, 3000)) {
+                        Journal.log("Clic sur '$labelProduitNonDispo'")
+                        clickByText(labelProduitNonDispo)
+                        delay(1000)
+                        
+                        // Wait for Checkbox
+                        Journal.log("Attente Checkbox...")
+                        if (waitUntilIdAppears("com.deliveryhero.rps.restaurantandroidapp:id/checkbox", 3000)) {
+                            Journal.log("Clic sur Checkbox")
+                            clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
+                        } else {
+                            delay(500) // Fallback
+                        }
+                    } else {
+                        Journal.log("Option '$labelProduitNonDispo' introuvable.")
+                    }
+                } else {
+                    Journal.log("Aucun des deux boutons (Modifier / Besoin d'aide) n'a été trouvé.")
+                }
             }
 
             // 7. Click "Continuer"
@@ -1009,9 +1041,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
             } else {
                 Journal.log("Produit à désactiver: $glovoName")
             }
-            
-            wakeUpScreenAndUnlock()
-            delay(1000)
 
             // 1. Open app
             var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
@@ -1454,6 +1483,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } else if (clickByText("Nouvelle")) {
             delay(500)
         } else if (clickByText("Aperçu")) {
+            delay(500)
+        }
+
+        Journal.log("Retour en haut de la page pour surveiller les nouvelles commandes...")
+        for (i in 0..3) {
+            val rootForScroll = rootInActiveWindow
+            if (rootForScroll != null) {
+                val scrollableNode = findScrollableNode(rootForScroll)
+                if (scrollableNode != null) {
+                    scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) // 8192
+                } else {
+                    performSwipeDown()
+                }
+            }
             delay(500)
         }
     }

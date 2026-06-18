@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
             textSize = 16f
             setPadding(0, 32, 0, 0)
         }
+        layout.addView(instructions)
         
         val btnSettings = Button(this).apply {
             text = "Paramètres de Texte (Boutons Glovo)"
@@ -150,8 +151,7 @@ class MainActivity : AppCompatActivity() {
                             val pInfo = packageManager.getPackageInfo(packageName, 0)
                             val currentVersion = "v" + pInfo.versionName
                             
-                            // Simple string comparison for versions like v3.3.127
-                            if (tagName > currentVersion && !currentVersion.startsWith("v3.3.126")) {
+                            if (isNewerVersion(tagName, currentVersion) && !currentVersion.startsWith("v3.3.126")) {
                                 withContext(Dispatchers.Main) {
                                     showUpdateDialog(tagName)
                                 }
@@ -163,6 +163,21 @@ class MainActivity : AppCompatActivity() {
                 e.printStackTrace()
             }
         }
+    }
+
+    private fun isNewerVersion(githubVersion: String, currentVersion: String): Boolean {
+        try {
+            val v1 = githubVersion.replace("v", "").split(".").map { it.toIntOrNull() ?: 0 }
+            val v2 = currentVersion.replace("v", "").split(".").map { it.toIntOrNull() ?: 0 }
+            val length = maxOf(v1.size, v2.size)
+            for (i in 0 until length) {
+                val num1 = v1.getOrElse(i) { 0 }
+                val num2 = v2.getOrElse(i) { 0 }
+                if (num1 > num2) return true
+                if (num1 < num2) return false
+            }
+        } catch (e: Exception) { /* N'ignorez pas l'erreur, on retourne juste false */ }
+        return false
     }
 
     private fun showUpdateDialog(newVersion: String) {

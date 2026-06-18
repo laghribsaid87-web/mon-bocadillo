@@ -118,7 +118,7 @@ object OrderParser {
         
         val itemsArray = JSONArray()
         for (line in finalItemsList) {
-            itemsArray.put(line) 
+            itemsArray.put(formatLine(line)) 
         }
         json.put("items", itemsArray)
         
@@ -188,11 +188,35 @@ object OrderParser {
         
         val itemsArray = JSONArray()
         for (line in finalItemsList) {
-            itemsArray.put(line) 
+            itemsArray.put(formatLine(line)) 
         }
         json.put("items", itemsArray)
         json.put("rawItemsText", finalItemsList.joinToString("\n"))
 
         return json.toString()
+    }
+
+    private fun formatLine(line: String): String {
+        val lowerLine = line.lowercase()
+        var result = line
+        
+        // Remove "1x " or "1 x " if it's a "Sans" modifier
+        if (lowerLine.contains("sans ")) {
+            result = result.replace(Regex("(?i)^1\\s*[xX×]\\s*"), "") // remove leading 1x
+            
+            // Map specific ingredients with emojis and exact text
+            if (lowerLine.contains("tomate")) return "  - \ud83c\udf45 SANS TOMATE"
+            if (lowerLine.contains("oignon")) return "  - \ud83e\uddc5 SANS OIGNON"
+            if (lowerLine.contains("olive")) return "  - \ud83d\udfe2 SANS OLIVE VERT"
+            if (lowerLine.contains("laitue")) return "  - \ud83e\udd6c SANS LAITUE"
+            if (lowerLine.contains("carotte")) return "  - \ud83e\udd55 SANS CAROTTE"
+            if (lowerLine.contains("pomme de terre") || lowerLine.contains("purée") || lowerLine.contains("puree")) return "  - \ud83e\udd54 SANS POMME DE TERRE"
+            if (lowerLine.contains("mayonnaise")) return "  - \ud83e\udd63 SANS SAUCE MAYONNAISE"
+            if (lowerLine.contains("harissa") || lowerLine.contains("hrissa")) return "  - \ud83c\udf36\ufe0f SANS HRISSA"
+            
+            // Generic fallback for other "Sans"
+            return "  - ${result.uppercase()}"
+        }
+        return result
     }
 }

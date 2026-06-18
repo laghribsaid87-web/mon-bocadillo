@@ -5,8 +5,14 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 
 class GoDroidNotificationService : NotificationListenerService() {
+
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
@@ -46,7 +52,7 @@ class GoDroidNotificationService : NotificationListenerService() {
         } else if (isTargetApp && isCancelNotification) {
             Journal.log("MATCH! Notification d'annulation détectée! Mise à jour du compteur...")
             
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            serviceScope.launch {
                 NetworkClient.incrementCancelledOrderCount()
             }
         }
@@ -54,5 +60,10 @@ class GoDroidNotificationService : NotificationListenerService() {
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         // Nothing to do
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
     }
 }
