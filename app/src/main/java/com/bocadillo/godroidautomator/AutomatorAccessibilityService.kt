@@ -304,7 +304,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             // If we can click the exact order number
             var orderFound = false
             for (i in 0..5) {
-                if (clickByText(orderTextToFind)) {
+                if (clickExactText(orderTextToFind)) {
                     orderFound = true
                     break
                 }
@@ -497,14 +497,36 @@ class AutomatorAccessibilityService : AccessibilityService() {
         return false
     }
 
+    private fun clickExactText(text: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val nodes = mutableListOf<AccessibilityNodeInfo>()
+        findAllNodesWithTextRecursively(text, root, nodes)
+        
+        for (node in nodes) {
+            var clickableNode: AccessibilityNodeInfo? = node
+            while (clickableNode != null && !clickableNode.isClickable) {
+                clickableNode = clickableNode.parent
+            }
+            if (clickableNode != null && clickableNode.isClickable) {
+                clickableNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                return true
+            }
+        }
+        return false
+    }
+
     private fun findAllNodesWithTextRecursively(text: String, node: AccessibilityNodeInfo?, result: MutableList<AccessibilityNodeInfo>) {
         if (node == null) return
         
         val nodeText = node.text?.toString() ?: ""
         val nodeDesc = node.contentDescription?.toString() ?: ""
         
-        if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || 
-            nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true)) {
+        val cleanNodeText = nodeText.replace("#", "").trim()
+        val cleanDesc = nodeDesc.replace("#", "").trim()
+        val cleanText = text.replace("#", "").trim()
+        
+        if (cleanNodeText.equals(cleanText, ignoreCase = true) || cleanNodeText.endsWith(" " + cleanText, ignoreCase = true) || 
+            cleanDesc.equals(cleanText, ignoreCase = true) || cleanDesc.endsWith(" " + cleanText, ignoreCase = true)) {
             result.add(node)
         }
 
@@ -1340,14 +1362,19 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             delay(1000)
             
-            // 6. Click "Indisponible aujourd'hui" ONLY if deactivating
+            // 6. Handle Deactivation Popups
             if (clickedToggle) {
                 if (action.equals("disponible", ignoreCase = true) || action.equals("activer", ignoreCase = true)) {
                     Journal.log("Produit réactivé avec succès (Pas de popup).")
                     delay(500)
                 } else {
-                    Journal.log("Clic sur 'Indisponible aujourd'hui'")
-                    clickByText("Indisponible aujourd'hui")
+                    Journal.log("Attente de la popup de durée de désactivation...")
+                    delay(1500)
+                    Journal.log("Clic sur 'Jusqu'à ce que je réactive'")
+                    clickByText("Jusqu'à ce que je réactive")
+                    delay(1000)
+                    Journal.log("Clic sur 'Passer indisponible'")
+                    clickByText("Passer indisponible")
                     delay(1000)
                 }
             }
