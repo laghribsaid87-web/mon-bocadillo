@@ -103,11 +103,13 @@ object OrderParser {
         if (totalIndex != -1 && totalIndex > (firstXMatch?.range?.first ?: -1) && totalIndex < endIndex) endIndex = totalIndex
         if (sousTotalIndex != -1 && sousTotalIndex > (firstXMatch?.range?.first ?: -1) && sousTotalIndex < endIndex) endIndex = sousTotalIndex
         
-        val finalItemsList = if (firstXMatch != null && endIndex != Int.MAX_VALUE) {
+        var finalItemsList = if (firstXMatch != null && endIndex != Int.MAX_VALUE) {
             fullText.substring(firstXMatch.range.first, endIndex).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         } else {
             itemsList
         }
+        
+        finalItemsList = mergeSplitItemNames(finalItemsList)
 
         // 4. Build structured JSON
         val json = JSONObject()
@@ -161,13 +163,15 @@ object OrderParser {
         if (totalIndex != -1 && totalIndex > (firstXMatch?.range?.first ?: -1) && totalIndex < endIndex) endIndex = totalIndex
         if (sousTotalIndex != -1 && sousTotalIndex > (firstXMatch?.range?.first ?: -1) && sousTotalIndex < endIndex) endIndex = sousTotalIndex
         
-        val finalItemsList = if (firstXMatch != null && endIndex != Int.MAX_VALUE) {
+        var finalItemsList = if (firstXMatch != null && endIndex != Int.MAX_VALUE) {
             textItems.substring(firstXMatch.range.first, endIndex).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         } else if (firstXMatch != null) {
             textItems.substring(firstXMatch.range.first).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         } else {
             textItems.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         }
+        
+        finalItemsList = mergeSplitItemNames(finalItemsList)
 
         // 4. Extract Total Amount
         var totalAmount = 0.0
@@ -218,5 +222,30 @@ object OrderParser {
             return "  - ${result.uppercase()}"
         }
         return result
+    }
+
+    private fun mergeSplitItemNames(lines: List<String>): List<String> {
+        val mergedItemsList = mutableListOf<String>()
+        val quantityRegex = Regex("^(?i)\\d+[ \\t\\xA0]*[xX×]")
+        val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE)
+        
+        for (line in lines) {
+            val isQuantityLine = quantityRegex.containsMatchIn(line)
+            val isOptionLine = line.startsWith("Sans ", ignoreCase = true) || 
+                               line.startsWith("Ajout ", ignoreCase = true) || 
+                               line.startsWith("Avec ", ignoreCase = true) || 
+                               line.startsWith("-") ||
+                               line.startsWith("•") ||
+                               priceRegex.matches(line)
+            val isMisc = Regex("^(MAD|DH|Total|Sous-total|Produits)", RegexOption.IGNORE_CASE).containsMatchIn(line)
+            
+            if (!isQuantityLine && !isOptionLine && !isMisc && mergedItemsList.isNotEmpty()) {
+                val lastItem = mergedItemsList.removeAt(mergedItemsList.size - 1)
+                mergedItemsList.add("$lastItem $line")
+            } else {
+                mergedItemsList.add(line)
+            }
+        }
+        return mergedItemsList
     }
 }
