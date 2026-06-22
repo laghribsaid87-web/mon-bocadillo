@@ -1031,7 +1031,15 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             try {
                 val jsonResult = org.json.JSONObject(contenuEcran)
-                val readId = jsonResult.optString("orderId", "N/A")
+                var readId = jsonResult.optString("orderId", "N/A")
+                
+                // Add TEST- prefix to avoid backend duplicate filtering
+                if (!readId.startsWith("TEST-")) {
+                    readId = "TEST-$readId"
+                    jsonResult.put("orderId", readId)
+                    contenuEcran = jsonResult.toString()
+                }
+                
                 val readItems = jsonResult.optString("rawItemsText", "")
                 Journal.log("===========================")
                 Journal.log("✅ TEST COMMANDE LUE : $readId")
