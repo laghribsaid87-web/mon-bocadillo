@@ -235,6 +235,7 @@ object OrderParser {
         val mergedItemsList = mutableListOf<String>()
         val quantityRegex = Regex("^(?i)\\d+[ \\t\\xA0]*[xX×]")
         val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE)
+        val garbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|Test de lecture|Livraison|Adresse|Client|Floride)")
         
         for (line in lines) {
             val isQuantityLine = quantityRegex.containsMatchIn(line)
@@ -245,11 +246,12 @@ object OrderParser {
                                line.startsWith("•") ||
                                priceRegex.matches(line)
             val isMisc = Regex("^(MAD|DH|Total|Sous-total|Produits)", RegexOption.IGNORE_CASE).containsMatchIn(line)
+            val isGarbage = garbageRegex.containsMatchIn(line)
             
-            if (!isQuantityLine && !isOptionLine && !isMisc && mergedItemsList.isNotEmpty()) {
+            if (!isQuantityLine && !isOptionLine && !isMisc && !isGarbage && mergedItemsList.isNotEmpty()) {
                 val lastItem = mergedItemsList.removeAt(mergedItemsList.size - 1)
                 mergedItemsList.add("$lastItem $line")
-            } else {
+            } else if (!isGarbage) {
                 mergedItemsList.add(line)
             }
         }
