@@ -235,7 +235,7 @@ object OrderParser {
         val mergedItemsList = mutableListOf<String>()
         val quantityRegex = Regex("^(?i)\\d+[ \\t\\xA0]*[xX×]")
         val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE)
-        val garbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|Test de lecture|Livraison|Adresse|Client|Floride)")
+        val garbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|Test de lecture|Livraison|Adresse|Client|Floride|\\bModifier\\b|\\bAccepter\\b|\\bRefuser\\b|\\bContinuer\\b|\\bAide\\b|Ajoutez|\\bmin\\b)")
         
         for (line in lines) {
             val isQuantityLine = quantityRegex.containsMatchIn(line)
