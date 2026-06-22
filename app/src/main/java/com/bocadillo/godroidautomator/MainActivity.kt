@@ -66,6 +66,16 @@ class MainActivity : AppCompatActivity() {
         }
         layout.addView(instructions)
         
+        val btnTest = Button(this).apply {
+            text = "TEST Lecture Commande (Écran ouvert)"
+            setOnClickListener {
+                android.widget.Toast.makeText(this@MainActivity, "Basculez sur Glovo, lecture dans 3s...", android.widget.Toast.LENGTH_LONG).show()
+                val intent = Intent("com.bocadillo.godroidautomator.TEST_READ_ORDER")
+                sendBroadcast(intent)
+            }
+        }
+        layout.addView(btnTest)
+        
         val btnSettings = Button(this).apply {
             text = "Paramètres de Texte (Boutons Glovo)"
             setOnClickListener {

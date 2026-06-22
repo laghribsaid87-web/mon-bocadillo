@@ -208,18 +208,25 @@ object OrderParser {
         if (lowerLine.contains("sans ")) {
             result = result.replace(Regex("(?i)^1\\s*[xX×]\\s*"), "") // remove leading 1x
             
+            // Extract any remaining quantity prefix (e.g. "3x ", "2 x")
+            val quantityMatch = Regex("^(?i)(\\d+\\s*[xX×]\\s*)").find(result)
+            val prefix = if (quantityMatch != null) quantityMatch.value else ""
+            
+            fun withPrefix(text: String) = if (prefix.isNotEmpty()) "  - $prefix$text" else "  - $text"
+            
             // Map specific ingredients with emojis and exact text
-            if (lowerLine.contains("tomate")) return "  - \ud83c\udf45 SANS TOMATE"
-            if (lowerLine.contains("oignon")) return "  - \ud83e\uddc5 SANS OIGNON"
-            if (lowerLine.contains("olive")) return "  - \ud83d\udfe2 SANS OLIVE VERT"
-            if (lowerLine.contains("laitue")) return "  - \ud83e\udd6c SANS LAITUE"
-            if (lowerLine.contains("carotte")) return "  - \ud83e\udd55 SANS CAROTTE"
-            if (lowerLine.contains("pomme de terre") || lowerLine.contains("purée") || lowerLine.contains("puree")) return "  - \ud83e\udd54 SANS POMME DE TERRE"
-            if (lowerLine.contains("mayonnaise")) return "  - \ud83e\udd63 SANS SAUCE MAYONNAISE"
-            if (lowerLine.contains("harissa") || lowerLine.contains("hrissa")) return "  - \ud83c\udf36\ufe0f SANS HRISSA"
+            if (lowerLine.contains("tomate")) return withPrefix("\ud83c\udf45 SANS TOMATE")
+            if (lowerLine.contains("oignon")) return withPrefix("\ud83e\uddc5 SANS OIGNON")
+            if (lowerLine.contains("olive")) return withPrefix("\ud83d\udfe2 SANS OLIVE VERT")
+            if (lowerLine.contains("laitue")) return withPrefix("\ud83e\udd6c SANS LAITUE")
+            if (lowerLine.contains("carotte")) return withPrefix("\ud83e\udd55 SANS CAROTTE")
+            if (lowerLine.contains("pomme de terre") || lowerLine.contains("purée") || lowerLine.contains("puree")) return withPrefix("\ud83e\udd54 SANS POMME DE TERRE")
+            if (lowerLine.contains("mayonnaise")) return withPrefix("\ud83e\udd63 SANS SAUCE MAYONNAISE")
+            if (lowerLine.contains("harissa") || lowerLine.contains("hrissa")) return withPrefix("\ud83c\udf36\ufe0f SANS HRISSA")
             
             // Generic fallback for other "Sans"
-            return "  - ${result.uppercase()}"
+            val cleanResult = result.replace(Regex("(?i)^\\d+\\s*[xX×]\\s*"), "").trim()
+            return withPrefix(cleanResult.uppercase())
         }
         return result
     }

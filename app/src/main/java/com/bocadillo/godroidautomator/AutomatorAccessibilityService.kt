@@ -39,6 +39,17 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         }
                     }
                 }
+            } else if (intent?.action == "com.bocadillo.godroidautomator.TEST_READ_ORDER") {
+                Journal.log("Broadcast reçu: TEST_READ_ORDER")
+                coroutineScope.launch {
+                    sequenceMutex.withLock {
+                        if (!isSequenceRunning) {
+                            testReadSequence()
+                        } else {
+                            Journal.log("Séquence déjà en cours, test annulé.")
+                        }
+                    }
+                }
             }
         }
     }
@@ -46,7 +57,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d("AutoService", "Accessibility Service Connected")
-        val filter = IntentFilter("com.bocadillo.godroidautomator.START_SEQUENCE")
+        val filter = IntentFilter()
+        filter.addAction("com.bocadillo.godroidautomator.START_SEQUENCE")
+        filter.addAction("com.bocadillo.godroidautomator.TEST_READ_ORDER")
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
@@ -920,6 +934,123 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
+
+    private suspend fun testReadSequence() {
+        isSequenceRunning = true
+        Journal.log("=== DÉBUT TEST LECTURE COMMANDE ===")
+        
+        wakeUpScreenAndUnlock()
+        delay(1000)
+
+        try {
+            var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
+            val pm = packageManager
+            val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+            for (app in packages) {
+                val appName = pm.getApplicationLabel(app).toString()
+                if (appName.equals("goDroid", ignoreCase = true) || appName.equals("Glovo Partner", ignoreCase = true)) {
+                    targetPackage = app.packageName
+                    break
+                }
+            }
+
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(applicationContext, "Test de lecture en cours...", android.widget.Toast.LENGTH_LONG).show()
+            }
+
+            val currentPackage = rootInActiveWindow?.packageName?.toString()
+            if (currentPackage != targetPackage) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    Journal.log("Ouverture de l'app: $targetPackage")
+                    delay(2000)
+                }
+            }
+            
+            val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
+            val numLeft = prefs.getInt("cropNumLeft", 0)
+            val numTop = prefs.getInt("cropNumTop", 0)
+            val numRight = prefs.getInt("cropNumRight", 0)
+            val numBottom = prefs.getInt("cropNumBottom", 0)
+            val rectNum = if (numRight > numLeft && numBottom > numTop) android.graphics.Rect(numLeft, numTop, numRight, numBottom) else null
+
+            val detLeft = prefs.getInt("cropDetLeft", 0)
+            val detTop = prefs.getInt("cropDetTop", 0)
+            val detRight = prefs.getInt("cropDetRight", 0)
+            val detBottom = prefs.getInt("cropDetBottom", 0)
+            val rectDet = if (detRight > detLeft && detBottom > detTop) android.graphics.Rect(detLeft, detTop, detRight, detBottom) else null
+
+            var contenuEcran = "{}"
+            var useOcr = false
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                Journal.log("Capture d'écran (OCR) en cours...")
+                val bitmap = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
+                if (bitmap != null) {
+                    useOcr = true
+                    Journal.log("Analyse d'image par Intelligence Artificielle...")
+                    val fullText = OcrHelper.extractTextFromBitmap(bitmap, null)
+                    val textItems = fullText
+                    val textNum = OcrHelper.extractTextFromBitmap(bitmap, rectNum)
+                    contenuEcran = OrderParser.parseOcrScreen(textItems, textNum, fullText)
+                }
+            }
+            
+            if (!useOcr) {
+                val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
+                collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                
+                Journal.log("Défilement vers le bas pour lire la suite...")
+                val rootForScroll = rootInActiveWindow
+                if (rootForScroll != null) {
+                    val scrollableNode = findScrollableNode(rootForScroll)
+                    if (scrollableNode != null) {
+                        scrollableNode.performAction(4096)
+                    } else {
+                        performSwipeUp()
+                    }
+                }
+                delay(1500)
+                
+                collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                
+                val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
+                for (node in nodesList) {
+                    val isDuplicate = distinctNodes.any { 
+                        it.second == node.second && kotlin.math.abs(it.first.top - node.first.top) < 30 
+                    }
+                    if (!isDuplicate) {
+                        distinctNodes.add(node)
+                    }
+                }
+                
+                contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
+            }
+            
+            try {
+                val jsonResult = org.json.JSONObject(contenuEcran)
+                val readId = jsonResult.optString("orderId", "N/A")
+                val readItems = jsonResult.optString("rawItemsText", "")
+                Journal.log("===========================")
+                Journal.log("✅ TEST COMMANDE LUE : $readId")
+                Journal.log("---------------------------")
+                Journal.log(if (readItems.isNotEmpty()) readItems else "(Aucun détail trouvé)")
+                Journal.log("===========================")
+            } catch (e: Exception) {
+                Journal.log("JSON généré: ${contenuEcran.take(200)}...")
+            }
+
+            NetworkClient.sendOrderData(this@AutomatorAccessibilityService, "TEST_NO_PHONE", contenuEcran)
+            Journal.log("✅ Commande de test envoyée à KDS.")
+
+        } catch (e: Exception) {
+            Journal.log("ERREUR TEST: ${e.message}")
+        } finally {
+            isSequenceRunning = false
+        }
+    }
 
     private suspend fun startCancellationCheckSequence() {
         isSequenceRunning = true
