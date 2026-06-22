@@ -1042,7 +1042,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 Journal.log("JSON généré: ${contenuEcran.take(200)}...")
             }
 
-            NetworkClient.sendOrderData(this@AutomatorAccessibilityService, "TEST_NO_PHONE", contenuEcran)
+            NetworkClient.sendOrderData(this@AutomatorAccessibilityService, "0600000000", contenuEcran)
             Journal.log("✅ Commande de test envoyée à KDS.")
 
         } catch (e: Exception) {
