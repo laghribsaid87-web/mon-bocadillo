@@ -573,7 +573,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                 <div className="p-3 flex-1 overflow-y-auto max-h-[160px] no-scrollbar space-y-1.5">
                                     {(o.filteredItems || []).map((item, idx) => (
                                         <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
-                                            <span className="text-orange-400 font-black">{item.qty}x</span> {(item.name || '').split(' (Sans ')[0]}
+                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={((item.name || '').toLowerCase().includes('sans') ? 'text-red-500' : ((item.name || '').toLowerCase().includes('extra') || (item.name || '').toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{(item.name || '').split(' (Sans ')[0]}</span>
                                             {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col gap-1 mt-1">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => (
@@ -672,7 +672,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                     </div>
                                                 )}
                                                 <div className="flex-1 pt-1">
-                                                    <span className={`font-black text-xl text-white block leading-tight ${isChecked ? 'line-through decoration-2' : ''}`}>{item.qty}x {(item.name || '').split(' (Sans ')[0]}</span>
+                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${((item.name || '').toLowerCase().includes('sans') ? 'text-red-500' : ((item.name || '').toLowerCase().includes('extra') || (item.name || '').toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {(item.name || '').split(' (Sans ')[0]}</span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col items-start gap-1.5 mt-2">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => (
@@ -970,7 +970,11 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     
                                     // Delay to overwrite the Cloud Function's default config_sync trigger
                                     setTimeout(() => {
-                                        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'glovo_rupture'), {
+                                        let ruptureDoc = 'glovo_rupture';
+                                        if (profile?.branchId === 'oum_rabii') ruptureDoc = 'glovo_rupture_OumRabii';
+                                        if (profile?.branchId === 'zoubire') ruptureDoc = 'glovo_rupture_Zoubire';
+
+                                        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', ruptureDoc), {
                                             glovoName: getGlovoName(item.name),
                                             status: 'pending_robot',
                                             action: isRupture ? 'rupture' : 'disponible',
