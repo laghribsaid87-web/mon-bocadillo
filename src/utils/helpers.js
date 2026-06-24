@@ -62,14 +62,20 @@ export const calculateETA = (distKm) => {
 export const formatSansIngredient = (ingredient) => {
     if (!ingredient) return '';
     const trimIng = ingredient.trim();
+    
+    // S'il contient déjà "SANS" (ex: "🧅 SANS OIGNON"), on retourne tel quel en majuscule
+    if (trimIng.toUpperCase().includes('SANS')) {
+        return trimIng.toUpperCase();
+    }
+
     const firstSpace = trimIng.indexOf(' ');
     if (firstSpace !== -1) {
         const firstPart = trimIng.substring(0, firstSpace);
         if (!/^[a-zA-Z0-9À-ÿ]/.test(firstPart)) {
-            return `${firstPart} Sans ${trimIng.substring(firstSpace + 1).trim()}`;
+            return `${firstPart} SANS ${trimIng.substring(firstSpace + 1).trim().toUpperCase()}`;
         }
     }
-    return `Sans ${trimIng}`;
+    return `SANS ${trimIng.toUpperCase()}`;
 };
 
 // 5. 🔥 FIX N-NIHAYI: 7yedna l-weqt w l-magana 100%!
