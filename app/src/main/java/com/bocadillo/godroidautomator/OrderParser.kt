@@ -201,32 +201,18 @@ object OrderParser {
     }
 
     private fun formatLine(line: String): String {
-        val lowerLine = line.lowercase()
         var result = line
+        val lowerLine = line.lowercase()
         
-        // Remove "1x " or "1 x " if it's a "Sans" modifier
         if (lowerLine.contains("sans ")) {
-            result = result.replace(Regex("(?i)^1\\s*[xX×]\\s*"), "") // remove leading 1x
-            
-            // Extract any remaining quantity prefix (e.g. "3x ", "2 x")
-            val quantityMatch = Regex("^(?i)(\\d+\\s*[xX×]\\s*)").find(result)
-            val prefix = if (quantityMatch != null) quantityMatch.value else ""
-            
-            fun withPrefix(text: String) = if (prefix.isNotEmpty()) "  - $prefix$text" else "  - $text"
-            
-            // Map specific ingredients with emojis and exact text
-            if (lowerLine.contains("tomate")) return withPrefix("\ud83c\udf45 SANS TOMATE")
-            if (lowerLine.contains("oignon")) return withPrefix("\ud83e\uddc5 SANS OIGNON")
-            if (lowerLine.contains("olive")) return withPrefix("\ud83d\udfe2 SANS OLIVE VERT")
-            if (lowerLine.contains("laitue")) return withPrefix("\ud83e\udd6c SANS LAITUE")
-            if (lowerLine.contains("carotte")) return withPrefix("\ud83e\udd55 SANS CAROTTE")
-            if (lowerLine.contains("pomme de terre") || lowerLine.contains("purée") || lowerLine.contains("puree")) return withPrefix("\ud83e\udd54 SANS POMME DE TERRE")
-            if (lowerLine.contains("mayonnaise")) return withPrefix("\ud83e\udd63 SANS SAUCE MAYONNAISE")
-            if (lowerLine.contains("harissa") || lowerLine.contains("hrissa")) return withPrefix("\ud83c\udf36\ufe0f SANS HRISSA")
-            
-            // Generic fallback for other "Sans"
-            val cleanResult = result.replace(Regex("(?i)^\\d+\\s*[xX×]\\s*"), "").trim()
-            return withPrefix(cleanResult.uppercase())
+            result = result.replace(Regex("(?i)sans tomate"), "\ud83c\udf45 SANS TOMATE")
+            result = result.replace(Regex("(?i)sans oignon"), "\ud83e\uddc5 SANS OIGNON")
+            result = result.replace(Regex("(?i)sans olive"), "\ud83d\udfe2 SANS OLIVE VERT")
+            result = result.replace(Regex("(?i)sans laitue"), "\ud83e\udd6c SANS LAITUE")
+            result = result.replace(Regex("(?i)sans carotte"), "\ud83e\udd55 SANS CAROTTE")
+            result = result.replace(Regex("(?i)sans pomme de terre|sans pur[eé]e"), "\ud83e\udd54 SANS POMME DE TERRE")
+            result = result.replace(Regex("(?i)sans mayonnaise"), "\ud83e\udd63 SANS SAUCE MAYONNAISE")
+            result = result.replace(Regex("(?i)sans harissa|sans hrissa"), "\ud83c\udf36\ufe0f SANS HRISSA")
         }
         return result
     }
