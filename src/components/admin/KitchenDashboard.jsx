@@ -573,12 +573,18 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                 <div className="p-3 flex-1 no-scrollbar space-y-1.5">
                                     {(o.filteredItems || []).map((item, idx) => (
                                         <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
-                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={((item.name || '').toLowerCase().includes('sans') ? 'text-red-500' : ((item.name || '').toLowerCase().includes('extra') || (item.name || '').toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{(item.name || '').split(' (Sans ')[0]}</span>
+                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={((getGlovoName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getGlovoName(item.name) || '').toLowerCase().includes('extra') || (getGlovoName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
                                             {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col gap-1 mt-1">
-                                                    {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => (
-                                                        <span key={oIdx} className="text-[10px] text-red-400 font-black uppercase tracking-wider">- {formatSansIngredient(opt)}</span>
-                                                    ))}
+                                                    {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
+                                                        const mappedOpt = getGlovoName(opt).replace(/"/g, '');
+                                                        const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
+                                                        return (
+                                                            <span key={oIdx} className={`text-[10px] font-black uppercase tracking-wider ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
+                                                                {isExtra ? `+ ${mappedOpt}` : `- ${formatSansIngredient(opt)}`}
+                                                            </span>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                             {item.isCombo && item.comboChoices && item.comboChoices.map((c, cIdx) => (
@@ -672,14 +678,18 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                     </div>
                                                 )}
                                                 <div className="flex-1 pt-1">
-                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${((item.name || '').toLowerCase().includes('sans') ? 'text-red-500' : ((item.name || '').toLowerCase().includes('extra') || (item.name || '').toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {(item.name || '').split(' (Sans ')[0]}</span>
+                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${((getGlovoName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getGlovoName(item.name) || '').toLowerCase().includes('extra') || (getGlovoName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col items-start gap-1.5 mt-2">
-                                                    {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => (
-                                                        <span key={oIdx} className="inline-block bg-red-500/20 text-red-400 px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider border border-red-500/20">
-                                                            - {formatSansIngredient(opt)}
-                                                        </span>
-                                                    ))}
+                                                    {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
+                                                        const mappedOpt = getGlovoName(opt).replace(/"/g, '');
+                                                        const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
+                                                        return (
+                                                            <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
+                                                                {isExtra ? `+ ${mappedOpt}` : `- ${formatSansIngredient(opt)}`}
+                                                            </span>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                                     {item.isCombo && item.comboChoices && (
