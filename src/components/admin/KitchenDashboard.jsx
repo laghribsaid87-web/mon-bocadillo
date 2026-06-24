@@ -570,7 +570,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         <span className="text-[9px] font-black uppercase mt-1 tracking-widest text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md border border-blue-500/20 w-fit">🛵 {o.driverETA} min</span>
                                     )}
                                 </div>
-                                <div className="p-3 flex-1 overflow-y-auto max-h-[160px] no-scrollbar space-y-1.5">
+                                <div className="p-3 flex-1 no-scrollbar space-y-1.5">
                                     {(o.filteredItems || []).map((item, idx) => (
                                         <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
                                             <span className="text-orange-400 font-black">{item.qty}x</span> <span className={((item.name || '').toLowerCase().includes('sans') ? 'text-red-500' : ((item.name || '').toLowerCase().includes('extra') || (item.name || '').toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{(item.name || '').split(' (Sans ')[0]}</span>
@@ -659,7 +659,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             </div>
                             
                             {/* Liste des Plats à préparer */}
-                            <div className="p-6 flex-1 space-y-3 overflow-y-auto max-h-[50dvh] no-scrollbar">
+                            <div className="p-6 flex-1 space-y-3 no-scrollbar">
                                 {(o.filteredItems || []).map((item, idx) => {
                                     const isChecked = checkedItems[`${o.id}_${idx}`];
                                     return (
