@@ -1,4 +1,4 @@
-﻿package com.bocadillo.godroidautomator
+package com.bocadillo.godroidautomator
 
 import android.accessibilityservice.AccessibilityService
 import android.content.BroadcastReceiver
@@ -111,8 +111,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
         try {
             val displayMetrics = resources.displayMetrics
             val middleX = displayMetrics.widthPixels / 2f
-            val startY = displayMetrics.heightPixels * 0.5f // Commencer exactement au milieu
-            val endY = displayMetrics.heightPixels * 0.4f   // Finir au milieu-haut (Petit swipe)
+            val startY = displayMetrics.heightPixels * 0.7f // Commencer plus bas (70%)
+            val endY = displayMetrics.heightPixels * 0.6f   // Finir au milieu-haut (Petit swipe)
 
             val path = android.graphics.Path()
             path.moveTo(middleX, startY)
@@ -705,7 +705,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var useOcr = false
             
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Journal.log("Petit d�filement vers le bas pour afficher les options...")
+                Journal.log("Petit d�filement vers le bas ... (Swipe Up pour voir le bas)")
                 performSmallSwipeUp()
                 delay(1000)
                 Journal.log("Capture d'�cran (OCR) en cours...")
@@ -1009,7 +1009,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var useOcr = false
             
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Journal.log("Petit d�filement vers le bas pour afficher les options...")
+                Journal.log("Petit d�filement vers le bas ... (Swipe Up pour voir le bas)")
                 performSmallSwipeUp()
                 delay(1000)
                 Journal.log("Capture d'�cran (OCR) en cours...")
