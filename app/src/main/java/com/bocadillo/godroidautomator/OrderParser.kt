@@ -94,15 +94,8 @@ object OrderParser {
         val fullText = itemsList.joinToString("\n")
         val firstXMatch = Regex("(?i)\\d+[ \\t\\xA0]*[xX×-]").find(fullText)
         
-        val totalIndex = fullText.indexOf("Total", ignoreCase = true)
-        val sousTotalIndex = fullText.indexOf("Sous-total", ignoreCase = true)
-        
-        var endIndex = Int.MAX_VALUE
-        if (totalIndex != -1 && totalIndex > (firstXMatch?.range?.first ?: -1) && totalIndex < endIndex) endIndex = totalIndex
-        if (sousTotalIndex != -1 && sousTotalIndex > (firstXMatch?.range?.first ?: -1) && sousTotalIndex < endIndex) endIndex = sousTotalIndex
-        
-        var finalItemsList = if (firstXMatch != null && endIndex != Int.MAX_VALUE) {
-            fullText.substring(firstXMatch.range.first, endIndex).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        var finalItemsList = if (firstXMatch != null) {
+            fullText.substring(firstXMatch.range.first).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         } else {
             itemsList
         }
@@ -152,16 +145,7 @@ object OrderParser {
         // 3. Extract items using "1 x to MAD/Total" rule on textItems
         val firstXMatch = Regex("(?i)\\d+[ \\t\\xA0]*[xX×-]").find(textItems)
         
-        val totalIndex = textItems.indexOf("Total", ignoreCase = true)
-        val sousTotalIndex = textItems.indexOf("Sous-total", ignoreCase = true)
-        
-        var endIndex = Int.MAX_VALUE
-        if (totalIndex != -1 && totalIndex > (firstXMatch?.range?.first ?: -1) && totalIndex < endIndex) endIndex = totalIndex
-        if (sousTotalIndex != -1 && sousTotalIndex > (firstXMatch?.range?.first ?: -1) && sousTotalIndex < endIndex) endIndex = sousTotalIndex
-        
-        var finalItemsList = if (firstXMatch != null && endIndex != Int.MAX_VALUE) {
-            textItems.substring(firstXMatch.range.first, endIndex).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
-        } else if (firstXMatch != null) {
+        var finalItemsList = if (firstXMatch != null) {
             textItems.substring(firstXMatch.range.first).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         } else {
             textItems.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
