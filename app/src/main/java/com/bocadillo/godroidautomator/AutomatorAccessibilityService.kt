@@ -111,15 +111,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
         try {
             val displayMetrics = resources.displayMetrics
             val middleX = displayMetrics.widthPixels / 2f
-            val startY = displayMetrics.heightPixels * 0.7f // Commencer plus bas (70%)
-            val endY = displayMetrics.heightPixels * 0.6f   // Finir au milieu-haut (Petit swipe)
+            val startY = displayMetrics.heightPixels * 0.8f // Mettre le doigt en bas (80%) (Meme endroit que le grand swipe qui marche)
+            val endY = displayMetrics.heightPixels * 0.6f   // Tirer vers le haut jusqu'a 60% (Petit swipe)
 
             val path = android.graphics.Path()
             path.moveTo(middleX, startY)
             path.lineTo(middleX, endY)
 
             val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
-            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 800))
+            // 400ms pour une vitesse normale (si trop lent, Android le considere comme un appui long)
+            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 400))
 
             dispatchGesture(gestureBuilder.build(), object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {}, null)
         } catch (e: Exception) {
