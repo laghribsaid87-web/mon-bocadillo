@@ -205,14 +205,14 @@ object OrderParser {
         val lowerLine = line.lowercase()
         
         if (lowerLine.contains("sans ")) {
-            result = result.replace(Regex("(?i)sans tomate"), "\ud83c\udf45 SANS TOMATE")
-            result = result.replace(Regex("(?i)sans oignon"), "\ud83e\uddc5 SANS OIGNON")
-            result = result.replace(Regex("(?i)sans olive"), "\ud83d\udfe2 SANS OLIVE VERT")
-            result = result.replace(Regex("(?i)sans laitue"), "\ud83e\udd6c SANS LAITUE")
-            result = result.replace(Regex("(?i)sans carotte"), "\ud83e\udd55 SANS CAROTTE")
-            result = result.replace(Regex("(?i)sans pomme de terre|sans pur[eé]e"), "\ud83e\udd54 SANS POMME DE TERRE")
-            result = result.replace(Regex("(?i)sans mayonnaise"), "\ud83e\udd63 SANS SAUCE MAYONNAISE")
-            result = result.replace(Regex("(?i)sans harissa|sans hrissa"), "\ud83c\udf36\ufe0f SANS HRISSA")
+            result = result.replace(Regex("(?i)sans tomate.*"), "\ud83c\udf45 SANS TOMATE")
+            result = result.replace(Regex("(?i)sans oignon.*"), "\ud83e\uddc5 SANS OIGNON")
+            result = result.replace(Regex("(?i)sans olive.*"), "\ud83d\udfe2 SANS OLIVE VERT")
+            result = result.replace(Regex("(?i)sans laitue.*"), "\ud83e\udd57 SANS LAITUE") // 🥗
+            result = result.replace(Regex("(?i)sans carotte.*"), "\ud83e\udd55 SANS CAROTTE")
+            result = result.replace(Regex("(?i)sans pur[eéèê]e? de pomme[s]? de terre.*|(?i)sans pomme de terre.*"), "\ud83e\udd54 SANS POMME DE TERRE")
+            result = result.replace(Regex("(?i)sans sauce mayonnaise.*|(?i)sans mayonnaise.*"), "\ud83e\udd63 SANS SAUCE MAYONNAISE")
+            result = result.replace(Regex("(?i)sans harissa.*|(?i)sans hrissa.*"), "\ud83c\udf36\ufe0f SANS HRISSA")
         }
         return result
     }
