@@ -112,7 +112,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val displayMetrics = resources.displayMetrics
             val middleX = displayMetrics.widthPixels / 2f
             val startY = displayMetrics.heightPixels * 0.8f // Mettre le doigt en bas (80%) (Meme endroit que le grand swipe qui marche)
-            val endY = displayMetrics.heightPixels * 0.6f   // Tirer vers le haut jusqu'a 60% (Petit swipe)
+            val endY = displayMetrics.heightPixels * 0.3f   // Tirer vers le haut jusqu'a 30% (Scroll plus fort)
 
             val path = android.graphics.Path()
             path.moveTo(middleX, startY)
