@@ -70,12 +70,20 @@ object OcrHelper {
             
             recognizer.process(image)
                 .addOnSuccessListener { visionText ->
-                    // Extract text strictly in chronological line order
-                    val sb = StringBuilder()
+                    // Extract text strictly in chronological line order (Top to Bottom)
+                    val allLines = mutableListOf<com.google.mlkit.vision.text.Text.Line>()
                     for (block in visionText.textBlocks) {
                         for (line in block.lines) {
-                            sb.append(line.text).append("\n")
+                            allLines.add(line)
                         }
+                    }
+                    
+                    // Sort all lines by their Y coordinate (Top position)
+                    allLines.sortBy { it.boundingBox?.top ?: 0 }
+
+                    val sb = StringBuilder()
+                    for (line in allLines) {
+                        sb.append(line.text).append("\n")
                     }
                     continuation.resume(sb.toString().trim())
                 }
