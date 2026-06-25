@@ -25,20 +25,19 @@ jobs:
 
       - name: Inject Version Name
         run: |
-          sed -i -E 's/versionName = "[0-9.]+"/versionName = "3.${{ github.run_number }}"/g' app/build.gradle.kts
           sed -i -E 's/versionCode = [0-9]+/versionCode = ${{ github.run_number }}/g' app/build.gradle.kts
 
       - name: Build APK (Android)
         run: gradle assembleDebug
 
       - name: Renommer l'APK pour la Release
-        run: cp app/build/outputs/apk/debug/app-debug.apk GoDroid-Automator-v3.${{ github.run_number }}.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GoDroid-Automator-v3.4.apk
 
       - name: Ajouter l'APK a la Release (Lien Direct)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v3.${{ github.run_number }}
-          files: GoDroid-Automator-v3.${{ github.run_number }}.apk
+          tag_name: v3.4.0-build${{ github.run_number }}
+          files: GoDroid-Automator-v3.4.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
