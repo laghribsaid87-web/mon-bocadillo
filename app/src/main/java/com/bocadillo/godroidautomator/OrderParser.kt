@@ -185,14 +185,20 @@ object OrderParser {
         val lowerLine = line.lowercase()
         
         if (lowerLine.contains("sans ")) {
-            result = result.replace(Regex("(?i)sans tomate.*"), "\ud83c\udf45 SANS TOMATE")
-            result = result.replace(Regex("(?i)sans oignon.*"), "\ud83e\uddc5 SANS OIGNON")
-            result = result.replace(Regex("(?i)sans olive.*"), "\ud83d\udfe2 SANS OLIVE VERT")
-            result = result.replace(Regex("(?i)sans laitue.*"), "\ud83e\udd57 SANS LAITUE") // 🥗
-            result = result.replace(Regex("(?i)sans carotte.*"), "\ud83e\udd55 SANS CAROTTE")
-            result = result.replace(Regex("(?i)sans pur[eéèê]e? de pomme[s]? de terre.*|(?i)sans pomme de terre.*"), "\ud83e\udd54 SANS POMME DE TERRE")
-            result = result.replace(Regex("(?i)sans sauce mayonnaise.*|(?i)sans mayonnaise.*"), "\ud83e\udd63 SANS SAUCE MAYONNAISE")
-            result = result.replace(Regex("(?i)sans harissa.*|(?i)sans hrissa.*"), "\ud83c\udf36\ufe0f SANS HRISSA")
+            result = result.replace(Regex("(?i)sans tomate.*"), "\ud83c\udf45 بلا مطيشة")
+            result = result.replace(Regex("(?i)sans oignon.*"), "\ud83e\uddc5 بلا بصلة")
+            result = result.replace(Regex("(?i)sans olive.*"), "\ud83d\udfe2 بلا زيتون")
+            result = result.replace(Regex("(?i)sans laitue.*"), "\ud83e\udd57 بلا خس")
+            result = result.replace(Regex("(?i)sans carotte.*"), "\ud83e\udd55 بلا خيزو")
+            result = result.replace(Regex("(?i)sans pur[eéèê]e? de pomme[s]? de terre.*|(?i)sans pomme de terre.*"), "\ud83e\udd54 بلا بطاطا")
+            result = result.replace(Regex("(?i)sans sauce mayonnaise.*|(?i)sans mayonnaise.*"), "\ud83e\udd63 بلا مايونيز")
+            result = result.replace(Regex("(?i)sans harissa.*|(?i)sans hrissa.*"), "\ud83c\udf36\ufe0f بلا هريسة")
+        }
+        if (lowerLine.contains("extra ") || lowerLine.contains("ajout ")) {
+            result = result.replace(Regex("(?i)(extra|ajout) fromage.*"), "\ud83e\uddc0 إكسترا فرماج")
+            result = result.replace(Regex("(?i)(extra|ajout) frites?.*"), "\ud83c\udf5f إكسترا فريت")
+            result = result.replace(Regex("(?i)(extra|ajout) viande.*"), "\ud83e\udd69 إكسترا لحم")
+            result = result.replace(Regex("(?i)(extra|ajout) poulet.*"), "\ud83c\udf57 إكسترا دجاج")
         }
         return result
     }
