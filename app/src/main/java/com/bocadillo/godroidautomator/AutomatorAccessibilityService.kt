@@ -107,6 +107,26 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun performSmallSwipeUp() {
+        try {
+            val displayMetrics = resources.displayMetrics
+            val middleX = displayMetrics.widthPixels / 2f
+            val startY = displayMetrics.heightPixels * 0.6f // Commencer au milieu-bas
+            val endY = displayMetrics.heightPixels * 0.4f   // Finir au milieu-haut (Petit swipe)
+
+            val path = android.graphics.Path()
+            path.moveTo(middleX, startY)
+            path.lineTo(middleX, endY)
+
+            val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
+            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 400))
+
+            dispatchGesture(gestureBuilder.build(), object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {}, null)
+        } catch (e: Exception) {
+            Journal.log("Erreur lors du petit Swipe Up: ${e.message}")
+        }
+    }
+
     private fun performSwipeUp() {
         try {
             val displayMetrics = resources.displayMetrics
@@ -685,7 +705,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var useOcr = false
             
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Journal.log("Capture d'Ã©cran (OCR) en cours...")
+                Journal.log("Petit défilement vers le bas pour afficher les options...")
+                performSmallSwipeUp()
+                delay(1000)
+                Journal.log("Capture d'écran (OCR) en cours...")
                 val bitmap = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
                 if (bitmap != null) {
                     useOcr = true
@@ -986,7 +1009,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var useOcr = false
             
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Journal.log("Capture d'Ã©cran (OCR) en cours...")
+                Journal.log("Petit défilement vers le bas pour afficher les options...")
+                performSmallSwipeUp()
+                delay(1000)
+                Journal.log("Capture d'écran (OCR) en cours...")
                 val bitmap = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
                 if (bitmap != null) {
                     useOcr = true
