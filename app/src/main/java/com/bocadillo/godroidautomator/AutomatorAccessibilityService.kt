@@ -706,20 +706,45 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var useOcr = false
             
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Journal.log("Petit d�filement vers le bas ... (Swipe Up pour voir le bas)")
+                Journal.log("Capture d'écran 1 (Haut) en cours...")
+                val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
+                
+                Journal.log("Petit défilement vers le bas ... (Swipe Up pour voir le bas)")
                 performSmallSwipeUp()
                 delay(1000)
-                Journal.log("Capture d'�cran (OCR) en cours...")
-                val bitmap = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
-                if (bitmap != null) {
+                
+                Journal.log("Capture d'écran 2 (Bas) en cours...")
+                val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
+
+                if (bitmapTop != null && bitmapBottom != null) {
                     useOcr = true
-                    Journal.log("Analyse d'image par Intelligence Artificielle...")
-                    val fullText = OcrHelper.extractTextFromBitmap(bitmap, null)
-                    // We now use the full text for items to avoid the crop rectangle cutting off the top items
-                    val textItems = fullText
-                    val textNum = OcrHelper.extractTextFromBitmap(bitmap, rectNum)
+                    Journal.log("Analyse d'image par Intelligence Artificielle (Double Scan)...")
                     
-                    contenuEcran = OrderParser.parseOcrScreen(textItems, textNum, fullText)
+                    val textNum = OcrHelper.extractTextFromBitmap(bitmapTop, rectNum)
+                    
+                    val linesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
+                    val linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
+                    
+                    // Fusion sans doublons de défilement
+                    val finalLines = mutableListOf<String>()
+                    for (line in linesTop) {
+                        finalLines.add(line.second)
+                    }
+                    
+                    val overlapThreshold = bitmapBottom.height * 0.6f // 60% of screen height
+                    for (lineB in linesBottom) {
+                        val isDuplicate = linesTop.any { it.second == lineB.second }
+                        val isScrollOverlap = isDuplicate && (lineB.first.top < overlapThreshold)
+                        
+                        if (!isScrollOverlap) {
+                            finalLines.add(lineB.second)
+                        } else {
+                            Journal.log("Doublon OCR ignoré: ${lineB.second}")
+                        }
+                    }
+                    
+                    val fullText = finalLines.joinToString("\n")
+                    contenuEcran = OrderParser.parseOcrScreen(fullText, textNum, fullText)
                 } else {
                     Journal.log("Échec capture d'écran, utilisation méthode classique.")
                 }
@@ -1010,18 +1035,45 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var useOcr = false
             
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Journal.log("Petit d�filement vers le bas ... (Swipe Up pour voir le bas)")
+                Journal.log("Capture d'écran 1 (Haut) en cours...")
+                val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
+                
+                Journal.log("Petit défilement vers le bas ... (Swipe Up pour voir le bas)")
                 performSmallSwipeUp()
                 delay(1000)
-                Journal.log("Capture d'�cran (OCR) en cours...")
-                val bitmap = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
-                if (bitmap != null) {
+                
+                Journal.log("Capture d'écran 2 (Bas) en cours...")
+                val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
+
+                if (bitmapTop != null && bitmapBottom != null) {
                     useOcr = true
-                    Journal.log("Analyse d'image par Intelligence Artificielle...")
-                    val fullText = OcrHelper.extractTextFromBitmap(bitmap, null)
-                    val textItems = fullText
-                    val textNum = OcrHelper.extractTextFromBitmap(bitmap, rectNum)
-                    contenuEcran = OrderParser.parseOcrScreen(textItems, textNum, fullText)
+                    Journal.log("Analyse d'image par Intelligence Artificielle (Double Scan)...")
+                    
+                    val textNum = OcrHelper.extractTextFromBitmap(bitmapTop, rectNum)
+                    
+                    val linesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
+                    val linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
+                    
+                    // Fusion sans doublons de défilement
+                    val finalLines = mutableListOf<String>()
+                    for (line in linesTop) {
+                        finalLines.add(line.second)
+                    }
+                    
+                    val overlapThreshold = bitmapBottom.height * 0.6f // 60% of screen height
+                    for (lineB in linesBottom) {
+                        val isDuplicate = linesTop.any { it.second == lineB.second }
+                        val isScrollOverlap = isDuplicate && (lineB.first.top < overlapThreshold)
+                        
+                        if (!isScrollOverlap) {
+                            finalLines.add(lineB.second)
+                        } else {
+                            Journal.log("Doublon OCR ignoré: ${lineB.second}")
+                        }
+                    }
+                    
+                    val fullText = finalLines.joinToString("\n")
+                    contenuEcran = OrderParser.parseOcrScreen(fullText, textNum, fullText)
                 }
             }
             

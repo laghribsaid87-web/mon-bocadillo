@@ -78,7 +78,7 @@ object OcrHelper {
         }
     }
 
-    suspend fun extractTextFromBitmap(bitmap: Bitmap, cropRect: Rect?): String = suspendCancellableCoroutine { continuation ->
+    suspend fun extractRawLinesFromBitmap(bitmap: Bitmap, cropRect: Rect?): List<Pair<Rect, String>> = suspendCancellableCoroutine { continuation ->
         try {
             val finalBitmap = if (cropRect != null) {
                 // Ensure cropRect is within bounds
@@ -112,19 +112,28 @@ object OcrHelper {
                     // Sort all lines by their Y coordinate (Top position)
                     allLines.sortBy { it.boundingBox?.top ?: 0 }
 
-                    val sb = StringBuilder()
+                    val resultList = mutableListOf<Pair<Rect, String>>()
                     for (line in allLines) {
-                        sb.append(line.text).append("\n")
+                        resultList.add(Pair(line.boundingBox ?: Rect(), line.text))
                     }
-                    continuation.resume(sb.toString().trim())
+                    continuation.resume(resultList)
                 }
                 .addOnFailureListener { e ->
                     Journal.log("ML Kit OCR Error: ${e.message}")
-                    continuation.resume("")
+                    continuation.resume(emptyList())
                 }
         } catch (e: Exception) {
             Journal.log("Bitmap Crop Error: ${e.message}")
-            continuation.resume("")
+            continuation.resume(emptyList())
         }
+    }
+
+    suspend fun extractTextFromBitmap(bitmap: Bitmap, cropRect: Rect?): String {
+        val lines = extractRawLinesFromBitmap(bitmap, cropRect)
+        val sb = StringBuilder()
+        for (line in lines) {
+            sb.append(line.second).append("\n")
+        }
+        return sb.toString().trim()
     }
 }
