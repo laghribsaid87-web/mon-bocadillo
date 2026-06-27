@@ -821,15 +821,9 @@ async function handleGoDroidOrder(snap, context, branchId) {
                         });
                         currentItemIndex = parsedItems.length - 1;
                     } else {
-                        parsedItems.push({
-                            name: rawName,
-                            qty: qty,
-                            price: 0,
-                            category: 'Divers',
-                            station: 'CHAUD',
-                            sans: []
-                        });
-                        currentItemIndex = parsedItems.length - 1;
+                        // AYE HAJA MAKAYNACH F MAPPING MATBANCH F KDS
+                        // Fallback: On l'ignore complètement
+                        currentItemIndex = -1;
                     }
                 } else {
                     let theNoteToPush = text;
