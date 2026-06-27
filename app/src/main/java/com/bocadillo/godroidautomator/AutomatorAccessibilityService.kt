@@ -109,31 +109,25 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
     private fun performSmallSwipeUp() {
         try {
-            val displayMetrics = resources.displayMetrics
-            val middleX = displayMetrics.widthPixels / 2f
-            val startY = displayMetrics.heightPixels * 0.75f 
-            val endY = displayMetrics.heightPixels * 0.25f
-
-            val path = android.graphics.Path()
-            path.moveTo(middleX, startY)
-            path.lineTo(middleX, endY)
-
-            val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
-            // 1500ms pour simuler un doigt qui glisse lentement, pour forcer le scroll
-            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 1500))
-
-            dispatchGesture(gestureBuilder.build(), object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
-                override fun onCompleted(gestureDescription: android.accessibilityservice.GestureDescription?) {
-                    super.onCompleted(gestureDescription)
-                    Journal.log("✅ Geste de Scroll terminé.")
+            val rootForScroll = rootInActiveWindow
+            if (rootForScroll != null) {
+                val scrollableNode = findScrollableNode(rootForScroll)
+                if (scrollableNode != null) {
+                    val success = scrollableNode.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    if (success) {
+                        Journal.log("✅ Scroll NATIF (Android) terminé.")
+                    } else {
+                        Journal.log("❌ L'app a refusé le Scroll NATIF.")
+                    }
+                } else {
+                    Journal.log("⚠️ Aucun élément défilant trouvé. Tentative de Swipe...")
+                    performSwipeUp()
                 }
-                override fun onCancelled(gestureDescription: android.accessibilityservice.GestureDescription?) {
-                    super.onCancelled(gestureDescription)
-                    Journal.log("❌ Geste de Scroll annulé par Android.")
-                }
-            }, null)
+            } else {
+                Journal.log("⚠️ Impossible de lire l'écran pour scroller.")
+            }
         } catch (e: Exception) {
-            Journal.log("Erreur lors du petit Swipe Up: ${e.message}")
+            Journal.log("Erreur lors du Scroll NATIF: ${e.message}")
         }
     }
 
