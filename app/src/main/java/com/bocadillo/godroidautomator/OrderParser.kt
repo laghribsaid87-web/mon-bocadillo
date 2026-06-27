@@ -217,13 +217,19 @@ object OrderParser {
             val isMisc = Regex("^(MAD|DH|Total|Sous-total|Produits)", RegexOption.IGNORE_CASE).containsMatchIn(line)
             // Les prix purs (ex: "34,00 MAD") sont considérés comme Garbage pour ne pas couper le nom du sandwich
             val isGarbage = pureGarbageRegex.containsMatchIn(line) || priceRegex.matches(line)
-            
-            if (!isQuantityLine && !isOptionLine && !isMisc && !isGarbage && mergedItemsList.isNotEmpty()) {
-                val lastItem = mergedItemsList.removeAt(mergedItemsList.size - 1)
-                mergedItemsList.add("$lastItem $line")
-            } else if (!isGarbage) {
-                mergedItemsList.add(line)
-            }
+              
+              if (!isQuantityLine && !isOptionLine && !isMisc && !isGarbage && mergedItemsList.isNotEmpty()) {
+                  if (line.length >= 20 || line.contains("afak", ignoreCase = true) || line.contains("merci", ignoreCase = true) || line.contains("stp", ignoreCase = true) || line.contains("svp", ignoreCase = true)) {
+                      // C'est probablement une note du client
+                      mergedItemsList.add("NOTE: $line")
+                  } else {
+                      // C'est la suite du nom du produit (ou de la note précédente)
+                      val lastItem = mergedItemsList.removeAt(mergedItemsList.size - 1)
+                      mergedItemsList.add("$lastItem $line")
+                  }
+              } else if (!isGarbage) {
+                  mergedItemsList.add(line)
+              }
         }
         return mergedItemsList
     }
