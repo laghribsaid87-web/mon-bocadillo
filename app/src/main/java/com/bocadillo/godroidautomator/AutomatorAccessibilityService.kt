@@ -111,8 +111,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
         try {
             val displayMetrics = resources.displayMetrics
             val middleX = displayMetrics.widthPixels / 2f
-            val startY = displayMetrics.heightPixels * 0.8f // Mettre le doigt en bas (80%) (Meme endroit que le grand swipe qui marche)
-            val endY = displayMetrics.heightPixels * 0.3f   // Tirer vers le haut jusqu'a 30% (Scroll plus fort)
+            val startY = displayMetrics.heightPixels * 0.7f // 70% pour eviter les boutons fixes en bas
+            val endY = displayMetrics.heightPixels * 0.2f   // 20% pour un scroll net
 
             val path = android.graphics.Path()
             path.moveTo(middleX, startY)
@@ -726,15 +726,21 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val linesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
                     var linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
                     
-                    // Vérifier si l'écran a vraiment défilé
+                    // Calculer le défilement exact (deltaY) avec des textes longs
+                    var deltaY = 0
                     var didScroll = false
+                    val validTopLines = linesTop.filter { it.second.length > 5 }
+                    
                     for (lineB in linesBottom) {
-                        val matchingLineTop = linesTop.find { it.second == lineB.second }
-                        if (matchingLineTop != null) {
-                            // Si le texte est au même endroit (différence < 20 pixels), l'écran n'a pas bougé
-                            if (Math.abs(matchingLineTop.first.top - lineB.first.top) > 50) {
-                                didScroll = true
-                                break
+                        if (lineB.second.length > 5) {
+                            val matchingLineTop = validTopLines.find { it.second == lineB.second }
+                            if (matchingLineTop != null) {
+                                val diff = matchingLineTop.first.top - lineB.first.top
+                                if (diff > 50) {
+                                    deltaY = diff
+                                    didScroll = true
+                                    break
+                                }
                             }
                         }
                     }
@@ -742,23 +748,31 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     if (!didScroll) {
                         Journal.log("L'écran n'a pas défilé (Commande courte). On ignore la 2ème capture.")
                         linesBottom = emptyList()
+                    } else {
+                        Journal.log("L'écran a défilé de $deltaY pixels vers le haut.")
                     }
                     
-                    // Fusion sans doublons de défilement
+                    // Fusion intelligente (Double Scan)
                     val finalLines = mutableListOf<String>()
                     for (line in linesTop) {
                         finalLines.add(line.second)
                     }
                     
-                    val overlapThreshold = bitmapBottom.height * 0.6f // 60% of screen height
                     for (lineB in linesBottom) {
-                        val isDuplicate = linesTop.any { it.second == lineB.second }
-                        val isScrollOverlap = isDuplicate && (lineB.first.top < overlapThreshold)
+                        // Élément fixe (entête) : diffY < 30
+                        val isFixedOverlap = linesTop.any { lineT -> 
+                            lineT.second == lineB.second && Math.abs(lineT.first.top - lineB.first.top) < 30 
+                        }
                         
-                        if (!isScrollOverlap) {
-                            finalLines.add(lineB.second)
-                        } else {
+                        // Élément défilé (overlap de scroll) : diffY ~= deltaY
+                        val isScrollOverlap = didScroll && linesTop.any { lineT -> 
+                            lineT.second == lineB.second && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
+                        }
+                        
+                        if (isFixedOverlap || isScrollOverlap) {
                             Journal.log("Doublon OCR ignoré: ${lineB.second}")
+                        } else {
+                            finalLines.add(lineB.second)
                         }
                     }
                     
@@ -1074,15 +1088,21 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val linesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
                     var linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
                     
-                    // Vérifier si l'écran a vraiment défilé
+                    // Calculer le défilement exact (deltaY) avec des textes longs
+                    var deltaY = 0
                     var didScroll = false
+                    val validTopLines = linesTop.filter { it.second.length > 5 }
+                    
                     for (lineB in linesBottom) {
-                        val matchingLineTop = linesTop.find { it.second == lineB.second }
-                        if (matchingLineTop != null) {
-                            // Si le texte est au même endroit (différence < 20 pixels), l'écran n'a pas bougé
-                            if (Math.abs(matchingLineTop.first.top - lineB.first.top) > 50) {
-                                didScroll = true
-                                break
+                        if (lineB.second.length > 5) {
+                            val matchingLineTop = validTopLines.find { it.second == lineB.second }
+                            if (matchingLineTop != null) {
+                                val diff = matchingLineTop.first.top - lineB.first.top
+                                if (diff > 50) {
+                                    deltaY = diff
+                                    didScroll = true
+                                    break
+                                }
                             }
                         }
                     }
@@ -1090,23 +1110,31 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     if (!didScroll) {
                         Journal.log("L'écran n'a pas défilé (Commande courte). On ignore la 2ème capture.")
                         linesBottom = emptyList()
+                    } else {
+                        Journal.log("L'écran a défilé de $deltaY pixels vers le haut.")
                     }
                     
-                    // Fusion sans doublons de défilement
+                    // Fusion intelligente (Double Scan)
                     val finalLines = mutableListOf<String>()
                     for (line in linesTop) {
                         finalLines.add(line.second)
                     }
                     
-                    val overlapThreshold = bitmapBottom.height * 0.6f // 60% of screen height
                     for (lineB in linesBottom) {
-                        val isDuplicate = linesTop.any { it.second == lineB.second }
-                        val isScrollOverlap = isDuplicate && (lineB.first.top < overlapThreshold)
+                        // Élément fixe (entête) : diffY < 30
+                        val isFixedOverlap = linesTop.any { lineT -> 
+                            lineT.second == lineB.second && Math.abs(lineT.first.top - lineB.first.top) < 30 
+                        }
                         
-                        if (!isScrollOverlap) {
-                            finalLines.add(lineB.second)
-                        } else {
+                        // Élément défilé (overlap de scroll) : diffY ~= deltaY
+                        val isScrollOverlap = didScroll && linesTop.any { lineT -> 
+                            lineT.second == lineB.second && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
+                        }
+                        
+                        if (isFixedOverlap || isScrollOverlap) {
                             Journal.log("Doublon OCR ignoré: ${lineB.second}")
+                        } else {
+                            finalLines.add(lineB.second)
                         }
                     }
                     
