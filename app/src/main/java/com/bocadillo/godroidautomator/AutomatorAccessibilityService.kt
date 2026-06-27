@@ -111,18 +111,27 @@ class AutomatorAccessibilityService : AccessibilityService() {
         try {
             val displayMetrics = resources.displayMetrics
             val middleX = displayMetrics.widthPixels / 2f
-            val startY = displayMetrics.heightPixels * 0.7f // 70% pour eviter les boutons fixes en bas
-            val endY = displayMetrics.heightPixels * 0.2f   // 20% pour un scroll net
+            val startY = displayMetrics.heightPixels * 0.75f 
+            val endY = displayMetrics.heightPixels * 0.25f
 
             val path = android.graphics.Path()
             path.moveTo(middleX, startY)
             path.lineTo(middleX, endY)
 
             val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
-            // 400ms pour une vitesse normale (si trop lent, Android le considere comme un appui long)
-            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 400))
+            // 1500ms pour simuler un doigt qui glisse lentement, pour forcer le scroll
+            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 1500))
 
-            dispatchGesture(gestureBuilder.build(), object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {}, null)
+            dispatchGesture(gestureBuilder.build(), object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
+                override fun onCompleted(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                    super.onCompleted(gestureDescription)
+                    Journal.log("✅ Geste de Scroll terminé.")
+                }
+                override fun onCancelled(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                    super.onCancelled(gestureDescription)
+                    Journal.log("❌ Geste de Scroll annulé par Android.")
+                }
+            }, null)
         } catch (e: Exception) {
             Journal.log("Erreur lors du petit Swipe Up: ${e.message}")
         }
@@ -709,10 +718,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 Journal.log("Capture d'écran 1 (Haut) en cours...")
                 val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
                 
-                delay(500) // Wait for screen to settle after capture
-                Journal.log("Petit défilement vers le bas ... (Swipe Up pour voir le bas)")
+                delay(800) // Wait for screen to settle after capture
+                Journal.log("Petit défilement vers le bas (Scroll d'1.5 seconde)...")
                 performSmallSwipeUp()
-                delay(1500) // Give more time for scroll and animation to finish
+                delay(3000) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
                 
                 Journal.log("Capture d'écran 2 (Bas) en cours...")
                 val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
@@ -1071,10 +1080,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 Journal.log("Capture d'écran 1 (Haut) en cours...")
                 val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
                 
-                delay(500) // Wait for screen to settle after capture
-                Journal.log("Petit défilement vers le bas ... (Swipe Up pour voir le bas)")
+                delay(800) // Wait for screen to settle after capture
+                Journal.log("Petit défilement vers le bas (Scroll d'1.5 seconde)...")
                 performSmallSwipeUp()
-                delay(1500) // Give more time for scroll and animation to finish
+                delay(3000) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
                 
                 Journal.log("Capture d'écran 2 (Bas) en cours...")
                 val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
