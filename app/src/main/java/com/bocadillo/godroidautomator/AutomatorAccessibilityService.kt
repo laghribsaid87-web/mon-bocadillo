@@ -643,7 +643,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             
             kotlinx.coroutines.withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(applicationContext, "GoDroid Automator déclenché !", android.widget.Toast.LENGTH_SHORT).show()
+                // Toast supprimé pour ne pas cacher le texte lors de la capture d'écran OCR
             }
 
             val currentPackage = rootInActiveWindow?.packageName?.toString()
@@ -979,7 +979,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
 
             kotlinx.coroutines.withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(applicationContext, "Test de lecture en cours...", android.widget.Toast.LENGTH_LONG).show()
+                // Toast supprimé car il cachait le texte lors de la capture d'écran OCR
             }
 
             val currentPackage = rootInActiveWindow?.packageName?.toString()
