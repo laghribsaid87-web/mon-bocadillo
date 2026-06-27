@@ -726,13 +726,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     
                     val textNum = OcrHelper.extractTextFromBitmap(bitmapTop, rectNum)
                     
-                    val linesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
+                    val rawLinesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
                     var linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
                     
                     // Calculer le défilement exact (deltaY) avec des textes longs
                     var deltaY = 0
                     var didScroll = false
-                    val validTopLines = linesTop.filter { it.second.length > 5 }
+                    val validTopLines = rawLinesTop.filter { it.second.length > 5 }
                     
                     for (lineB in linesBottom) {
                         if (lineB.second.length > 5) {
@@ -748,6 +748,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         }
                     }
                     
+                    val linesTopToKeep = if (didScroll) {
+                        // Si ça a défilé, le texte en bas de l'écran 1 est coupé. On l'ignore (85% max).
+                        rawLinesTop.filter { it.first.bottom < bitmapTop.height * 0.85f }
+                    } else {
+                        rawLinesTop
+                    }
+                    
                     if (!didScroll) {
                         Journal.log("L'écran n'a pas défilé (Commande courte). On ignore la 2ème capture.")
                         linesBottom = emptyList()
@@ -757,18 +764,18 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     
                     // Fusion intelligente (Double Scan)
                     val finalLines = mutableListOf<String>()
-                    for (line in linesTop) {
+                    for (line in linesTopToKeep) {
                         finalLines.add(line.second)
                     }
                     
                     for (lineB in linesBottom) {
                         // Élément fixe (entête) : diffY < 30
-                        val isFixedOverlap = linesTop.any { lineT -> 
+                        val isFixedOverlap = linesTopToKeep.any { lineT -> 
                             lineT.second == lineB.second && Math.abs(lineT.first.top - lineB.first.top) < 30 
                         }
                         
                         // Élément défilé (overlap de scroll) : diffY ~= deltaY
-                        val isScrollOverlap = didScroll && linesTop.any { lineT -> 
+                        val isScrollOverlap = didScroll && linesTopToKeep.any { lineT -> 
                             lineT.second == lineB.second && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
                         }
                         
@@ -1088,13 +1095,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     
                     val textNum = OcrHelper.extractTextFromBitmap(bitmapTop, rectNum)
                     
-                    val linesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
+                    val rawLinesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
                     var linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
                     
                     // Calculer le défilement exact (deltaY) avec des textes longs
                     var deltaY = 0
                     var didScroll = false
-                    val validTopLines = linesTop.filter { it.second.length > 5 }
+                    val validTopLines = rawLinesTop.filter { it.second.length > 5 }
                     
                     for (lineB in linesBottom) {
                         if (lineB.second.length > 5) {
@@ -1110,6 +1117,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         }
                     }
                     
+                    val linesTopToKeep = if (didScroll) {
+                        // Si ça a défilé, le texte en bas de l'écran 1 est coupé. On l'ignore (85% max).
+                        rawLinesTop.filter { it.first.bottom < bitmapTop.height * 0.85f }
+                    } else {
+                        rawLinesTop
+                    }
+                    
                     if (!didScroll) {
                         Journal.log("L'écran n'a pas défilé (Commande courte). On ignore la 2ème capture.")
                         linesBottom = emptyList()
@@ -1119,18 +1133,18 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     
                     // Fusion intelligente (Double Scan)
                     val finalLines = mutableListOf<String>()
-                    for (line in linesTop) {
+                    for (line in linesTopToKeep) {
                         finalLines.add(line.second)
                     }
                     
                     for (lineB in linesBottom) {
                         // Élément fixe (entête) : diffY < 30
-                        val isFixedOverlap = linesTop.any { lineT -> 
+                        val isFixedOverlap = linesTopToKeep.any { lineT -> 
                             lineT.second == lineB.second && Math.abs(lineT.first.top - lineB.first.top) < 30 
                         }
                         
                         // Élément défilé (overlap de scroll) : diffY ~= deltaY
-                        val isScrollOverlap = didScroll && linesTop.any { lineT -> 
+                        val isScrollOverlap = didScroll && linesTopToKeep.any { lineT -> 
                             lineT.second == lineB.second && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
                         }
                         

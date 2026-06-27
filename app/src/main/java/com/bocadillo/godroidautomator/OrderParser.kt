@@ -213,10 +213,10 @@ object OrderParser {
                                line.startsWith("Ajout ", ignoreCase = true) || 
                                line.startsWith("Avec ", ignoreCase = true) || 
                                line.startsWith("-") ||
-                               line.startsWith("•") ||
-                               priceRegex.matches(line)
+                               line.startsWith("+")
             val isMisc = Regex("^(MAD|DH|Total|Sous-total|Produits)", RegexOption.IGNORE_CASE).containsMatchIn(line)
-            val isGarbage = pureGarbageRegex.containsMatchIn(line)
+            // Les prix purs (ex: "34,00 MAD") sont considérés comme Garbage pour ne pas couper le nom du sandwich
+            val isGarbage = pureGarbageRegex.containsMatchIn(line) || priceRegex.matches(line)
             
             if (!isQuantityLine && !isOptionLine && !isMisc && !isGarbage && mergedItemsList.isNotEmpty()) {
                 val lastItem = mergedItemsList.removeAt(mergedItemsList.size - 1)
