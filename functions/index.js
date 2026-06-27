@@ -837,6 +837,12 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     }
 
                     let formattedNote = formatPOSNote(theNoteToPush);
+                    
+                    // Handle client notes extracted by GoDroidAutomator
+                    if (theNoteToPush.toUpperCase().startsWith('NOTE: ')) {
+                        formattedNote = theNoteToPush.substring(6).trim();
+                        currentItemIndex = -1; // Force into cleanNotes
+                    }
                     if (formattedNote) {
                         if (currentItemIndex !== -1) {
                             if (!parsedItems[currentItemIndex].sans.includes(formattedNote)) {
