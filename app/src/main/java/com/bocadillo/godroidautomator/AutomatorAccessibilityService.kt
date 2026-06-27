@@ -709,9 +709,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 Journal.log("Capture d'écran 1 (Haut) en cours...")
                 val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
                 
+                delay(500) // Wait for screen to settle after capture
                 Journal.log("Petit défilement vers le bas ... (Swipe Up pour voir le bas)")
                 performSmallSwipeUp()
-                delay(1000)
+                delay(1500) // Give more time for scroll and animation to finish
                 
                 Journal.log("Capture d'écran 2 (Bas) en cours...")
                 val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
@@ -723,7 +724,25 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val textNum = OcrHelper.extractTextFromBitmap(bitmapTop, rectNum)
                     
                     val linesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
-                    val linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
+                    var linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
+                    
+                    // Vérifier si l'écran a vraiment défilé
+                    var didScroll = false
+                    for (lineB in linesBottom) {
+                        val matchingLineTop = linesTop.find { it.second == lineB.second }
+                        if (matchingLineTop != null) {
+                            // Si le texte est au même endroit (différence < 20 pixels), l'écran n'a pas bougé
+                            if (Math.abs(matchingLineTop.first.top - lineB.first.top) > 50) {
+                                didScroll = true
+                                break
+                            }
+                        }
+                    }
+                    
+                    if (!didScroll) {
+                        Journal.log("L'écran n'a pas défilé (Commande courte). On ignore la 2ème capture.")
+                        linesBottom = emptyList()
+                    }
                     
                     // Fusion sans doublons de défilement
                     val finalLines = mutableListOf<String>()
@@ -1038,9 +1057,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 Journal.log("Capture d'écran 1 (Haut) en cours...")
                 val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
                 
+                delay(500) // Wait for screen to settle after capture
                 Journal.log("Petit défilement vers le bas ... (Swipe Up pour voir le bas)")
                 performSmallSwipeUp()
-                delay(1000)
+                delay(1500) // Give more time for scroll and animation to finish
                 
                 Journal.log("Capture d'écran 2 (Bas) en cours...")
                 val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
@@ -1052,7 +1072,25 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val textNum = OcrHelper.extractTextFromBitmap(bitmapTop, rectNum)
                     
                     val linesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
-                    val linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
+                    var linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
+                    
+                    // Vérifier si l'écran a vraiment défilé
+                    var didScroll = false
+                    for (lineB in linesBottom) {
+                        val matchingLineTop = linesTop.find { it.second == lineB.second }
+                        if (matchingLineTop != null) {
+                            // Si le texte est au même endroit (différence < 20 pixels), l'écran n'a pas bougé
+                            if (Math.abs(matchingLineTop.first.top - lineB.first.top) > 50) {
+                                didScroll = true
+                                break
+                            }
+                        }
+                    }
+                    
+                    if (!didScroll) {
+                        Journal.log("L'écran n'a pas défilé (Commande courte). On ignore la 2ème capture.")
+                        linesBottom = emptyList()
+                    }
                     
                     // Fusion sans doublons de défilement
                     val finalLines = mutableListOf<String>()
