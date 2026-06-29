@@ -577,7 +577,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         if (hasBigFormule && isDrink && !baseName.toLowerCase().match(/1\s*l/)) baseName += ' 1 Litre';
                                         return (
                                         <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
-                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={((getKdsName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getKdsName(item.name) || '').toLowerCase().includes('extra') || (getKdsName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{baseName}</span>
+                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{baseName}</span>
                                             {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col gap-1 mt-1">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
@@ -686,7 +686,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                     </div>
                                                 )}
                                                 <div className="flex-1 pt-1">
-                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${((getKdsName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getKdsName(item.name) || '').toLowerCase().includes('extra') || (getKdsName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {baseName}</span>
+                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {baseName}</span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col items-start gap-1.5 mt-2">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
