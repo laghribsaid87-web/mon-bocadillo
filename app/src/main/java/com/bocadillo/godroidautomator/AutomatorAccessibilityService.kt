@@ -107,17 +107,22 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun performSmallSwipeUp() {
+    private suspend fun performSmallSwipeUp() {
         try {
             val rootForScroll = rootInActiveWindow
             if (rootForScroll != null) {
                 val scrollableNode = findScrollableNode(rootForScroll)
                 if (scrollableNode != null) {
-                    val success = scrollableNode.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-                    if (success) {
-                        Journal.log("✅ Scroll NATIF (Android) terminé.")
-                    } else {
-                        Journal.log("❌ L'app a refusé le Scroll NATIF.")
+                    // Boucle pour scroller plusieurs fois (3 fois) pour descendre plus bas sur la page
+                    for (i in 1..3) {
+                        val success = scrollableNode.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                        if (success) {
+                            Journal.log("✅ Scroll NATIF (Android) $i/3 terminé.")
+                        } else {
+                            Journal.log("❌ L'app a refusé le Scroll NATIF $i/3.")
+                            break
+                        }
+                        kotlinx.coroutines.delay(400) // Petit délai entre chaque coup de scroll
                     }
                 } else {
                     Journal.log("⚠️ Aucun élément défilant trouvé. Tentative de Swipe...")
