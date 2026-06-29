@@ -832,7 +832,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                             if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
                                 parsedItems[currentItemIndex].sans.push(formattedOpt);
                             }
-                        } else if (lowerName.includes('sandwich') || lowerName.includes('sandw') || lowerName.includes('bocadillo') || lowerName.includes('bocadill') || lowerName.includes('tacos') || lowerName.includes('pizza') || lowerName.includes('panini') || lowerName.includes('burger') || lowerName.includes('jus') || lowerName.includes('assiette') || lowerName.includes('frites') || lowerName.includes('salade')) {
+                        } else if (lowerName.includes('formule') || lowerName.includes('menu') || lowerName.includes('sandwich') || lowerName.includes('sandw') || lowerName.includes('bocadillo') || lowerName.includes('bocadill') || lowerName.includes('tacos') || lowerName.includes('pizza') || lowerName.includes('panini') || lowerName.includes('burger') || lowerName.includes('jus') || lowerName.includes('assiette') || lowerName.includes('frites') || lowerName.includes('salade')) {
                             // C'est clairement un plat principal mal orthographié par l'OCR ! On l'ajoute !
                             parsedItems.push({
                                 name: rawName,
