@@ -29,7 +29,9 @@ const getKdsName = (caisseName) => {
         "Thon": "\"Extra\" Thon",
         "Charcuterie": "\"Extra\" Charcuterie",
         "Fromage": "\"Extra\" Fromage",
-        "Oeuf": "\"Extra\" Œuf"
+        "Oeuf": "\"Extra\" Ouf",
+        "\"Extra\" Oeuf": "Oeuf",
+        "\"Extra\" Euf": "Oeuf"
     };
     return mapping[name] || name;
 };
