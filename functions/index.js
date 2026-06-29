@@ -445,7 +445,7 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                     if (lowerName.includes('produit xxxx') || lowerName.includes('commande test') || lowerName.includes('acceptée')) continue;
 
                     // Remplacer par le nom exact du menu POS
-                    let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese');
+                    let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese').replace(/miranda/g, 'mirinda');
                     
                       let isForceOption = typeof currentItemIndex !== 'undefined' && currentItemIndex !== -1 && (lowerName.includes('extra') || lowerName.includes('sans') || lowerName.includes('avec'));
                       if (isForceOption) {
@@ -850,7 +850,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     
                     if (ignoreList.includes(lowerName)) continue;
 
-                    let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese').replace(/œ/g, 'oe');
+                    let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese').replace(/œ/g, 'oe').replace(/miranda/g, 'mirinda');
                     
                     const paddedLowerName = ` ${normalizedLowerName.replace(/[^a-z0-9À-ÿ]/g, ' ')} `;
                     
