@@ -72,7 +72,7 @@ const INGREDIENTS_AR = {
     "THON": "طون", "POULET": "دجاج",
     "VIANDE HACHEE": "كفتة", "VIANDE HACHÉE": "كفتة",
     "SAUCISSE": "صوصيص", "CHARCUTERIE": "كاشير",
-    "OEUF": "بيض", "OEUFS": "بيض", "ŒUF": "بيض",
+    "OEUF": "بيض", "OEUFS": "بيض", "ŒUF": "بيض", "EUF": "بيض", "EUFS": "بيض",
     "CAROTTE": "خيزو", "CAROTTES": "خيزو",
     "OLIVE": "زيتون", "OLIVES": "زيتون",
     "CORNICHON": "كورنيشون", "CORNICHONS": "كورنيشون"
