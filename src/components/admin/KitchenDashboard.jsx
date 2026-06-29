@@ -365,12 +365,12 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
             label: 'TÉLÉPHONE'
         };
         if (source === 'glovo') return {
-            border: 'border-[#FFC244]',
+            border: 'border-[#ffbc0d]',
             bg: 'bg-yellow-900/20',
-            headerBg: 'bg-[#FFC244]',
+            headerBg: 'bg-[#ffbc0d]',
             headerBorder: 'border-black/20',
             text: '!text-[15px] text-black',
-            label: 'GLOVO',
+            label: <img src="https://cdn.worldvectorlogo.com/logos/glovo.svg" alt="GLOVO" className="h-4 sm:h-5 object-contain" onError={(e) => { e.target.onerror = null; e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Glovo_logo.svg/512px-Glovo_logo.svg.png'; }} />,
             orderNumberText: 'text-black'
         };
         return {
@@ -557,7 +557,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     <span className={`text-[9px] font-black uppercase mt-1 tracking-widest flex items-center gap-1`}>
                                         <span className={`${styles.text}`}>{styles.label}</span>
                                         {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
-                                            <span className="text-green-400 bg-green-500/20 px-1 rounded-sm border border-green-500/30">ESPECE $</span>
+                                            <span className="text-white bg-green-600 px-2 py-0.5 rounded-md border-2 border-green-800 shadow-sm animate-pulse ml-1 text-[10px]">ESPECE $</span>
                                         )}
                                     </span>
                                     {o.source === 'pos' && (
