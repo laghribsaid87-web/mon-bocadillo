@@ -630,14 +630,14 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                     })}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 gap-4 md:gap-5">
                     {filteredPreparingOrders.map(o => {
                         const styles = getSourceStyles(o.source);
                         return (
-                        <div key={o.id} className={`${styles.bg} border-2 ${styles.border} transition-colors rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl`}>
+                        <div key={o.id} className={`${styles.bg} border-2 ${styles.border} transition-colors rounded-3xl flex flex-col overflow-hidden shadow-2xl`}>
                             
                             {/* Header de la carte commande */}
-                            <div className={`${styles.headerBg} p-6 border-b ${styles.headerBorder} flex justify-between items-start relative`}>
+                            <div className={`${styles.headerBg} p-4 border-b ${styles.headerBorder} flex justify-between items-start relative`}>
                                 <div className="flex flex-col gap-1">
                                     <span className={`text-[11px] font-black uppercase tracking-widest ${styles.text}`}>
                                         <span className="flex items-center gap-2">
@@ -647,7 +647,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                             )}
                                         </span>
                                     </span>
-                                    <span className={`text-3xl font-black uppercase tracking-tighter ${styles.orderNumberText || 'text-white'}`}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                    <span className={`text-4xl font-black uppercase tracking-tighter ${styles.orderNumberText || 'text-white'}`}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
                                     {o.source === 'pos' && (
                                         <span className={`text-[10px] font-black uppercase mt-1 px-2 py-1 rounded-md w-fit text-white ${o.orderType === 'sur_place' ? 'bg-blue-600' : 'bg-pink-600'}`}>
                                             {o.orderType === 'sur_place' ? '🍽️ SUR PLACE (PLATEAUX)' : '🛍️ À EMPORTER (EMBALLAGE)'}
@@ -672,7 +672,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             </div>
                             
                             {/* Liste des Plats à préparer */}
-                            <div className="p-6 flex-1 space-y-3 no-scrollbar">
+                            <div className="p-3 sm:p-4 flex-1 space-y-2 no-scrollbar">
                                 {(o.filteredItems || []).map((item, idx) => {
                                     const isChecked = checkedItems[`${o.id}_${idx}`];
                                     let baseName = (getKdsName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '');
@@ -680,7 +680,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     const isDrink = ['pepsi', 'mirinda', 'seven up', '7up', 'coca', 'hawai', 'sprite', 'fanta', 'jus'].some(d => baseName.toLowerCase().includes(d));
                                     if (hasBigFormule && isDrink && !baseName.toLowerCase().match(/1\s*l/)) baseName += ' 1 Litre';
                                     return (
-                                        <div key={idx} onClick={() => toggleItemCheck(o.id, idx)} className={`p-5 rounded-2xl border-2 cursor-pointer transition-all active:scale-95 select-none ${isChecked ? 'bg-neutral-800/40 border-neutral-800 opacity-40 grayscale' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-600 shadow-sm'}`}>
+                                        <div key={idx} onClick={() => toggleItemCheck(o.id, idx)} className={`p-3 sm:p-4 rounded-2xl border-2 cursor-pointer transition-all active:scale-95 select-none ${isChecked ? 'bg-neutral-800/40 border-neutral-800 opacity-40 grayscale' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-600 shadow-sm'}`}>
                                             <div className="flex gap-4 items-start">
                                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 transition-colors ${isChecked ? 'bg-green-500/20 border-green-500/50 text-green-500' : 'bg-neutral-900 border-neutral-600 text-neutral-600'}`}>{isChecked && <CheckCircle size={20} strokeWidth={3} />}</div>
                                                 {item.img && (
@@ -689,14 +689,14 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                     </div>
                                                 )}
                                                 <div className="flex-1 pt-1">
-                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {baseName}</span>
+                                                    <span className={`font-black text-2xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {baseName}</span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col items-start gap-1.5 mt-2">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getKdsName(opt).replace(/"/g, '');
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
                                                         return (
-                                                            <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-[11px] font-black uppercase border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
+                                                            <span key={oIdx} className={`inline-block px-3 sm:px-4 py-1.5 rounded-lg text-sm font-black uppercase border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
                                                                 {isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation)}
                                                             </span>
                                                         );
@@ -706,10 +706,10 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                     {item.isCombo && item.comboChoices && (
                                                         <div className="mt-2 space-y-1.5 pl-3 border-l-2 border-orange-500 bg-orange-500/10 p-2 rounded-r-xl">
                                                             {item.comboChoices.map((c, cIdx) => (
-                                                                <div key={cIdx} className="text-sm font-bold text-gray-200 flex flex-wrap items-center gap-1">
+                                                                <div key={cIdx} className="text-base font-bold text-gray-200 flex flex-wrap items-center gap-1.5">
                                                                     <span className="text-orange-400 mr-1">🔹 {c.name}</span>
-                                                                    {c.removables?.length > 0 && <span className="text-red-400 text-[11px] uppercase bg-red-500/20 px-2 py-0.5 rounded-md border border-red-500/20">- SANS {c.removables.join(', ')}</span>}
-                                                                    {c.selectedOption && <span className="text-blue-300 text-[11px] bg-blue-500/20 px-2 py-0.5 rounded-md border border-blue-500/20">({c.selectedOption})</span>}
+                                                                    {c.removables?.length > 0 && <span className="text-red-400 text-xs font-black uppercase bg-red-500/20 px-2 py-0.5 rounded-md border border-red-500/20">- SANS {c.removables.join(', ')}</span>}
+                                                                    {c.selectedOption && <span className="text-blue-300 text-xs font-black bg-blue-500/20 px-2 py-0.5 rounded-md border border-blue-500/20">({c.selectedOption})</span>}
                                                                 </div>
                                                             ))}
                                                         </div>
