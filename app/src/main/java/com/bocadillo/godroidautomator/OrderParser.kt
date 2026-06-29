@@ -151,36 +151,7 @@ object OrderParser {
             textItems.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         }
 
-        // --- NEW LOGIC: EXTRACT CLIENT NOTE BEFORE SOUS-TOTAL ---
-        var extractedNote = ""
-        val endMarkerIndex = finalItemsList.indexOfFirst { Regex("^(Sous-total|Total|TVA|Produits)", RegexOption.IGNORE_CASE).containsMatchIn(it) }
-        
-        if (endMarkerIndex != -1) {
-            for (i in endMarkerIndex - 1 downTo 0) {
-                val l = finalItemsList[i]
-                val isQuantity = Regex("^(?i)[^a-zA-Z0-9]*\\d+[ \\t\\xA0]*[xX×-]").containsMatchIn(l)
-                val isOption = l.startsWith("Sans ", true) || l.startsWith("Avec ", true) || l.startsWith("Extra", true) || l.startsWith("Ajout ", true) || l.startsWith("-") || l.startsWith("+")
-                val isPrice = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE).matches(l)
-                val isGarbage = Regex("(?i)(%|\\d{2}:\\d{2}|Test de lecture|Livraison|Adresse|Client|Floride|Le coursier doit payer|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|Modifier|Accepter|Refuser|Continuer|Aide|mins)").containsMatchIn(l)
-
-                if (isQuantity || isOption || isPrice || isGarbage) {
-                    break // Stop! We reached the last item or price
-                }
-                
-                // This line is part of the note!
-                extractedNote = l + "\n" + extractedNote
-                // We clear it so it doesn't get processed as an item
-                finalItemsList = finalItemsList.toMutableList().apply { set(i, "---IGNORE---") }
-            }
-        }
-        extractedNote = extractedNote.trim()
-        
-        finalItemsList = mergeSplitItemNames(finalItemsList.filter { it != "---IGNORE---" })
-        
-        if (extractedNote.isNotEmpty()) {
-            finalItemsList = finalItemsList.toMutableList().apply { add("NOTE: $extractedNote") }
-        }
-        // ---------------------------------------------------------
+        finalItemsList = mergeSplitItemNames(finalItemsList)
 
         // 4. Extract Total Amount
         var totalAmount = 0.0
