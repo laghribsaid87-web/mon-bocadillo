@@ -718,7 +718,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
                 
                 delay(800) // Wait for screen to settle after capture
-                Journal.log("Petit défilement vers le bas (Scroll d'1.5 seconde)...")
+                Journal.log("Petit défilement vers le bas (Scroll NATIF Android x3)...")
                 performSmallSwipeUp()
                 delay(3000) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
                 
@@ -1097,7 +1097,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
                 
                 delay(800) // Wait for screen to settle after capture
-                Journal.log("Petit défilement vers le bas (Scroll d'1.5 seconde)...")
+                Journal.log("Petit défilement vers le bas (Scroll NATIF Android x3)...")
                 performSmallSwipeUp()
                 delay(3000) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
                 
