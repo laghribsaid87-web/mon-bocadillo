@@ -24,13 +24,12 @@ const getKdsName = (caisseName) => {
         "Eau minérale": "Eau 50 Cl",
         "Miranda Citron": "Mirinda Citron",
         
-        // Extras
-        "\"Extra\" Frites": "Cornet de Frite",
-        "\"Extra\" Thon": "Thon",
-        "\"Extra\" Charcuterie": "Charcuterie",
-        "\"Extra\" Fromage": "Fromage",
-        "\"Extra\" Œuf": "Oeuf",
-        "\"Extra\" Oeuf": "Oeuf"
+        // Extras (Caisse -> Glovo format)
+        "Cornet de Frite": "\"Extra\" Frites",
+        "Thon": "\"Extra\" Thon",
+        "Charcuterie": "\"Extra\" Charcuterie",
+        "Fromage": "\"Extra\" Fromage",
+        "Oeuf": "\"Extra\" Œuf"
     };
     return mapping[name] || name;
 };
