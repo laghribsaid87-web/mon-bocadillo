@@ -446,7 +446,27 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
 
                     // Remplacer par le nom exact du menu POS
                     let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese');
-                    const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '')) || menuItems.find(m => m.name.length >= 3 && normalizedLowerName.includes(m.name.toLowerCase()));
+                    
+                      let isForceOption = typeof currentItemIndex !== 'undefined' && currentItemIndex !== -1 && (lowerName.includes('extra') || lowerName.includes('sans') || lowerName.includes('avec'));
+                      if (isForceOption) {
+                          let formattedOpt = rawName.replace(/\s*\d+[.,]?\d*\s*(\?|mad|dh|')?/i, '').trim();
+                          formattedOpt = formattedOpt.replace(/"/g, '');
+                          if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
+                              parsedItems[currentItemIndex].sans.push(formattedOpt);
+                          }
+                          continue;
+                      }
+                      
+                      let isForceOption = typeof currentItemIndex !== 'undefined' && currentItemIndex !== -1 && (lowerName.includes('extra') || lowerName.includes('sans') || lowerName.includes('avec'));
+                      if (isForceOption) {
+                          let formattedOpt = rawName.replace(/\s*\d+[.,]?\d*\s*(\?|mad|dh|')?/i, '').trim();
+                          formattedOpt = formattedOpt.replace(/"/g, '');
+                          if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
+                              parsedItems[currentItemIndex].sans.push(formattedOpt);
+                          }
+                          continue;
+                      }
+                      const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '')) || menuItems.find(m => m.name.length >= 3 && normalizedLowerName.includes(m.name.toLowerCase()));
 
                     currentItem = {
                         name: matchedMenu ? matchedMenu.name : rawName, // Remplacer par le nom POS
