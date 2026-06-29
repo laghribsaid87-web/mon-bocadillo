@@ -557,7 +557,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     <span className={`text-[9px] font-black uppercase mt-1 tracking-widest flex items-center gap-1`}>
                                         <span className={`${styles.text}`}>{styles.label}</span>
                                         {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
-                                            <span className="text-white bg-red-600 px-3 py-1 rounded-md border-2 border-red-800 shadow-xl animate-bounce ml-2 text-[11px]">ESPECE $</span>
+                                            <span className="text-white bg-red-600 px-2 py-0.5 rounded-md border border-red-800 shadow-md animate-bounce ml-2 text-[10px]">ESPECE $</span>
                                         )}
                                     </span>
                                     {o.source === 'pos' && (
@@ -640,9 +640,12 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             <div className={`${styles.headerBg} p-6 border-b ${styles.headerBorder} flex justify-between items-start relative`}>
                                 <div className="flex flex-col gap-1">
                                     <span className={`text-[11px] font-black uppercase tracking-widest ${styles.text}`}>
-                                        {styles.label}{(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
-                                            <span className="text-green-400 bg-green-500/20 px-1 rounded-sm border border-green-500/30 ml-2">ESPECE $</span>
-                                        )}
+                                        <span className="flex items-center gap-2">
+                                            {styles.label}
+                                            {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
+                                                <span className="text-white bg-red-600 px-2.5 py-1 rounded-md border border-red-800 shadow-lg animate-bounce ml-1 text-[11px]">ESPECE $</span>
+                                            )}
+                                        </span>
                                     </span>
                                     <span className={`text-3xl font-black uppercase tracking-tighter ${styles.orderNumberText || 'text-white'}`}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
                                     {o.source === 'pos' && (
