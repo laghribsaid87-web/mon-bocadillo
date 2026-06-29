@@ -432,8 +432,8 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                     const qty = parseInt(itemMatch[1]);
                     let rawName = itemMatch[2].trim();
                     
-                    // Nettoyer les tirets à la fin (ex: "Pizza Salami --") et les artefacts OCR (? <)
-                    rawName = rawName.replace(/--.*$/, '').replace(/\*\*/g, '').replace(/[?<>]/g, '').trim();
+                    // Nettoyer les tirets à la fin (ex: "Pizza Salami --") et les artefacts OCR (? <) et les PRIX
+                    rawName = rawName.replace(/--.*$/, '').replace(/\*\*/g, '').replace(/[?<>]/g, '').replace(/\s*\d+[.,]?\d*\s*(mad|dh|€|usd)\b/ig, '').trim();
                     
                     // Ignorer les lignes parasites (0x, mins, produit...)
                     if (qty === 0) continue;
@@ -442,7 +442,7 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                     const lowerName = rawName.toLowerCase();
                     const ignoreList = ['mins', 'min', 'produit', 'produits', 'grande', 'moyenne', 'petite', 'tva', 'total', 'sous-total'];
                     if (ignoreList.includes(lowerName)) continue;
-                    if (lowerName.includes('produit xxxx') || lowerName.includes('commande test') || lowerName.includes('acceptée')) continue;
+                    if (lowerName.startsWith('produit') || lowerName.includes('produit xxxx') || lowerName.includes('commande test') || lowerName.includes('acceptée')) continue;
 
                     // Remplacer par le nom exact du menu POS
                     let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese').replace(/miranda/g, 'mirinda');
@@ -844,11 +844,11 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 
                 if (itemMatch && !lower.startsWith('0 x ')) {
                     const qty = parseInt(itemMatch[1]);
-                    let rawName = itemMatch[2].trim().replace(/[?<>]/g, '').trim();
+                    let rawName = itemMatch[2].trim().replace(/[?<>]/g, '').replace(/\s*\d+[.,]?\d*\s*(mad|dh|€|usd)\b/ig, '').trim();
                     const lowerName = rawName.toLowerCase();
                     const ignoreList = ['mins', 'min', 'produit', 'produits', 'grande', 'moyenne', 'petite', 'tva', 'total', 'sous-total'];
                     
-                    if (ignoreList.includes(lowerName)) continue;
+                    if (ignoreList.includes(lowerName) || lowerName.startsWith('produit')) continue;
 
                     let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese').replace(/œ/g, 'oe').replace(/miranda/g, 'mirinda');
                     
