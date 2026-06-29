@@ -822,7 +822,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                         currentItemIndex = parsedItems.length - 1;
                     } else {
                         // AYE HAJA MAKAYNACH F MAPPING MATBANCH F KDS
-                        // SAUF si c'est une option (Extra, Sans, Avec) pour l'article précédent !
+                                                // SAUF si c'est une option (Extra, Sans, Avec) pour l'article précédent !
                         if (currentItemIndex !== -1 && (lowerName.includes('extra') || lowerName.includes('sans') || lowerName.includes('avec'))) {
                             let formattedOpt = rawName.replace(/\s*\d+[.,]?\d*\s*(\?|mad|dh|€)?/i, '').trim();
                             // Enlever les guillemets si present (ex: "Extra" Thon -> Extra Thon)
@@ -830,6 +830,17 @@ async function handleGoDroidOrder(snap, context, branchId) {
                             if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
                                 parsedItems[currentItemIndex].sans.push(formattedOpt);
                             }
+                        } else if (lowerName.includes('sandwich') || lowerName.includes('bocadillo') || lowerName.includes('tacos') || lowerName.includes('pizza') || lowerName.includes('panini') || lowerName.includes('burger') || lowerName.includes('jus') || lowerName.includes('assiette') || lowerName.includes('frites') || lowerName.includes('salade')) {
+                            // C'est clairement un plat principal mal orthographié par l'OCR ! On l'ajoute !
+                            parsedItems.push({
+                                name: rawName,
+                                qty: qty,
+                                price: 0,
+                                category: 'Divers',
+                                station: 'CHAUD',
+                                sans: []
+                            });
+                            currentItemIndex = parsedItems.length - 1;
                         } else {
                             currentItemIndex = -1;
                         }
