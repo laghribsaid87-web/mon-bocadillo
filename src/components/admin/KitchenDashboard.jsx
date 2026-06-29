@@ -36,6 +36,20 @@ const getKdsName = (caisseName) => {
     return mapping[name] || name;
 };
 
+const renderOptionWithQtyHighlight = (text) => {
+    const match = text.match(/(\d+\s*[xX])/i);
+    if (match) {
+        const parts = text.split(match[0]);
+        return (
+            <span className="flex items-center gap-1.5 flex-wrap">
+                <span className="inline-block bg-red-600 text-white px-2 py-0.5 rounded shadow-sm border border-red-800 animate-pulse font-black">{match[0]}</span>
+                <span>{parts.join('')}</span>
+            </span>
+        );
+    }
+    return text;
+};
+
 export default function KitchenDashboard({ activeOrders, updateStatus, printTicket, brand, settings, profile }) {
     // État pour cocher/rayer les articles préparés individuellement
     const [checkedItems, setCheckedItems] = useState({});
@@ -590,7 +604,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
                                                         return (
                                                             <span key={oIdx} className={`text-[10px] font-black uppercase ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
-                                                                {isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation)}
+                                                                {renderOptionWithQtyHighlight(isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation))}
                                                             </span>
                                                         );
                                                     })}
@@ -709,7 +723,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
                                                         return (
                                                             <span key={oIdx} className={`inline-block px-3 sm:px-4 py-1.5 rounded-lg text-sm font-black uppercase border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
-                                                                {isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation)}
+                                                                {renderOptionWithQtyHighlight(isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation))}
                                                             </span>
                                                         );
                                                     })}
