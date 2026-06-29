@@ -571,7 +571,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     <span className={`text-[9px] font-black uppercase mt-1 tracking-widest flex items-center gap-1`}>
                                         <span className={`${styles.text}`}>{styles.label}</span>
                                         {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
-                                            <span className="text-white bg-red-600 px-2 py-0.5 rounded-md border border-red-800 shadow-md animate-bounce ml-2 text-[10px]">ESPECE $</span>
+                                            <span className="text-white bg-red-600 px-2 py-0.5 rounded-md border border-red-800 shadow-md animate-bounce ml-2 text-[10px]">ESPECE</span>
                                         )}
                                     </span>
                                     {o.source === 'pos' && (
@@ -642,7 +642,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     })()}
                                 </div>
                             <button onClick={() => markOrderAsReady(o.id)} className="w-full py-3 text-white font-black text-xs uppercase tracking-wider transition-colors hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a' }}>
-                                {o.source === 'glovo' && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Prêt (💵 CASH)' : (brand.texts?.btnKdsReady || 'Prêt')}
+                                {o.source === 'glovo' && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Prêt' : (brand.texts?.btnKdsReady || 'Prêt')}
                             </button>
                             </div>
                         );
@@ -662,7 +662,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         <span className="flex items-center gap-2">
                                             {styles.label}
                                             {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
-                                                <span className="text-white bg-red-600 px-2.5 py-1 rounded-md border border-red-800 shadow-lg animate-bounce ml-1 text-[11px]">ESPECE $</span>
+                                                <span className="text-white bg-red-600 px-2.5 py-1 rounded-md border border-red-800 shadow-lg animate-bounce ml-1 text-[11px]">ESPECE</span>
                                             )}
                                         </span>
                                     </span>
