@@ -1776,15 +1776,27 @@ class AutomatorAccessibilityService : AccessibilityService() {
         return result
     }
 
-    private fun findScrollableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-        if (node == null) return null
-        if (node.isScrollable) return node
-        
-        for (i in 0 until node.childCount) {
-            val result = findScrollableNode(node.getChild(i))
-            if (result != null) return result
+    private fun findScrollableNode(node: android.view.accessibility.AccessibilityNodeInfo?): android.view.accessibility.AccessibilityNodeInfo? {
+        val scrollableNodes = mutableListOf<android.view.accessibility.AccessibilityNodeInfo>()
+        fun collectScrollableNodes(n: android.view.accessibility.AccessibilityNodeInfo?) {
+            if (n == null) return
+            if (n.isScrollable) {
+                scrollableNodes.add(n)
+            }
+            for (i in 0 until n.childCount) {
+                collectScrollableNodes(n.getChild(i))
+            }
         }
-        return null
+        collectScrollableNodes(node)
+        
+        if (scrollableNodes.isEmpty()) return null
+        
+        // On retourne l'élément défilant qui a la plus grande hauteur (la liste principale de Glovo)
+        return scrollableNodes.maxByOrNull { n -> 
+            val rect = android.graphics.Rect()
+            n.getBoundsInScreen(rect)
+            rect.height()
+        }
     }
 
     private suspend fun returnToNewOrdersTab() {
