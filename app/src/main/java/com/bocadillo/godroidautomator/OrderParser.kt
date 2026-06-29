@@ -158,7 +158,7 @@ object OrderParser {
         if (endMarkerIndex != -1) {
             for (i in endMarkerIndex - 1 downTo 0) {
                 val l = finalItemsList[i]
-                val isQuantity = Regex("^(?i)\\d+[ \\t\\xA0]*[xX×-]").containsMatchIn(l)
+                val isQuantity = Regex("^(?i)[^a-zA-Z0-9]*\\d+[ \\t\\xA0]*[xX×-]").containsMatchIn(l)
                 val isOption = l.startsWith("Sans ", true) || l.startsWith("Avec ", true) || l.startsWith("Extra", true) || l.startsWith("Ajout ", true) || l.startsWith("-") || l.startsWith("+")
                 val isPrice = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE).matches(l)
                 val isGarbage = Regex("(?i)(%|\\d{2}:\\d{2}|Test de lecture|Livraison|Adresse|Client|Floride|Le coursier doit payer|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|Modifier|Accepter|Refuser|Continuer|Aide|mins)").containsMatchIn(l)
@@ -228,7 +228,7 @@ object OrderParser {
 
     private fun mergeSplitItemNames(lines: List<String>): List<String> {
         val mergedItemsList = mutableListOf<String>()
-        val quantityRegex = Regex("^(?i)\\d+[ \\t\\xA0]*[xX×]")
+        val quantityRegex = Regex("^(?i)[^a-zA-Z0-9]*\\d+[ \\t\\xA0]*[xX×-]")
         val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE)
         val pureGarbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier doit payer|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins)")
         
