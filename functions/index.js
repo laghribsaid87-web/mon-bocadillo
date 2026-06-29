@@ -445,8 +445,8 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                     if (lowerName.includes('produit xxxx') || lowerName.includes('commande test') || lowerName.includes('acceptée')) continue;
 
                     // Remplacer par le nom exact du menu POS
-                    const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerName.replace(/[^a-z0-9]/g, '')) 
-                                     || menuItems.find(m => m.name.length >= 3 && lowerName.includes(m.name.toLowerCase()));
+                    let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese');
+                    const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '')) || menuItems.find(m => m.name.length >= 3 && normalizedLowerName.includes(m.name.toLowerCase()));
 
                     currentItem = {
                         name: matchedMenu ? matchedMenu.name : rawName, // Remplacer par le nom POS
@@ -807,8 +807,8 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     
                     if (ignoreList.includes(lowerName)) continue;
 
-                    const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerName.replace(/[^a-z0-9]/g, '')) 
-                                     || menuItems.find(m => m.name.length >= 3 && lowerName.includes(m.name.toLowerCase()));
+                    let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese');
+                    const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '')) || menuItems.find(m => m.name.length >= 3 && normalizedLowerName.includes(m.name.toLowerCase()));
 
                                         if (matchedMenu) {
                         parsedItems.push({
@@ -830,7 +830,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                             if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
                                 parsedItems[currentItemIndex].sans.push(formattedOpt);
                             }
-                        } else if (lowerName.includes('sandwich') || lowerName.includes('bocadillo') || lowerName.includes('tacos') || lowerName.includes('pizza') || lowerName.includes('panini') || lowerName.includes('burger') || lowerName.includes('jus') || lowerName.includes('assiette') || lowerName.includes('frites') || lowerName.includes('salade')) {
+                        } else if (lowerName.includes('sandwich') || lowerName.includes('sandw') || lowerName.includes('bocadillo') || lowerName.includes('bocadill') || lowerName.includes('tacos') || lowerName.includes('pizza') || lowerName.includes('panini') || lowerName.includes('burger') || lowerName.includes('jus') || lowerName.includes('assiette') || lowerName.includes('frites') || lowerName.includes('salade')) {
                             // C'est clairement un plat principal mal orthographié par l'OCR ! On l'ajoute !
                             parsedItems.push({
                                 name: rawName,
@@ -872,6 +872,11 @@ async function handleGoDroidOrder(snap, context, branchId) {
                             if (!cleanNotes.includes(formattedNote)) {
                                 cleanNotes.push(formattedNote);
                             }
+                        }
+                    } else if (theNoteToPush.length > 2) {
+                        let clientNote = "NOTE: " + theNoteToPush;
+                        if (!cleanNotes.includes(clientNote)) {
+                            cleanNotes.push(clientNote);
                         }
                     }
                 }
