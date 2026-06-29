@@ -26,6 +26,8 @@ const getGlovoName = (caisseName) => {
         "Mirinda Pomme": "Mirinda Pomme",
         "7up": "7up",
         "Mirinda Orange": "Mirinda Orange",
+        "Miranda Citron": "Mirinda Citron",
+        "Mirinda Citron": "Mirinda Citron",
         "Jus d'orange": "Jus d'Orange",
         "Eau 50 Cl": "Eau minérale",
         "Cornet de Frite": "\"Extra\" Frites",
