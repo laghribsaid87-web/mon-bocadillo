@@ -68,10 +68,10 @@ const INGREDIENTS_AR = {
     "MAYONNAISE": "مايونيز", "MAYO": "مايونيز",
     "KETCHUP": "كيتشوب", "MOUTARDE": "موطارد",
     "HARISSA": "حار", "PIQUANT": "حار",
-    "FROMAGE": "فروماج", "CHEESE": "فروماج",
+    "FROMAGE": "فرماج", "CHEESE": "فرماج",
     "THON": "طون", "POULET": "دجاج",
     "VIANDE HACHEE": "كفتة", "VIANDE HACHÉE": "كفتة",
-    "SAUCISSE": "صوصيص", "CHARCUTERIE": "كاشير",
+    "SAUCISSE": "صوصيص", "CHARCUTERIE": "لانشون",
     "OEUF": "بيض", "OEUFS": "بيض", "ŒUF": "بيض", "EUF": "بيض", "EUFS": "بيض",
     "CAROTTE": "خيزو", "CAROTTES": "خيزو",
     "OLIVE": "زيتون", "OLIVES": "زيتون",
@@ -111,7 +111,7 @@ export const formatSansIngredient = (ingredient, translateToArabic = false) => {
     }
     
     if (translateToArabic) {
-        if (isExtra) return `إضافي ${translatedIng}`;
+        if (isExtra) return `إكسترا ${translatedIng}`;
         return `بلا ${translatedIng}`;
     }
     
