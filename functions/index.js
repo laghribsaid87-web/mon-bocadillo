@@ -897,8 +897,19 @@ async function handleGoDroidOrder(snap, context, branchId) {
                                 formattedOpt = qty + "x " + formattedOpt;
                             }
                             
-                            if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
-                                parsedItems[currentItemIndex].sans.push(formattedOpt);
+                            // SEPARER LES EXTRAS MULTIPLES SUR LA MEME LIGNE (ex: 1x Extra Charcuterie Extra Fromage)
+                            let subOptions = formattedOpt.match(/(\d+\s*[xX]\s*)?(?:extra|sans|avec)\b.*?(?=(\d+\s*[xX]\s*)?(?:extra|sans|avec)\b|$)/gi);
+                            if (subOptions && subOptions.length > 0) {
+                                subOptions.forEach(subOpt => {
+                                    let cleanSubOpt = subOpt.trim();
+                                    if (!parsedItems[currentItemIndex].sans.includes(cleanSubOpt)) {
+                                        parsedItems[currentItemIndex].sans.push(cleanSubOpt);
+                                    }
+                                });
+                            } else {
+                                if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
+                                    parsedItems[currentItemIndex].sans.push(formattedOpt);
+                                }
                             }
                         } else if (lowerName.includes('formule') || lowerName.includes('menu') || lowerName.includes('sandwich') || lowerName.includes('sandw') || lowerName.includes('bocadillo') || lowerName.includes('bocadill') || lowerName.includes('tacos') || lowerName.includes('pizza') || lowerName.includes('panini') || lowerName.includes('burger') || lowerName.includes('jus') || lowerName.includes('assiette') || lowerName.includes('frites') || lowerName.includes('salade')) {
                             // C'est clairement un plat principal mal orthographié par l'OCR ! On l'ajoute !
@@ -928,6 +939,16 @@ async function handleGoDroidOrder(snap, context, branchId) {
 
                     let formattedNote = formatPOSNote(theNoteToPush);
                     
+                    // HANDLE ORPHANED QUANTITIES (e.g., "3 x" on a new line after an extra)
+                    if (theNoteToPush.trim().match(/^\d+\s*[xX]$/i)) {
+                        if (currentItemIndex !== -1 && parsedItems[currentItemIndex].sans.length > 0) {
+                            let lastOpt = parsedItems[currentItemIndex].sans.pop();
+                            let newQty = theNoteToPush.replace(/\s+/g, '').toLowerCase() + " "; // "3x "
+                            parsedItems[currentItemIndex].sans.push(newQty + lastOpt);
+                            continue;
+                        }
+                    }
+
                     // Handle client notes extracted by GoDroidAutomator
                     if (theNoteToPush.toUpperCase().startsWith('NOTE: ')) {
                         formattedNote = theNoteToPush.substring(6).trim();
