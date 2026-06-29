@@ -577,7 +577,12 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         if (hasBigFormule && isDrink && !baseName.toLowerCase().match(/1\s*l/)) baseName += ' 1 Litre';
                                         return (
                                         <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
-                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{baseName}</span>
+                                            {item.qty > 1 ? (
+                                                <span className="inline-block bg-red-600 text-white px-2 py-0.5 rounded shadow-md border-2 border-red-800 animate-pulse text-sm mr-1 font-black">{item.qty}x</span>
+                                            ) : (
+                                                <span className="text-orange-400 font-black mr-1">{item.qty}x</span>
+                                            )}
+                                            <span className={(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{baseName}</span>
                                             {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col gap-1 mt-1">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
@@ -689,7 +694,14 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                     </div>
                                                 )}
                                                 <div className="flex-1 pt-1">
-                                                    <span className={`font-black text-2xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {baseName}</span>
+                                                    <span className={`font-black text-2xl flex items-start gap-2 leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>
+                                                        {item.qty > 1 ? (
+                                                            <span className="inline-block bg-red-600 text-white px-3 py-1 rounded-xl shadow-lg border-2 border-red-800 animate-pulse text-3xl font-black">{item.qty}x</span>
+                                                        ) : (
+                                                            <span className="text-neutral-400">{item.qty}x</span>
+                                                        )}
+                                                        <span className="pt-0.5">{baseName}</span>
+                                                    </span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col items-start gap-1.5 mt-2">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
