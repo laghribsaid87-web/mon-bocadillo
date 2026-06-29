@@ -881,8 +881,10 @@ async function handleGoDroidOrder(snap, context, branchId) {
                         currentItemIndex = parsedItems.length - 1;
                     } else {
                         // AYE HAJA MAKAYNACH F MAPPING MATBANCH F KDS
-                                                // SAUF si c'est une option (Extra, Sans, Avec) pour l'article précédent !
-                        if (currentItemIndex !== -1 && (lowerName.includes('extra') || lowerName.includes('sans') || lowerName.includes('avec'))) {
+                        // SAUF si c'est une option (Extra, Sans, Avec) pour l'article précédent !
+                        const isStrongMainItem = lowerName.includes('formule') || lowerName.includes('menu') || lowerName.includes('sandwich') || lowerName.includes('sandw') || lowerName.includes('bocadillo') || lowerName.includes('bocadill') || lowerName.includes('tacos') || lowerName.includes('pizza') || lowerName.includes('panini') || lowerName.includes('burger') || lowerName.includes('assiette');
+                        
+                        if (currentItemIndex !== -1 && !isStrongMainItem && (lowerName.includes('extra') || lowerName.includes('sans') || lowerName.includes('avec'))) {
                             let formattedOpt = rawName.replace(/\s*\d+[.,]?\d*\s*(\?|mad|dh|€)?/i, '').trim();
                             // Enlever les guillemets si present (ex: "Extra" Thon -> Extra Thon)
                             formattedOpt = formattedOpt.replace(/"/g, '');
