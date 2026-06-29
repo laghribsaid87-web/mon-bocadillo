@@ -844,7 +844,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 
                 if (itemMatch && !lower.startsWith('0 x ')) {
                     const qty = parseInt(itemMatch[1]);
-                    let rawName = itemMatch[2].trim().replace(/[?<>]/g, '').replace(/\s*\d+[.,]?\d*\s*(mad|dh|€|usd)\b/ig, '').trim();
+                    let rawName = itemMatch[2].trim().replace(/[?<>]/g, '').replace(/\s*\d+[.,]?\d*\s*(mad|dh|€|usd)\b/ig, '').replace(/\bso\b/ig, '').trim();
                     const lowerName = rawName.toLowerCase();
                     const ignoreList = ['mins', 'min', 'produit', 'produits', 'grande', 'moyenne', 'petite', 'tva', 'total', 'sous-total'];
                     
