@@ -6,35 +6,30 @@ import { formatSansIngredient } from '../../utils/helpers';
 import LiveTimer from '../LiveTimer';
 import { io } from 'socket.io-client';
 
-const getGlovoName = (caisseName) => {
+const getKdsName = (caisseName) => {
     const name = caisseName?.trim();
     const mapping = {
-        "Bocadillo Thon": "Bocadillo Thon",
-        "Bocadillo Tangérois": "Bocadillo Tangérois",
-        "Bocadillo Cheese": "Bocadillio Cheese",
-        "Bocadillo Complet (\u0634\u0645\u0627\u0644\u064A)": "Bocadillo Complet",
-        "Tortillia Cheese": "Bocadillo Tortilla Cheese",
-        "Sandwiche Poulet": "Sandwich Brochettes de Poulet",
-        "Sandwiche Viande Hachée": "Sandwich Viande Hachée",
-        "Sandwiche Saucisse": "Sandwich Saucisse de Bœuf",
-        "Sandwiche Mixte": "Sandwich Mixte",
-        "Sandwiche Américain": "Sandwiche Américain",
-        "Toi et Moi": "Formule Toi et Moi",
-        "Formule Gourmand": "Formule Gourmande",
-        "Coca-Cola": "Coca-Cola",
-        "Pepsi": "PEPSI",
-        "Mirinda Pomme": "Mirinda Pomme",
-        "7up": "7up",
-        "Mirinda Orange": "Mirinda Orange",
+        // Glovo Name -> KDS Name
+        "Bocadillio Cheese": "Bocadillo Cheese",
+        "Bocadillo Complet": "Bocadillo Complet (شمالي)",
+        "Bocadillio Tortilla Cheese": "Tortillia Cheese",
+        "Sandwich Brochettes de Poulet": "Sandwiche Poulet",
+        "Sandwich Viande Hachée": "Sandwiche Viande Hachée",
+        "Sandwich Saucisse de Bœuf": "Sandwiche Saucisse",
+        "Sandwich Mixte": "Sandwiche Mixte",
+        "Formule Toi et Moi": "Toi et Moi",
+        "Formule Gourmande": "Formule Gourmand",
+        "PEPSI": "Pepsi",
+        "Jus d'Orange": "Jus d'orange",
+        "Eau minérale": "Eau 50 Cl",
         "Miranda Citron": "Mirinda Citron",
-        "Mirinda Citron": "Mirinda Citron",
-        "Jus d'orange": "Jus d'Orange",
-        "Eau 50 Cl": "Eau minérale",
-        "Cornet de Frite": "\"Extra\" Frites",
-        "Thon": "\"Extra\" Thon",
-        "Charcuterie": "\"Extra\" Charcuterie",
-        "Fromage": "\"Extra\" Fromage",
-        "Oeuf": "\"Extra\" \u0152uf"
+        
+        // Extras
+        "\"Extra\" Frites": "Cornet de Frite",
+        "\"Extra\" Thon": "Thon",
+        "\"Extra\" Charcuterie": "Charcuterie",
+        "\"Extra\" Fromage": "Fromage",
+        "\"Extra\" Œuf": "Oeuf"
     };
     return mapping[name] || name;
 };
@@ -575,11 +570,11 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                 <div className="p-3 flex-1 no-scrollbar space-y-1.5">
                                     {(o.filteredItems || []).map((item, idx) => (
                                         <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
-                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={((getGlovoName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getGlovoName(item.name) || '').toLowerCase().includes('extra') || (getGlovoName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
+                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={((getKdsName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getKdsName(item.name) || '').toLowerCase().includes('extra') || (getKdsName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{(getKdsName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
                                             {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col gap-1 mt-1">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
-                                                        const mappedOpt = getGlovoName(opt).replace(/"/g, '');
+                                                        const mappedOpt = getKdsName(opt).replace(/"/g, '');
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
                                                         return (
                                                             <span key={oIdx} className={`text-[10px] font-black uppercase tracking-wider ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
@@ -680,11 +675,11 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                     </div>
                                                 )}
                                                 <div className="flex-1 pt-1">
-                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${((getGlovoName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getGlovoName(item.name) || '').toLowerCase().includes('extra') || (getGlovoName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
+                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${((getKdsName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getKdsName(item.name) || '').toLowerCase().includes('extra') || (getKdsName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {(getKdsName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col items-start gap-1.5 mt-2">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
-                                                        const mappedOpt = getGlovoName(opt).replace(/"/g, '');
+                                                        const mappedOpt = getKdsName(opt).replace(/"/g, '');
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
                                                         return (
                                                             <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
