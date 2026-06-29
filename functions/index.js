@@ -458,26 +458,43 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                       }
                       
                       const paddedLowerName = ` ${normalizedLowerName.replace(/[^a-z0-9À-ÿ]/g, ' ')} `;
-                      const matchedMenu = menuItems.find(m => {
-                          const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
-                          return menuName.replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '');
-                      }) || menuItems.find(m => {
-                          const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
-                          if (menuName.length < 3) return false;
-                          const paddedMenuName = ` ${menuName.replace(/[^a-z0-9À-ÿ]/g, ' ')} `;
-                          return paddedLowerName.includes(paddedMenuName);
-                      });
+                      
+                      const isExplicitOption = lowerName.match(/^["']?extra\b/) || lowerName.match(/^["']?sans\b/) || lowerName.match(/^["']?avec\b/);
+                      
+                      let matchedMenu = null;
+                      if (!isExplicitOption) {
+                          matchedMenu = menuItems.find(m => {
+                              const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
+                              return menuName.replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '');
+                          }) || menuItems.find(m => {
+                              const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
+                              if (menuName.length < 3) return false;
+                              const paddedMenuName = ` ${menuName.replace(/[^a-z0-9À-ÿ]/g, ' ')} `;
+                              return paddedLowerName.includes(paddedMenuName);
+                          });
+                      }
+                      
+                      // Si c'est explicitement une option et on a un article parent
+                      if (isExplicitOption && currentItemIndex !== -1 && typeof currentItemIndex !== 'undefined') {
+                          let formattedOpt = rawName.replace(/\s*\d+[.,]?\d*\s*(\?|mad|dh|')?/i, '').trim();
+                          formattedOpt = formattedOpt.replace(/"/g, '');
+                          if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
+                              parsedItems[currentItemIndex].sans.push(formattedOpt);
+                          }
+                          continue;
+                      }
 
-                    currentItem = {
-                        name: matchedMenu ? matchedMenu.name : rawName, // Remplacer par le nom POS
-                        qty: qty,
-                        price: matchedMenu ? (matchedMenu.price || 0) : 0,
-                        category: matchedMenu ? (matchedMenu.category || 'Divers') : 'Divers',
-                        station: matchedMenu ? (matchedMenu.station || 'CHAUD') : 'CHAUD',
-                        sans: []
-                    };
-                    parsedItems.push(currentItem);
-                    continue;
+                      currentItem = {
+                          name: matchedMenu ? matchedMenu.name : rawName, // Remplacer par le nom POS
+                          qty: qty,
+                          price: matchedMenu ? (matchedMenu.price || 0) : 0,
+                          category: matchedMenu ? (matchedMenu.category || 'Divers') : 'Divers',
+                          station: matchedMenu ? (matchedMenu.station || 'CHAUD') : 'CHAUD',
+                          sans: []
+                      };
+                      parsedItems.push(currentItem);
+                      currentItemIndex = parsedItems.length - 1; // Garder la trace pour les options suivantes
+                      continue;
                 }
 
                 if (currentItem) {
@@ -833,17 +850,22 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     
                     const paddedLowerName = ` ${normalizedLowerName.replace(/[^a-z0-9À-ÿ]/g, ' ')} `;
                     
-                    const matchedMenu = menuItems.find(m => {
-                        const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
-                        return menuName.replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '');
-                    }) || menuItems.find(m => {
-                        const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
-                        if (menuName.length < 3) return false;
-                        const paddedMenuName = ` ${menuName.replace(/[^a-z0-9À-ÿ]/g, ' ')} `;
-                        return paddedLowerName.includes(paddedMenuName);
-                    });
+                    const isExplicitOption = lowerName.match(/^["']?extra\b/) || lowerName.match(/^["']?sans\b/) || lowerName.match(/^["']?avec\b/);
+                    
+                    let matchedMenu = null;
+                    if (!isExplicitOption) {
+                        matchedMenu = menuItems.find(m => {
+                            const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
+                            return menuName.replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '');
+                        }) || menuItems.find(m => {
+                            const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
+                            if (menuName.length < 3) return false;
+                            const paddedMenuName = ` ${menuName.replace(/[^a-z0-9À-ÿ]/g, ' ')} `;
+                            return paddedLowerName.includes(paddedMenuName);
+                        });
+                    }
 
-                                        if (matchedMenu) {
+                    if (matchedMenu) {
                         parsedItems.push({
                             name: matchedMenu.name,
                             qty: qty,
