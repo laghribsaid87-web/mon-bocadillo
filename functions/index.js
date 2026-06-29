@@ -478,6 +478,10 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                       if (isExplicitOption && currentItemIndex !== -1 && typeof currentItemIndex !== 'undefined') {
                           let formattedOpt = rawName.replace(/\s*\d+[.,]?\d*\s*(\?|mad|dh|')?/i, '').trim();
                           formattedOpt = formattedOpt.replace(/"/g, '');
+                          
+                          // NETTOYAGE DES ERREURS OCR (Bœuf, Poulet rattachés par erreur)
+                          formattedOpt = formattedOpt.replace(/(?:\s+boeuf|\s+beuf|\s+bœuf|\s+poulet)$/i, '').trim();
+                          
                           if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
                               parsedItems[currentItemIndex].sans.push(formattedOpt);
                           }
@@ -882,6 +886,10 @@ async function handleGoDroidOrder(snap, context, branchId) {
                             let formattedOpt = rawName.replace(/\s*\d+[.,]?\d*\s*(\?|mad|dh|€)?/i, '').trim();
                             // Enlever les guillemets si present (ex: "Extra" Thon -> Extra Thon)
                             formattedOpt = formattedOpt.replace(/"/g, '');
+                            
+                            // NETTOYAGE DES ERREURS OCR (Bœuf, Poulet rattachés par erreur)
+                            formattedOpt = formattedOpt.replace(/(?:\s+boeuf|\s+beuf|\s+bœuf|\s+poulet)$/i, '').trim();
+                            
                             if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
                                 parsedItems[currentItemIndex].sans.push(formattedOpt);
                             }
