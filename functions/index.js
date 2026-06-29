@@ -829,8 +829,19 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     
                     if (ignoreList.includes(lowerName)) continue;
 
-                    let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese');
-                    const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '')) || menuItems.find(m => m.name.length >= 3 && normalizedLowerName.includes(m.name.toLowerCase()));
+                    let normalizedLowerName = lowerName.replace(/bocadillio/g, 'bocadillo').replace(/bocadilo/g, 'bocadillo').replace(/sandwitch/g, 'sandwich').replace(/sandwic /g, 'sandwich ').replace(/chcese/g, 'cheese').replace(/œ/g, 'oe');
+                    
+                    const paddedLowerName = ` ${normalizedLowerName.replace(/[^a-z0-9À-ÿ]/g, ' ')} `;
+                    
+                    const matchedMenu = menuItems.find(m => {
+                        const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
+                        return menuName.replace(/[^a-z0-9]/g, '') === normalizedLowerName.replace(/[^a-z0-9]/g, '');
+                    }) || menuItems.find(m => {
+                        const menuName = m.name.toLowerCase().replace(/œ/g, 'oe');
+                        if (menuName.length < 3) return false;
+                        const paddedMenuName = ` ${menuName.replace(/[^a-z0-9À-ÿ]/g, ' ')} `;
+                        return paddedLowerName.includes(paddedMenuName);
+                    });
 
                                         if (matchedMenu) {
                         parsedItems.push({
