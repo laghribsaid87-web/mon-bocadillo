@@ -810,7 +810,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerName.replace(/[^a-z0-9]/g, '')) 
                                      || menuItems.find(m => m.name.length >= 3 && lowerName.includes(m.name.toLowerCase()));
 
-                    if (matchedMenu) {
+                                        if (matchedMenu) {
                         parsedItems.push({
                             name: matchedMenu.name,
                             qty: qty,
@@ -822,8 +822,17 @@ async function handleGoDroidOrder(snap, context, branchId) {
                         currentItemIndex = parsedItems.length - 1;
                     } else {
                         // AYE HAJA MAKAYNACH F MAPPING MATBANCH F KDS
-                        // Fallback: On l'ignore complètement
-                        currentItemIndex = -1;
+                        // SAUF si c'est une option (Extra, Sans, Avec) pour l'article précédent !
+                        if (currentItemIndex !== -1 && (lowerName.includes('extra') || lowerName.includes('sans') || lowerName.includes('avec'))) {
+                            let formattedOpt = rawName.replace(/\s*\d+[.,]?\d*\s*(\?|mad|dh|€)?/i, '').trim();
+                            // Enlever les guillemets si present (ex: "Extra" Thon -> Extra Thon)
+                            formattedOpt = formattedOpt.replace(/"/g, '');
+                            if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
+                                parsedItems[currentItemIndex].sans.push(formattedOpt);
+                            }
+                        } else {
+                            currentItemIndex = -1;
+                        }
                     }
                 } else {
                     let theNoteToPush = text;
