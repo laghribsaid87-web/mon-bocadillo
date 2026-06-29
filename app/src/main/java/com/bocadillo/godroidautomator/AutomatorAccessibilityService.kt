@@ -736,7 +736,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     
                     for (lineB in linesBottom) {
                         if (lineB.second.length > 5) {
-                            val matchingLineTop = validTopLines.find { it.second == lineB.second }
+                            val matchingLineTop = validTopLines.find { 
+                                val c1 = it.second.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
+                                val c2 = lineB.second.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
+                                c1.isNotEmpty() && c1 == c2
+                            }
                             if (matchingLineTop != null) {
                                 val diff = matchingLineTop.first.top - lineB.first.top
                                 if (diff > 50) {
@@ -769,14 +773,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                     
                     for (lineB in linesBottom) {
+                        val isSameText = { t1: String, t2: String ->
+                            val c1 = t1.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
+                            val c2 = t2.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
+                            c1.isNotEmpty() && c1 == c2
+                        }
+
                         // Élément fixe (entête) : diffY < 30
                         val isFixedOverlap = linesTopToKeep.any { lineT -> 
-                            lineT.second == lineB.second && Math.abs(lineT.first.top - lineB.first.top) < 30 
+                            isSameText(lineT.second, lineB.second) && Math.abs(lineT.first.top - lineB.first.top) < 30 
                         }
                         
                         // Élément défilé (overlap de scroll) : diffY ~= deltaY
                         val isScrollOverlap = didScroll && linesTopToKeep.any { lineT -> 
-                            lineT.second == lineB.second && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
+                            isSameText(lineT.second, lineB.second) && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
                         }
                         
                         if (isFixedOverlap || isScrollOverlap) {
@@ -1105,7 +1115,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     
                     for (lineB in linesBottom) {
                         if (lineB.second.length > 5) {
-                            val matchingLineTop = validTopLines.find { it.second == lineB.second }
+                            val matchingLineTop = validTopLines.find { 
+                                val c1 = it.second.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
+                                val c2 = lineB.second.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
+                                c1.isNotEmpty() && c1 == c2
+                            }
                             if (matchingLineTop != null) {
                                 val diff = matchingLineTop.first.top - lineB.first.top
                                 if (diff > 50) {
@@ -1138,14 +1152,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                     
                     for (lineB in linesBottom) {
+                        val isSameText = { t1: String, t2: String ->
+                            val c1 = t1.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
+                            val c2 = t2.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
+                            c1.isNotEmpty() && c1 == c2
+                        }
+
                         // Élément fixe (entête) : diffY < 30
                         val isFixedOverlap = linesTopToKeep.any { lineT -> 
-                            lineT.second == lineB.second && Math.abs(lineT.first.top - lineB.first.top) < 30 
+                            isSameText(lineT.second, lineB.second) && Math.abs(lineT.first.top - lineB.first.top) < 30 
                         }
                         
                         // Élément défilé (overlap de scroll) : diffY ~= deltaY
                         val isScrollOverlap = didScroll && linesTopToKeep.any { lineT -> 
-                            lineT.second == lineB.second && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
+                            isSameText(lineT.second, lineB.second) && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
                         }
                         
                         if (isFixedOverlap || isScrollOverlap) {

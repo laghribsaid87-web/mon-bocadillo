@@ -201,12 +201,12 @@ object OrderParser {
         val mergedItemsList = mutableListOf<String>()
         val quantityRegex = Regex("^(?i)\\d+[ \\t\\xA0]*[xX×]")
         val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE)
-        val pureGarbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|Test de lecture|Livraison|Adresse|Client|Floride)")
+        val pureGarbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier doit payer|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins)")
         
         for (rawLine in lines) {
             val line = rawLine.replace(Regex("(?i)(\\bModifier\\b|\\bAccepter\\b|\\bRefuser\\b|\\bContinuer\\b|\\bAide\\b|\\+?\\s*Ajoutez un produit|\\b\\d+\\+?\\s*mins?\\b)"), "").trim()
             
-            if (line.isEmpty() || line == "-") continue
+            if (line.isEmpty() || line == "-" || line == "--" || line == "---") continue
             
             val isQuantityLine = quantityRegex.containsMatchIn(line)
             val isOptionLine = line.startsWith("Sans ", ignoreCase = true) || 
