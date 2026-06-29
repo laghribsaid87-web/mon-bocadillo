@@ -782,6 +782,8 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 if (!text || /^[0-9.,]+$/.test(text)) continue;
                 
                 // --- ROBUST GLOVO UI FILTERING ---
+                  if (lower.match(/^\d+\s*-\s*\d+/)) continue;
+                  if (lower.includes('coursier') || lower.includes('client')) continue;
                 if (lower === 'aucune commande acceptée' || lower === 'aucun' || lower === 'aucune') continue;
                 if (lower.startsWith('#')) continue;
                 if (lower.includes('fermé') || lower.includes('horaires') || lower.includes('imprimer')) continue;
