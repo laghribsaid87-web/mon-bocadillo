@@ -35,7 +35,7 @@ object OcrHelper {
                         
                         // Save a copy to the Gallery for debugging
                         if (softwareBitmap != null) {
-                            saveBitmapToGallery(service, softwareBitmap)
+                            // saveBitmapToGallery(service, softwareBitmap)
                         }
                         
                         continuation.resume(softwareBitmap)
