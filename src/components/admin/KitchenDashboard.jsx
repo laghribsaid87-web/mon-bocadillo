@@ -570,16 +570,21 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     )}
                                 </div>
                                 <div className="p-3 flex-1 no-scrollbar space-y-1.5">
-                                    {(o.filteredItems || []).map((item, idx) => (
+                                    {(o.filteredItems || []).map((item, idx) => {
+                                        let baseName = (getKdsName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '');
+                                        const hasBigFormule = (o.filteredItems || []).some(i => (i.name||'').toLowerCase().includes('formule gourmande') || (i.name||'').toLowerCase().includes('toi et moi'));
+                                        const isDrink = ['pepsi', 'mirinda', 'seven up', '7up', 'coca', 'hawai', 'sprite', 'fanta', 'jus'].some(d => baseName.toLowerCase().includes(d));
+                                        if (hasBigFormule && isDrink && !baseName.toLowerCase().match(/1\s*l/)) baseName += ' 1 Litre';
+                                        return (
                                         <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
-                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={((getKdsName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getKdsName(item.name) || '').toLowerCase().includes('extra') || (getKdsName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{(getKdsName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
+                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className={((getKdsName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getKdsName(item.name) || '').toLowerCase().includes('extra') || (getKdsName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{baseName}</span>
                                             {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col gap-1 mt-1">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getKdsName(opt).replace(/"/g, '');
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
                                                         return (
-                                                            <span key={oIdx} className={`text-[10px] font-black uppercase tracking-wider ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
+                                                            <span key={oIdx} className={`text-[10px] font-black uppercase ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
                                                                 {isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation)}
                                                             </span>
                                                         );
@@ -594,7 +599,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 </div>
                                             ))}
                                         </div>
-                                    ))}
+                                    )})}
                                     {o.orderNote && (() => {
                                         const validLines = o.orderNote.split(/\|\|\||\n/).filter(line => {
                                             const l = line.toLowerCase();
@@ -667,6 +672,10 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             <div className="p-6 flex-1 space-y-3 no-scrollbar">
                                 {(o.filteredItems || []).map((item, idx) => {
                                     const isChecked = checkedItems[`${o.id}_${idx}`];
+                                    let baseName = (getKdsName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '');
+                                    const hasBigFormule = (o.filteredItems || []).some(i => (i.name||'').toLowerCase().includes('formule gourmande') || (i.name||'').toLowerCase().includes('toi et moi'));
+                                    const isDrink = ['pepsi', 'mirinda', 'seven up', '7up', 'coca', 'hawai', 'sprite', 'fanta', 'jus'].some(d => baseName.toLowerCase().includes(d));
+                                    if (hasBigFormule && isDrink && !baseName.toLowerCase().match(/1\s*l/)) baseName += ' 1 Litre';
                                     return (
                                         <div key={idx} onClick={() => toggleItemCheck(o.id, idx)} className={`p-5 rounded-2xl border-2 cursor-pointer transition-all active:scale-95 select-none ${isChecked ? 'bg-neutral-800/40 border-neutral-800 opacity-40 grayscale' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-600 shadow-sm'}`}>
                                             <div className="flex gap-4 items-start">
@@ -677,14 +686,14 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                     </div>
                                                 )}
                                                 <div className="flex-1 pt-1">
-                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${((getKdsName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getKdsName(item.name) || '').toLowerCase().includes('extra') || (getKdsName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {(getKdsName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
+                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${((getKdsName(item.name) || '').toLowerCase().includes('sans') ? 'text-red-500' : ((getKdsName(item.name) || '').toLowerCase().includes('extra') || (getKdsName(item.name) || '').toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>{item.qty}x {baseName}</span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col items-start gap-1.5 mt-2">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getKdsName(opt).replace(/"/g, '');
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
                                                         return (
-                                                            <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
+                                                            <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-[11px] font-black uppercase border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
                                                                 {isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation)}
                                                             </span>
                                                         );

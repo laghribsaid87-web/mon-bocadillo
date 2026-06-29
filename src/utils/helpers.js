@@ -89,10 +89,10 @@ export const formatSansIngredient = (ingredient, translateToArabic = false) => {
     
     if (trimIng.includes('EXTRA') || trimIng.includes('AJOUT')) {
         isExtra = true;
-        trimIng = trimIng.replace('EXTRA', '').replace('AJOUT', '').replace('"', '').trim();
+        trimIng = trimIng.replace('EXTRA', '').replace('AJOUT', '').replace(/"/g, '').trim().replace(/(?: 0| O| O | 0 )$/, '').trim();
     } else if (trimIng.includes('SANS')) {
         isSans = true;
-        trimIng = trimIng.replace('SANS', '').trim();
+        trimIng = trimIng.replace('SANS', '').trim().replace(/(?: 0| O| O | 0 )$/, '').trim();
     } else {
         isSans = true; // Par défaut c'est "Sans" si ce n'est pas précisé
     }
