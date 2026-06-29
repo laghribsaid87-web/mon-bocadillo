@@ -327,7 +327,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                 const text = `${prefix}. ` + (order.filteredItems || order.items || []).map(i => {
                     const itemName = (i.name || '').split(' (Sans')[0];
                     const sansParts = (i.name || '').split(' (Sans ');
-                    const sans = sansParts.length > 1 ? ' ' + sansParts[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt)).join(', ') : '';
+                    const sans = sansParts.length > 1 ? ' ' + sansParts[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt, settings?.kdsArabicTranslation)).join(', ') : '';
                     return `${i.qty} ${itemName} ${sans}`;
                 }).join(', ');
                 
@@ -483,7 +483,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     return `${prefix}. ` + (order.filteredItems || order.items || []).map(i => {
                                         const itemName = (i.name || '').split(' (Sans')[0];
                                         const sansParts = (i.name || '').split(' (Sans ');
-                                        const sans = sansParts.length > 1 ? ' ' + sansParts[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt)).join(', ') : '';
+                                        const sans = sansParts.length > 1 ? ' ' + sansParts[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt, settings?.kdsArabicTranslation)).join(', ') : '';
                                         return `${i.qty} ${itemName} ${sans}`;
                                     }).join(', ');
                                 }).join('. Ensuite, ');
@@ -581,7 +581,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
                                                         return (
                                                             <span key={oIdx} className={`text-[10px] font-black uppercase tracking-wider ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
-                                                                {isExtra ? `+ ${mappedOpt}` : `- ${formatSansIngredient(opt)}`}
+                                                                {isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation)}
                                                             </span>
                                                         );
                                                     })}
@@ -686,7 +686,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
                                                         return (
                                                             <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
-                                                                {isExtra ? `+ ${mappedOpt}` : `- ${formatSansIngredient(opt)}`}
+                                                                {isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation)}
                                                             </span>
                                                         );
                                                     })}

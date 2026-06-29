@@ -58,24 +58,65 @@ export const calculateETA = (distKm) => {
     return prepTime + travelTime + 5; // +5 min buffer dyal z7am
 };
 
-// 4.6. Fonction bach n-formatiw "Sans Ingrédient" b l'émoji f l-wl
-export const formatSansIngredient = (ingredient) => {
-    if (!ingredient) return '';
-    const trimIng = ingredient.trim();
-    
-    // S'il contient déjà "SANS" (ex: "🧅 SANS OIGNON"), on retourne tel quel en majuscule
-    if (trimIng.toUpperCase().includes('SANS')) {
-        return trimIng.toUpperCase();
-    }
+// 4.6. Dictionnaire de traduction des ingrédients en Arabe
+const INGREDIENTS_AR = {
+    "TOMATE": "مطيشة", "TOMATES": "مطيشة",
+    "OIGNON": "بصلة", "OIGNONS": "بصلة",
+    "LAITUE": "خس", "SALADE": "شلاضة",
+    "FRITE": "فريت", "FRITES": "فريت",
+    "SAUCE": "لاصوص", "SAUCES": "لاصوص",
+    "MAYONNAISE": "مايونيز", "MAYO": "مايونيز",
+    "KETCHUP": "كيتشوب", "MOUTARDE": "موطارد",
+    "HARISSA": "حار", "PIQUANT": "حار",
+    "FROMAGE": "فروماج", "CHEESE": "فروماج",
+    "THON": "طون", "POULET": "دجاج",
+    "VIANDE HACHEE": "كفتة", "VIANDE HACHÉE": "كفتة",
+    "SAUCISSE": "صوصيص", "CHARCUTERIE": "كاشير",
+    "OEUF": "بيض", "OEUFS": "بيض", "ŒUF": "بيض",
+    "CAROTTE": "خيزو", "CAROTTES": "خيزو",
+    "OLIVE": "زيتون", "OLIVES": "زيتون",
+    "CORNICHON": "كورنيشون", "CORNICHONS": "كورنيشون"
+};
 
-    const firstSpace = trimIng.indexOf(' ');
-    if (firstSpace !== -1) {
-        const firstPart = trimIng.substring(0, firstSpace);
-        if (!/^[a-zA-Z0-9À-ÿ]/.test(firstPart)) {
-            return `${firstPart} SANS ${trimIng.substring(firstSpace + 1).trim().toUpperCase()}`;
+// Fonction bach n-formatiw "Sans Ingrédient" w nterjmouh ila kdsArabicTranslation active
+export const formatSansIngredient = (ingredient, translateToArabic = false) => {
+    if (!ingredient) return '';
+    let trimIng = ingredient.trim().toUpperCase();
+    
+    // Si l'option "Extra" est détectée (ex: on passe "Extra Fromage" ici par erreur ou via mappedOpt)
+    let isExtra = false;
+    let isSans = false;
+    
+    if (trimIng.includes('EXTRA') || trimIng.includes('AJOUT')) {
+        isExtra = true;
+        trimIng = trimIng.replace('EXTRA', '').replace('AJOUT', '').replace('"', '').trim();
+    } else if (trimIng.includes('SANS')) {
+        isSans = true;
+        trimIng = trimIng.replace('SANS', '').trim();
+    } else {
+        isSans = true; // Par défaut c'est "Sans" si ce n'est pas précisé
+    }
+    
+    // Traduction de l'ingrédient
+    let translatedIng = INGREDIENTS_AR[trimIng] || trimIng;
+    
+    // Chercher par mots clés si pas de correspondance exacte
+    if (!INGREDIENTS_AR[trimIng]) {
+        for (const [fr, ar] of Object.entries(INGREDIENTS_AR)) {
+            if (trimIng.includes(fr)) {
+                translatedIng = trimIng.replace(fr, ar);
+                break;
+            }
         }
     }
-    return `SANS ${trimIng.toUpperCase()}`;
+    
+    if (translateToArabic) {
+        if (isExtra) return `إضافي ${translatedIng}`;
+        return `بلا ${translatedIng}`;
+    }
+    
+    if (isExtra) return `EXTRA ${trimIng}`;
+    return `SANS ${trimIng}`;
 };
 
 // 5. 🔥 FIX N-NIHAYI: 7yedna l-weqt w l-magana 100%!

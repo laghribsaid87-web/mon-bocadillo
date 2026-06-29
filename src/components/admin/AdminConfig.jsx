@@ -839,6 +839,14 @@ export default function AdminConfig({
                                      } catch(err) { console.error(err); showNotify("Erreur: " + err.message, "error"); }
                                  }} className="mt-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-blue-700 transition-all shadow-sm active:scale-95 w-fit flex items-center gap-2"><Save size={16}/> Sauvegarder Compte Cuisine</button>
                              </div>
+                             
+                             <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all cursor-pointer shadow-sm md:col-span-2">
+                                 <div className="flex-1">
+                                     <span className="text-sm font-bold text-gray-800 block">Traduire "Sans/Extra" en Arabe (KDS) 🇲🇦</span>
+                                     <p className="text-[11px] text-gray-500 font-medium">Ex: "Sans Tomate" devient "بلا مطيشة" dans la cuisine.</p>
+                                 </div>
+                                 <input type="checkbox" checked={settings?.kdsArabicTranslation === true} onChange={(e) => { saveSettings({...settings, kdsArabicTranslation: e.target.checked}); showNotify(e.target.checked ? "Traduction Arabe (KDS) activée ✅" : "Traduction désactivée ❌", "success"); }} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 accent-blue-600" />
+                             </label>
                              <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all shadow-sm md:col-span-2">
                                  <div className="flex-1">
                                                  <span className="text-sm font-bold text-gray-800 mb-2 block">Temps max de préparation</span>
