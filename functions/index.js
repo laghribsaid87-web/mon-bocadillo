@@ -890,6 +890,11 @@ async function handleGoDroidOrder(snap, context, branchId) {
                             // NETTOYAGE DES ERREURS OCR (Bœuf, Poulet rattachés par erreur)
                             formattedOpt = formattedOpt.replace(/(?:\s+boeuf|\s+beuf|\s+bœuf|\s+poulet)$/i, '').trim();
                             
+                            // PRESERVER LA QUANTITE SI > 1 (ex: 3x Extra Fromage)
+                            if (qty > 1) {
+                                formattedOpt = qty + "x " + formattedOpt;
+                            }
+                            
                             if (!parsedItems[currentItemIndex].sans.includes(formattedOpt)) {
                                 parsedItems[currentItemIndex].sans.push(formattedOpt);
                             }
