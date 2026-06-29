@@ -432,8 +432,8 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                     const qty = parseInt(itemMatch[1]);
                     let rawName = itemMatch[2].trim();
                     
-                    // Nettoyer les tirets à la fin (ex: "Pizza Salami --")
-                    rawName = rawName.replace(/--.*$/, '').replace(/\*\*/g, '').trim();
+                    // Nettoyer les tirets à la fin (ex: "Pizza Salami --") et les artefacts OCR (? <)
+                    rawName = rawName.replace(/--.*$/, '').replace(/\*\*/g, '').replace(/[?<>]/g, '').trim();
                     
                     // Ignorer les lignes parasites (0x, mins, produit...)
                     if (qty === 0) continue;
@@ -844,7 +844,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 
                 if (itemMatch && !lower.startsWith('0 x ')) {
                     const qty = parseInt(itemMatch[1]);
-                    let rawName = itemMatch[2].trim();
+                    let rawName = itemMatch[2].trim().replace(/[?<>]/g, '').trim();
                     const lowerName = rawName.toLowerCase();
                     const ignoreList = ['mins', 'min', 'produit', 'produits', 'grande', 'moyenne', 'petite', 'tva', 'total', 'sous-total'];
                     
