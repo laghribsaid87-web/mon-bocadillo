@@ -607,15 +607,15 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         });
                                         if (validLines.length === 0) return null;
                                         return (
-                                            <div className="mt-2 text-[10px] text-red-300 bg-red-500/10 p-2 rounded border border-red-500/20 flex flex-col gap-1">
+                                            <div className="mt-2 text-[11px] font-bold text-black bg-[#ffbc0d] p-2.5 rounded-lg border-2 border-yellow-500 flex flex-col gap-1 shadow-md">
                                                 {validLines.map((line, idx) => {
                                                     const lowerLine = line.toLowerCase();
                                                     if (lowerLine.includes('sans ')) {
-                                                        return <span key={idx} className="text-red-400 font-black bg-red-900/30 px-1 rounded inline-block">🚫 {line.trim()}</span>;
+                                                        return <span key={idx} className="text-red-700 font-black bg-white/50 px-1.5 py-0.5 rounded inline-block">🚫 {line.trim()}</span>;
                                                     } else if (line.match(/^\d+/) || lowerLine.includes('bocadillo') || lowerLine.includes('tacos')) {
-                                                        return <span key={idx} className="text-green-400 font-bold mt-1 inline-block">🍔 {line.trim()}</span>;
+                                                        return <span key={idx} className="text-green-800 font-bold mt-1 inline-block">🍔 {line.trim()}</span>;
                                                     } else {
-                                                        return <span key={idx} className="text-gray-300 pl-4 inline-block">{line.trim()}</span>;
+                                                        return <span key={idx} className="text-black pl-1 inline-block">{line.trim()}</span>;
                                                     }
                                                 })}
                                             </div>
@@ -723,17 +723,17 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     });
                                     if (validLines.length === 0) return null;
                                     return (
-                                        <div className="mt-6 p-5 bg-red-500/10 border-2 border-red-500/20 rounded-2xl">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-red-400 flex items-center gap-2 mb-2"><AlertTriangle size={16}/> Note Client Spéciale :</span>
-                                            <div className="text-sm font-bold text-red-200 space-y-1">
+                                        <div className="mt-6 p-5 bg-[#ffbc0d] border-4 border-yellow-500 rounded-2xl shadow-xl">
+                                            <span className="text-sm font-black uppercase tracking-widest text-black flex items-center gap-2 mb-2"><AlertTriangle size={20}/> Note Client Spéciale :</span>
+                                            <div className="text-lg font-black text-black space-y-2">
                                                 {validLines.map((line, idx) => {
                                                     const lowerLine = line.toLowerCase();
                                                     if (lowerLine.includes('sans ')) {
-                                                        return <div key={idx} className="text-red-400 font-black text-base flex items-center gap-2">🚫 <span className="bg-red-900/50 px-2 py-0.5 rounded">{line.trim()}</span></div>;
+                                                        return <div key={idx} className="text-red-700 font-black text-base flex items-center gap-2">🚫 <span className="bg-white/50 px-2 py-0.5 rounded">{line.trim()}</span></div>;
                                                     } else if (line.match(/^\d+/) || lowerLine.includes('bocadillo') || lowerLine.includes('tacos') || lowerLine.includes('burger')) {
-                                                        return <div key={idx} className="text-green-300 font-black text-lg mt-3 flex items-center gap-2">🍔 {line.trim()}</div>;
+                                                        return <div key={idx} className="text-green-900 font-black text-lg mt-3 flex items-center gap-2">🍔 {line.trim()}</div>;
                                                     } else {
-                                                        return <div key={idx} className="text-gray-300 ml-6">{line.trim()}</div>;
+                                                        return <div key={idx} className="text-black ml-6">{line.trim()}</div>;
                                                     }
                                                 })}
                                             </div>
