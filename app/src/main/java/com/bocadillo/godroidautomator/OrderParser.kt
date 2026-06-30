@@ -120,7 +120,7 @@ object OrderParser {
         }
 
         // 3. Extract items using "1 x to MAD/Total" rule on textItems
-        val firstXMatch = Regex("(?i)\\d+[ \\t\\xA0]*[xX×-]").find(textItems)
+        val firstXMatch = Regex("(?i)(?:^|\\n)[^a-zA-Z0-9]*(?:\\d+[ \\t\\xA0]*)?[xX×-](?:[ \\t\\xA0]+|\\n|$)").find(textItems)
         
         var finalItemsList = if (firstXMatch != null) {
             textItems.substring(firstXMatch.range.first).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
@@ -176,7 +176,7 @@ object OrderParser {
 
     private fun mergeSplitItemNames(lines: List<String>): List<String> {
         val mergedItemsList = mutableListOf<String>()
-        val quantityRegex = Regex("^(?i)[^a-zA-Z0-9]*\\d+[ \\t\\xA0]*[xX×-]")
+        val quantityRegex = Regex("^(?i)[^a-zA-Z0-9]*(?:\\d+[ \\t\\xA0]*)?[xX×-](?:[ \\t\\xA0]+|$)")
         val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE)
         val pureGarbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|^\\d{9,15}$|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier.*|Coursier.*|Notre coursier.*|.*livrée.*|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins)")
         
