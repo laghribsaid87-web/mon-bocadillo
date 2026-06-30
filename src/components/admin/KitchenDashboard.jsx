@@ -594,13 +594,15 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                             <span className="inline-block bg-[#ffbc0d] text-black px-1.5 py-0.5 rounded-md shadow-sm font-black mr-1">{item.qty}x</span>
                                             <span className={(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{baseName}</span>
                                             {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
-                                                <div className="flex flex-col gap-1 mt-1">
+                                                <div className="flex flex-col gap-1 mt-1 w-full">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getKdsName(opt).replace(/"/g, '');
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
+                                                        const translatedText = isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation);
+                                                        const isArabic = /[\u0600-\u06FF]/.test(translatedText);
                                                         return (
-                                                            <span key={oIdx} className={`text-[10px] font-black uppercase ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
-                                                                {renderOptionWithQtyHighlight(isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation))}
+                                                            <span key={oIdx} dir={isArabic ? "rtl" : "ltr"} className={`text-[10px] font-black uppercase ${isExtra ? 'text-green-500' : 'text-red-400'} ${isArabic ? 'self-end' : 'ml-3'}`}>
+                                                                {renderOptionWithQtyHighlight(translatedText)}
                                                             </span>
                                                         );
                                                     })}
@@ -709,13 +711,15 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                         <span className="pt-0.5">{baseName}</span>
                                                     </span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
-                                                <div className="flex flex-col items-start gap-1.5 mt-2">
+                                                <div className="flex flex-col items-start gap-1.5 mt-2 w-full pr-2">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getKdsName(opt).replace(/"/g, '');
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
+                                                        const translatedText = isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation);
+                                                        const isArabic = /[\u0600-\u06FF]/.test(translatedText);
                                                         return (
-                                                            <span key={oIdx} className={`inline-block px-3 sm:px-4 py-1.5 rounded-lg text-sm font-black uppercase border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
-                                                                {renderOptionWithQtyHighlight(isExtra ? formatSansIngredient(mappedOpt, settings?.kdsArabicTranslation) : formatSansIngredient(opt, settings?.kdsArabicTranslation))}
+                                                            <span key={oIdx} dir={isArabic ? "rtl" : "ltr"} className={`inline-block px-3 sm:px-4 py-1.5 rounded-lg text-sm font-black uppercase border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'} ${isArabic ? 'self-end' : 'ml-4'}`}>
+                                                                {renderOptionWithQtyHighlight(translatedText)}
                                                             </span>
                                                         );
                                                     })}
