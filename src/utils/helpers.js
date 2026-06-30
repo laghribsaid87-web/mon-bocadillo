@@ -67,6 +67,9 @@ const INGREDIENTS_AR = {
     "SAUCE": "لاصوص", "SAUCES": "لاصوص",
     "MAYONNAISE": "مايونيز", "MAYO": "مايونيز",
     "KETCHUP": "كيتشوب", "MOUTARDE": "موطارد",
+    "ALGERIENNE": "الجيريان", "ALGÉRIENNE": "الجيريان",
+    "ANDALOUSE": "اندلوس", "SAMOURAI": "ساموراي", "SAMOURAÏ": "ساموراي",
+    "BIGGY": "بيجي", "BURGER": "برجر", "BARBECUE": "باربكيو", "BBQ": "باربكيو",
     "HARISSA": "حار", "PIQUANT": "حار",
     "FROMAGE": "فرماج", "CHEESE": "فرماج",
     "THON": "طون", "POULET": "دجاج",
@@ -82,6 +85,9 @@ const INGREDIENTS_AR = {
 export const formatSansIngredient = (ingredient, translateToArabic = false) => {
     if (!ingredient) return '';
     let trimIng = ingredient.trim().toUpperCase();
+    
+    // Clean up Glovo emojis and prefixes
+    trimIng = trimIng.replace(/🥣\s*(لاصوص|SAUCE)?\s*/g, '').replace(/^لاصوص\s+/g, '').replace(/^SAUCE\s+/g, '').trim();
     
     // Si l'option "Extra" est détectée (ex: on passe "Extra Fromage" ici par erreur ou via mappedOpt)
     let isExtra = false;
