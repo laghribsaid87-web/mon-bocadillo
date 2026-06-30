@@ -1072,7 +1072,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(launchIntent)
                     Journal.log("Ouverture de l'app: $targetPackage")
-                    delay(2000)
+                    // Increased delay for PC Emulators (LDPlayer) to fully load
+                    delay(8000)
                 }
             }
             
