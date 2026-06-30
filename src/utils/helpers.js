@@ -123,8 +123,15 @@ export const formatSansIngredient = (ingredient, translateToArabic = false) => {
         return `بلا ${translatedIng}`;
     }
     
-    if (isExtra) return `EXTRA ${trimIng}`;
-    return `SANS ${trimIng}`;
+    // Extract emoji from the Arabic translation to keep it in the French version
+    let emoji = '';
+    const emojiMatch = translatedIng.match(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]|🥫|🟡|🥣/);
+    if (emojiMatch) {
+        emoji = ` ${emojiMatch[0]}`;
+    }
+    
+    if (isExtra) return `EXTRA ${trimIng}${emoji}`;
+    return `SANS ${trimIng}${emoji}`;
 };
 
 // 5. 🔥 FIX N-NIHAYI: 7yedna l-weqt w l-magana 100%!
