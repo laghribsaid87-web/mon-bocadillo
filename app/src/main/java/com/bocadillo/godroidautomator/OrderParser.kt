@@ -62,32 +62,9 @@ object OrderParser {
             }
         }
 
-        // 2. Extract Items between Y bounds
-        val itemsGroupedByY = mutableMapOf<Int, MutableList<String>>()
+        // 2. Extract Items sequentially
         for (node in nodesList) {
-            val rect = node.first
-            val text = node.second
-            
-            // Group by Y line (tolerance 20px)
-            var foundKey = -1
-            for (k in itemsGroupedByY.keys) {
-                if (abs(k - rect.top) < 20) {
-                    foundKey = k
-                    break
-                }
-            }
-            if (foundKey == -1) {
-                itemsGroupedByY[rect.top] = mutableListOf(text)
-            } else {
-                itemsGroupedByY[foundKey]!!.add(text)
-            }
-        }
-
-        // Build the raw items list (Line by line)
-        val sortedKeys = itemsGroupedByY.keys.sorted()
-        for (k in sortedKeys) {
-            val lineTexts = itemsGroupedByY[k]!!
-            itemsList.add(lineTexts.joinToString(" "))
+            itemsList.add(node.second)
         }
 
         // 3. Filter items using the "1 x to MAD/Total" rule
@@ -201,7 +178,7 @@ object OrderParser {
         val mergedItemsList = mutableListOf<String>()
         val quantityRegex = Regex("^(?i)[^a-zA-Z0-9]*\\d+[ \\t\\xA0]*[xX×-]")
         val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE)
-        val pureGarbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier doit payer|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins)")
+        val pureGarbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|^\\d{9,15}$|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier.*|Coursier.*|Notre coursier.*|.*livrée.*|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins)")
         
         for (rawLine in lines) {
             val line = rawLine.replace(Regex("(?i)(\\bModifier\\b|\\bAccepter\\b|\\bRefuser\\b|\\bContinuer\\b|\\bAide\\b|\\+?\\s*Ajoutez un produit|\\b\\d+\\+?\\s*mins?\\b)"), "").trim()
