@@ -64,9 +64,9 @@ const INGREDIENTS_AR = {
     "OIGNON": "بصلة 🧅", "OIGNONS": "بصلة 🧅",
     "LAITUE": "خس 🥗", "SALADE": "شلاضة 🥗",
     "FRITE": "فريت 🍟", "FRITES": "فريت 🍟",
-    "SAUCE": "لاصوص", "SAUCES": "لاصوص",
-    "MAYONNAISE": "مايونيز", "MAYO": "مايونيز",
-    "KETCHUP": "كيتشوب", "MOUTARDE": "موطارد",
+    "SAUCE": "لاصوص 🥣", "SAUCES": "لاصوص 🥣",
+    "MAYONNAISE": "مايونيز 🥣", "MAYO": "مايونيز 🥣",
+    "KETCHUP": "كيتشوب 🥫", "MOUTARDE": "موطارد 🟡",
     "ALGERIENNE": "الجيريان", "ALGÉRIENNE": "الجيريان",
     "ANDALOUSE": "اندلوس", "SAMOURAI": "ساموراي", "SAMOURAÏ": "ساموراي",
     "BIGGY": "بيجي", "BURGER": "برجر", "BARBECUE": "باربكيو", "BBQ": "باربكيو",
@@ -89,7 +89,7 @@ export const formatSansIngredient = (ingredient, translateToArabic = false) => {
     
     // Clean up Glovo/POS emojis and prefixes
     trimIng = trimIng.replace(/🥣\s*(لاصوص|SAUCE)?\s*/g, '').replace(/^لاصوص\s+/g, '').replace(/^SAUCE\s+/g, '').trim();
-    trimIng = trimIng.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').trim();
+    trimIng = trimIng.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]|🥫|🟡/g, '').trim();
     
     // Si l'option "Extra" est détectée (ex: on passe "Extra Fromage" ici par erreur ou via mappedOpt)
     let isExtra = false;
