@@ -42,7 +42,7 @@ const renderOptionWithQtyHighlight = (text) => {
         const parts = text.split(match[0]);
         return (
             <span className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-black">{match[0]}</span>
+                <span className="inline-block bg-[#ffbc0d] text-black px-1 py-0.5 rounded shadow-sm text-[10px] font-black">{match[0]}</span>
                 <span>{parts.join('')}</span>
             </span>
         );
@@ -591,7 +591,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         if (hasBigFormule && isDrink && !baseName.toLowerCase().match(/1\s*l/)) baseName += ' 1 Litre';
                                         return (
                                         <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
-                                            <span className="text-orange-400 font-black mr-1">{item.qty}x</span>
+                                            <span className="inline-block bg-[#ffbc0d] text-black px-1.5 py-0.5 rounded-md shadow-sm font-black mr-1">{item.qty}x</span>
                                             <span className={(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : '')}>{baseName}</span>
                                             {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col gap-1 mt-1">
@@ -705,7 +705,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 )}
                                                 <div className="flex-1 pt-1">
                                                     <span className={`font-black text-2xl flex items-start gap-2 leading-tight ${isChecked ? 'line-through decoration-2' : ''} ${(baseName.toLowerCase().includes('sans') ? 'text-red-500' : (baseName.toLowerCase().includes('extra') || baseName.toLowerCase().includes('ajout')) ? 'text-green-500' : 'text-white')}`}>
-                                                        <span className="text-neutral-400">{item.qty}x</span>
+                                                        <span className="inline-block bg-[#ffbc0d] text-black px-2 py-0.5 rounded-lg shadow-sm font-black mr-2 text-xl">{item.qty}x</span>
                                                         <span className="pt-0.5">{baseName}</span>
                                                     </span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
