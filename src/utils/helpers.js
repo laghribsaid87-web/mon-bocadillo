@@ -60,10 +60,10 @@ export const calculateETA = (distKm) => {
 
 // 4.6. Dictionnaire de traduction des ingrédients en Arabe
 const INGREDIENTS_AR = {
-    "TOMATE": "مطيشة", "TOMATES": "مطيشة",
-    "OIGNON": "بصلة", "OIGNONS": "بصلة",
-    "LAITUE": "خس", "SALADE": "شلاضة",
-    "FRITE": "فريت", "FRITES": "فريت",
+    "TOMATE": "مطيشة 🍅", "TOMATES": "مطيشة 🍅",
+    "OIGNON": "بصلة 🧅", "OIGNONS": "بصلة 🧅",
+    "LAITUE": "خس 🥗", "SALADE": "شلاضة 🥗",
+    "FRITE": "فريت 🍟", "FRITES": "فريت 🍟",
     "SAUCE": "لاصوص", "SAUCES": "لاصوص",
     "MAYONNAISE": "مايونيز", "MAYO": "مايونيز",
     "KETCHUP": "كيتشوب", "MOUTARDE": "موطارد",
@@ -71,14 +71,15 @@ const INGREDIENTS_AR = {
     "ANDALOUSE": "اندلوس", "SAMOURAI": "ساموراي", "SAMOURAÏ": "ساموراي",
     "BIGGY": "بيجي", "BURGER": "برجر", "BARBECUE": "باربكيو", "BBQ": "باربكيو",
     "HARISSA": "حار", "PIQUANT": "حار",
-    "FROMAGE": "فرماج", "CHEESE": "فرماج",
-    "THON": "طون", "POULET": "دجاج",
-    "VIANDE HACHEE": "كفتة", "VIANDE HACHÉE": "كفتة",
-    "SAUCISSE": "صوصيص", "CHARCUTERIE": "لانشون",
-    "OEUF": "بيض", "OEUFS": "بيض", "ŒUF": "بيض", "EUF": "بيض", "EUFS": "بيض",
-    "CAROTTE": "خيزو", "CAROTTES": "خيزو",
-    "OLIVE": "زيتون", "OLIVES": "زيتون",
-    "CORNICHON": "كورنيشون", "CORNICHONS": "كورنيشون"
+    "FROMAGE": "فرماج 🧀", "CHEESE": "فرماج 🧀",
+    "THON": "طون 🐟", "POULET": "دجاج 🐔",
+    "VIANDE HACHEE": "كفتة 🥩", "VIANDE HACHÉE": "كفتة 🥩",
+    "SAUCISSE": "صوصيص 🌭", "CHARCUTERIE": "لانشون 🥓",
+    "OEUF": "بيض 🥚", "OEUFS": "بيض 🥚", "ŒUF": "بيض 🥚", "EUF": "بيض 🥚", "EUFS": "بيض 🥚",
+    "CAROTTE": "خيزو 🥕", "CAROTTES": "خيزو 🥕",
+    "OLIVE VERTE": "زيتون 🟢", "OLIVE VERT": "زيتون 🟢", "OLIVES VERTES": "زيتون 🟢", "OLIVE": "زيتون 🟢", "OLIVES": "زيتون 🟢",
+    "POMME DE TERRE": "بطاطا 🥔", "POMMES DE TERRE": "بطاطا 🥔",
+    "CORNICHON": "كورنيشون 🥒", "CORNICHONS": "كورنيشون 🥒"
 };
 
 // Fonction bach n-formatiw "Sans Ingrédient" w nterjmouh ila kdsArabicTranslation active
@@ -86,8 +87,9 @@ export const formatSansIngredient = (ingredient, translateToArabic = false) => {
     if (!ingredient) return '';
     let trimIng = ingredient.trim().toUpperCase();
     
-    // Clean up Glovo emojis and prefixes
+    // Clean up Glovo/POS emojis and prefixes
     trimIng = trimIng.replace(/🥣\s*(لاصوص|SAUCE)?\s*/g, '').replace(/^لاصوص\s+/g, '').replace(/^SAUCE\s+/g, '').trim();
+    trimIng = trimIng.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').trim();
     
     // Si l'option "Extra" est détectée (ex: on passe "Extra Fromage" ici par erreur ou via mappedOpt)
     let isExtra = false;
