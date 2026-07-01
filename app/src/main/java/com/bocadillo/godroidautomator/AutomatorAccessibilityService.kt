@@ -720,7 +720,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 delay(800) // Wait for screen to settle after capture
                 Journal.log("Petit défilement vers le bas (Scroll NATIF Android x3)...")
                 performSmallSwipeUp()
-                delay(3000) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
+                delay(1500) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
                 
                 Journal.log("Capture d'écran 2 (Bas) en cours...")
                 val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
@@ -1073,7 +1073,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     startActivity(launchIntent)
                     Journal.log("Ouverture de l'app: $targetPackage")
                     // Increased delay for PC Emulators (LDPlayer) to fully load
-                    delay(8000)
+                    delay(2000)
                 }
             }
             
@@ -1100,7 +1100,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 delay(800) // Wait for screen to settle after capture
                 Journal.log("Petit défilement vers le bas (Scroll NATIF Android x3)...")
                 performSmallSwipeUp()
-                delay(3000) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
+                delay(1500) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
                 
                 Journal.log("Capture d'écran 2 (Bas) en cours...")
                 val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
