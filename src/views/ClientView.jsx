@@ -590,7 +590,7 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                        </div>
                        <div className="flex flex-col">
                           <div className="font-black text-sm uppercase leading-tight">{(i.name || '').split(' (Sans ')[0]}</div>
-                          {(i.name || '').includes(' (Sans ') && (i.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, idx) => <div key={idx} className="text-[10px] text-red-500 font-bold mt-0.5 uppercase">- {formatSansIngredient(opt)}</div>)}
+                          {(i.name || '').includes(' (Sans ') && (i.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, idx) => <div key={idx} className="text-[10px] text-red-500 font-bold mt-0.5">- {formatSansIngredient(opt)}</div>)}
                           
                           {i.isCombo && i.comboChoices && i.comboChoices.map((c, idx) => (
                               <div key={idx} className="text-[10px] text-gray-700 font-bold mt-1 pl-2 border-l-2 border-orange-400">

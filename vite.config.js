@@ -1,11 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import viteCompression from 'vite-plugin-compression'
+// import viteCompression from 'vite-plugin-compression'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    /*
     viteCompression({
       algorithm: 'gzip',
       ext: '.gz',
@@ -16,6 +17,7 @@ export default defineConfig({
       ext: '.br',
       threshold: 10240,
     })
+    */
   ],
   base: './',
   server: {
@@ -39,6 +41,7 @@ export default defineConfig({
     target: 'esnext',
     minify: 'esbuild',
     cssMinify: true,
+    /*
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -57,5 +60,7 @@ export default defineConfig({
         }
       }
     }
+    */
   }
 })
+

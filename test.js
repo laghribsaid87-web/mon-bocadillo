@@ -1,0 +1,1 @@
+﻿const items = ['1x Extra Frites Sansfromage', '1x   Extra Frites', '1x Sans Oignon', 'Sans charcutries Extra sauc']; const expanded = items.flatMap(item => item.split(/(?<=[a-wy-zA-WY-Zéèàê]\s*)(?=\b(?:Sans|Extra|Ajout|sans|extra|ajout))/).map(s => s.trim()).filter(s => s)); console.log(expanded);

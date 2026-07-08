@@ -58,24 +58,29 @@ export const calculateETA = (distKm) => {
     return prepTime + travelTime + 5; // +5 min buffer dyal z7am
 };
 
-// 4.6. Fonction bach n-formatiw "Sans Ingrédient" b l'émoji f l-wl
+// 4.6. Fonction bach n-formatiw "Sans Ingrédient" b l'émoji f l-kher
 export const formatSansIngredient = (ingredient) => {
     if (!ingredient) return '';
-    const trimIng = ingredient.trim();
+    let trimIng = ingredient.trim();
     
-    // S'il contient déjà "SANS" (ex: "🧅 SANS OIGNON"), on retourne tel quel en majuscule
+    const toTitleCase = (str) => {
+        return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    };
+
     if (trimIng.toUpperCase().includes('SANS')) {
-        return trimIng.toUpperCase();
+        trimIng = trimIng.replace(/SANS/i, '').trim();
     }
 
     const firstSpace = trimIng.indexOf(' ');
     if (firstSpace !== -1) {
         const firstPart = trimIng.substring(0, firstSpace);
         if (!/^[a-zA-Z0-9À-ÿ]/.test(firstPart)) {
-            return `${firstPart} SANS ${trimIng.substring(firstSpace + 1).trim().toUpperCase()}`;
+            const ingText = trimIng.substring(firstSpace + 1).trim();
+            return `Sans ${toTitleCase(ingText)} ${firstPart}`;
         }
     }
-    return `SANS ${trimIng.toUpperCase()}`;
+    
+    return `Sans ${toTitleCase(trimIng)}`;
 };
 
 // 5. 🔥 FIX N-NIHAYI: 7yedna l-weqt w l-magana 100%!

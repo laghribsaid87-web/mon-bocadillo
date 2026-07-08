@@ -839,6 +839,16 @@ export default function AdminConfig({
                                      } catch(err) { console.error(err); showNotify("Erreur: " + err.message, "error"); }
                                  }} className="mt-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-blue-700 transition-all shadow-sm active:scale-95 w-fit flex items-center gap-2"><Save size={16}/> Sauvegarder Compte Cuisine</button>
                              </div>
+                             <label className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all shadow-sm md:col-span-2">
+                                 <div className="flex flex-col">
+                                     <span className="font-bold text-gray-800">Traduire "Sans/Extra" en Arabe (KDS) 🇲🇦</span>
+                                     <span className="text-xs text-gray-500">Ex: "Sans Tomate" devient "بلا مطيشة" dans la cuisine.</span>
+                                 </div>
+                                 <div className={`w-12 h-6 rounded-full relative transition-all border-2 ${brand.enableArabicKDS ? 'bg-blue-600 border-blue-500' : 'bg-gray-200 border-gray-300'}`}>
+                                     <input type="checkbox" className="hidden" checked={brand.enableArabicKDS || false} onChange={e => setBrand({...brand, enableArabicKDS: e.target.checked})} />
+                                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${brand.enableArabicKDS ? 'left-6' : 'left-1'}`}></div>
+                                 </div>
+                             </label>
                              <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all shadow-sm md:col-span-2">
                                  <div className="flex-1">
                                                  <span className="text-sm font-bold text-gray-800 mb-2 block">Temps max de préparation</span>

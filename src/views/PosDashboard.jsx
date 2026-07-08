@@ -861,7 +861,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             let parts = (item.name || "").split(" (Sans ");
             let name = parts[0];
             let sans = parts.length > 1 
-                ? parts[1].replace(")", "").split(", ").map(s => `\n   - Sans ${formatSansIngredient(s)}`).join("") 
+                ? parts[1].replace(")", "").split(", ").map(s => `\n   - ${formatSansIngredient(s)}`).join("") 
                 : "";
             return `${item.qty}x ${name}${sans}`;
         }).join("\n");
@@ -1239,7 +1239,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         text += `${item.qty}x ${item.name.split(' (Sans')[0]}    ${item.price * item.qty} DH\n`;
                         if (item.name.includes(' (Sans')) {
                             const sansList = item.name.split(' (Sans ')[1].replace(')', '').split(', ');
-                            sansList.forEach(opt => { text += `  - Sans ${formatSansIngredient(opt)}\n`; });
+                            sansList.forEach(opt => { text += `  - ${formatSansIngredient(opt)}\n`; });
                         }
                         if (item.isCombo && item.comboChoices) {
                             item.comboChoices.forEach(c => {
@@ -1270,12 +1270,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
                         text += `${item.qty}x ${item.name.split(' (Sans')[0]}\n`;
                         if (item.name.includes(' (Sans')) {
                             const sansList = item.name.split(' (Sans ')[1].replace(')', '').split(', ');
-                            sansList.forEach(opt => { text += `  *** SANS ${formatSansIngredient(opt).toUpperCase()} ***\n`; });
+                            sansList.forEach(opt => { text += `  *** ${formatSansIngredient(opt)} ***\n`; });
                         }
                         if (item.isCombo && item.comboChoices) {
                             item.comboChoices.forEach(c => {
                                 text += `  🔹 ${c.name}\n`;
-                                if (c.removables?.length > 0) text += `    *** SANS ${c.removables.join(', ').toUpperCase()} ***\n`;
+                                if (c.removables?.length > 0) text += `    *** ${c.removables.map(r => formatSansIngredient(r)).join(' ***\n    *** ')} ***\n`;
                                 if (c.selectedOption) text += `    *** ${c.selectedOption.toUpperCase()} ***\n`;
                             });
                         }
@@ -1305,7 +1305,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             ${item.isCombo && item.comboChoices ? item.comboChoices.map(c => `
                 <div style="font-size:12px; color:#555; margin-left:10px; font-weight: bold;">
                     🔹 ${c.name}
-                    ${c.removables?.length ? `<span style="color:#da291c;">(SANS: ${c.removables.join(', ')})</span>` : ''}
+                    ${c.removables?.length ? `<span style="color:#da291c;">(${c.removables.map(r => formatSansIngredient(r)).join(', ')})</span>` : ''}
                     ${c.selectedOption ? `<span style="color:#2563eb;">(${c.selectedOption})</span>` : ''}
                 </div>
             `).join('') : ''}
@@ -1315,11 +1315,11 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             <div style="margin-bottom: 8px; font-size: 20px; font-weight: 900;">
                 ${item.qty}x ${item.name.split(' (Sans')[0]}
             </div>
-            ${item.name.includes(' (Sans') ? `<div style="font-size:16px; margin-top:-5px; margin-bottom:8px; font-weight: 900; text-transform: uppercase;">*** ${item.name.split(' (Sans ')[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt)).join(' ***<br>*** ')} ***</div>` : ''}
+            ${item.name.includes(' (Sans') ? `<div style="font-size:16px; margin-top:-5px; margin-bottom:8px; font-weight: 900;">*** ${item.name.split(' (Sans ')[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt)).join(' ***<br>*** ')} ***</div>` : ''}
             ${item.isCombo && item.comboChoices ? item.comboChoices.map(c => `
                 <div style="font-size:16px; margin-top:5px; font-weight: bold; padding-left: 15px; border-left: 2px solid #000;">
                     🔹 ${c.name}
-                    ${c.removables?.length ? `<br><span style="color:#000;">*** SANS: ${c.removables.join(', ')} ***</span>` : ''}
+                    ${c.removables?.length ? `<br><span style="color:#000;">*** ${c.removables.map(r => formatSansIngredient(r)).join(' ***<br>*** ')} ***</span>` : ''}
                     ${c.selectedOption ? `<br><span style="color:#000;">*** ${c.selectedOption} ***</span>` : ''}
                 </div>
             `).join('') : ''}
@@ -1977,14 +1977,14 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                         {item.name.includes(' (Sans') && (
                                             <div className="flex flex-col gap-1 mt-1">
                                                 {item.name.split(' (Sans ')[1].replace(')', '').split(', ').map((opt, oIdx) => (
-                                                    <span key={oIdx} className="text-[10px] text-red-500 font-bold tracking-wide uppercase">- {formatSansIngredient(opt)}</span>
+                                                    <span key={oIdx} className="text-[10px] text-red-500 font-bold tracking-wide">- {formatSansIngredient(opt)}</span>
                                                 ))}
                                             </div>
                                         )}
                                         {item.isCombo && item.comboChoices && item.comboChoices.map((c, cIdx) => (
                                             <div key={cIdx} className="text-[10px] text-gray-500 font-bold mt-1.5 pl-2.5 border-l-[3px] border-orange-400/60">
                                                 🔹 {c.name}
-                                                {c.removables?.length > 0 && <span className="text-red-500 uppercase ml-1">(SANS: {c.removables.join(', ')})</span>}
+                                                {c.removables?.length > 0 && <span className="text-red-500 ml-1">({c.removables.map(r => formatSansIngredient(r)).join(', ')})</span>}
                                                 {c.selectedOption && <span className="text-blue-600 ml-1">({c.selectedOption})</span>}
                                             </div>
                                         ))}
@@ -2251,7 +2251,7 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                     const isSelected = selectedItemForOptions.selectedSans.includes(opt);
                                     return (
                                         <label key={opt} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-red-500 bg-red-50 shadow-sm' : 'border-gray-200 bg-white hover:border-red-300'}`}>
-                                            <span className={`text-sm font-black uppercase ${isSelected ? 'text-red-700' : 'text-gray-700'}`}>{formatSansIngredient(opt)}</span>
+                                            <span className={`text-sm font-black ${isSelected ? 'text-red-700' : 'text-gray-700'}`}>{formatSansIngredient(opt)}</span>
                                             <input type="checkbox" className="w-6 h-6 rounded-md border-gray-300 accent-red-600 focus:ring-red-500 cursor-pointer" checked={isSelected} onChange={() => toggleOption(opt)} />
                                         </label>
                                     )

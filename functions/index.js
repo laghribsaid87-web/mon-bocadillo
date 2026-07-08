@@ -418,7 +418,7 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
             // Fetch menuItems for categorization
             const configSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("settings").doc("config").get();
             const config = configSnap.exists ? configSnap.data() : {};
-            const menuItems = config.menuItems || [];
+            const menuItems = (config.menuItems || []).sort((a, b) => (b.name || '').length - (a.name || '').length);
 
             const parsedItems = [];
             let currentItem = null;
@@ -468,9 +468,43 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                 }
             }
 
+            const brandSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("settings").doc("brand").get();
+            const brand = brandSnap.exists ? brandSnap.data() : {};
+            const enableArabicKDS = brand.enableArabicKDS === true;
+
+            const translateToArabic = (text) => {
+                let lower = text.toLowerCase();
+                const isExtra = lower.includes('extra') || lower.includes('ajout');
+
+                if (isExtra) {
+                    if (lower.includes('fromage')) return '🧀 إكسترا فرماج';
+                    if (lower.includes('frite')) return '🍟 إكسترا فريت';
+                    if (lower.includes('viande')) return '🥩 إكسترا لحم';
+                    if (lower.includes('poulet')) return '🍗 إكسترا دجاج';
+                    return text;
+                }
+
+                if (lower.includes('tomate')) return '🍅 بلا مطيشة';
+                if (lower.includes('oignon')) return '🧅 بلا بصلة';
+                if (lower.includes('olive')) return '🟢 بلا زيتون';
+                if (lower.includes('laitue') || lower.includes('salade')) return '🥗 بلا خس';
+                if (lower.includes('carotte')) return '🥕 بلا خيزو';
+                if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) return '🥔 بلا بطاطا';
+                if (lower.includes('mayonnaise') || lower.includes('mayo')) return '🥣 بلا مايونيز';
+                if (lower.includes('harissa') || lower.includes('hrissa')) return '🌶️ بلا هريسة';
+                if (lower.includes('ketchup')) return '🍅 بلا كيتشوب';
+                if (lower.includes('sauce')) return '🥣 بلا صوص';
+                if (lower.includes('fromage')) return '🧀 بلا فرماج';
+
+                return text;
+            };
+
             const finalItems = parsedItems.length > 0 ? parsedItems.map(i => {
                 let finalName = i.name;
                 if (i.sans.length > 0) {
+                    if (enableArabicKDS) {
+                        i.sans = i.sans.map(translateToArabic);
+                    }
                     finalName += ` (Sans ${i.sans.join(', ')})`;
                 }
                 return {
@@ -723,7 +757,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
             
             const configSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("settings").doc("config").get();
             const config = configSnap.exists ? configSnap.data() : {};
-            const menuItems = config.menuItems || [];
+            const menuItems = (config.menuItems || []).sort((a, b) => (b.name || '').length - (a.name || '').length);
             
             let validOptionsMap = [];
             const addOption = (opt) => {
@@ -774,32 +808,45 @@ async function handleGoDroidOrder(snap, context, branchId) {
             const parsedItems = [];
             let currentItemIndex = -1;
             let cleanNotes = [];
+            let pendingNotes = [];
 
-            for (let itemLine of parsed.items || []) {
-                let text = itemLine.trim().replace(/\s*--\s*$/, '').trim();
+            // Split merged notes (e.g., '1x "Extra" Frites Sansfromage' -> ['1x "Extra" Frites', 'Sansfromage'])
+            const expandedItems = (parsed.items || []).flatMap(itemLine => {
+                return itemLine.split(/(?<=[a-wy-zA-WY-Zéèàê]\s*)(?=\b(?:Sans|Extra|Ajout|sans|extra|ajout))/).map(s => s.trim()).filter(s => s);
+            });
+
+            for (let itemLine of expandedItems) {
+                let text = itemLine.replace(/\s*--\s*$/, '').trim();
                 let lower = text.toLowerCase();
                 
                 if (!text || /^[0-9.,]+$/.test(text)) continue;
                 
-                // --- ROBUST GLOVO UI FILTERING ---
-                if (lower === 'aucune commande acceptée' || lower === 'aucun' || lower === 'aucune') continue;
-                if (lower.startsWith('#')) continue;
-                if (lower.includes('fermé') || lower.includes('horaires') || lower.includes('imprimer')) continue;
-                if (lower.includes('modifier') || lower.includes('nouvelle') || lower.includes('test restaurant')) continue;
-                if (lower.includes('produit xxxx') || lower.includes('xxxx-') || lower.includes('1 produit')) continue;
-                if (lower.includes('commande test') || lower.includes('accepter la commande')) continue;
-                if (lower.includes('sous-total') || lower.includes('tva') || lower === 'total' || lower.includes('à venir')) continue;
-                if (lower.includes('carte de crédit') || lower === 'cash' || lower === 'espece' || lower === 'glovo') continue;
-                if (lower.includes('test est proche') || lower.includes('prêt pour la livraison')) continue;
-                if (lower.includes('commandes groupées') || lower.includes('collectées ensemble')) continue;
-                if (lower.includes('min ') || lower.endsWith('min') || lower.includes('mins')) {
-                    if (!lower.match(/^[0-9]+\s*x\s+/)) continue; 
+                // CLEANUP: If the line starts with a quantity but ends with garbage like "Sous-total", "TVA (incl.)", remove the garbage.
+                const startsWithQty = /^\d+\s*[xX]\s+/.test(text);
+                if (startsWithQty) {
+                    text = text.replace(/(?:\s+sous-total|\s+sous-|\s+tva\s*\(incl\.\)|\s+tva|\s+total|\s+le\s+coursier\s+doit\s+payer).*$/i, '').trim();
+                    lower = text.toLowerCase();
+                } else {
+                    // --- ROBUST GLOVO UI FILTERING ---
+                    if (lower === 'aucune commande acceptée' || lower === 'aucun' || lower === 'aucune') continue;
+                    if (lower.startsWith('#')) continue;
+                    if (lower.includes('fermé') || lower.includes('horaires') || lower.includes('imprimer')) continue;
+                    if (lower.includes('modifier') || lower.includes('nouvelle') || lower.includes('test restaurant')) continue;
+                    if (lower.includes('produit xxxx') || lower.includes('xxxx-') || lower.includes('1 produit')) continue;
+                    if (lower.includes('commande test') || lower.includes('accepter la commande')) continue;
+                    if (lower.includes('sous-total') || lower.includes('tva') || lower === 'total' || lower.includes('à venir')) continue;
+                    if (lower.includes('carte de crédit') || lower === 'cash' || lower === 'espece' || lower === 'glovo') continue;
+                    if (lower.includes('test est proche') || lower.includes('prêt pour la livraison')) continue;
+                    if (lower.includes('commandes groupées') || lower.includes('collectées ensemble')) continue;
+                    if (lower.includes('min ') || lower.endsWith('min') || lower.includes('mins')) continue;
+                    // ----------------------------------
                 }
                 // ----------------------------------
 
                 const itemMatch = text.match(/^(\d+)\s*[xX]\s+(.+)$/i);
+                const isNoteModifier = lower.includes('sans') || lower.includes('extra') || lower.includes('ajout');
                 
-                if (itemMatch && !lower.startsWith('0 x ')) {
+                if (itemMatch && !lower.startsWith('0 x ') && !isNoteModifier) {
                     const qty = parseInt(itemMatch[1]);
                     let rawName = itemMatch[2].trim();
                     const lowerName = rawName.toLowerCase();
@@ -807,8 +854,17 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     
                     if (ignoreList.includes(lowerName)) continue;
 
-                    const matchedMenu = menuItems.find(m => m.name.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerName.replace(/[^a-z0-9]/g, '')) 
-                                     || menuItems.find(m => m.name.length >= 3 && lowerName.includes(m.name.toLowerCase()));
+                    const normalizeStr = (str) => {
+                        return str.toLowerCase()
+                                  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                                  .replace(/œ/g, "oe")
+                                  .replace(/æ/g, "ae");
+                    };
+                    const normLower = normalizeStr(lowerName);
+
+                    const matchedMenu = menuItems.find(m => normalizeStr(m.name).replace(/[^a-z0-9]/g, '') === normLower.replace(/[^a-z0-9]/g, '')) 
+                                     || menuItems.find(m => m.name.length >= 3 && normLower.includes(normalizeStr(m.name)) && (m.name.length >= normLower.length * 0.5))
+                                     || menuItems.find(m => normLower.length >= 8 && normalizeStr(m.name).includes(normLower));
 
                     if (matchedMenu) {
                         parsedItems.push({
@@ -831,6 +887,12 @@ async function handleGoDroidOrder(snap, context, branchId) {
                         });
                         currentItemIndex = parsedItems.length - 1;
                     }
+
+                    // Pour pending notes into the newly created item
+                    if (pendingNotes.length > 0) {
+                        parsedItems[currentItemIndex].sans.push(...pendingNotes);
+                        pendingNotes = [];
+                    }
                 } else {
                     let theNoteToPush = text;
                     if (lower.startsWith('acceptée')) {
@@ -843,10 +905,14 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     }
 
                     let formattedNote = formatPOSNote(theNoteToPush);
+                    console.log(`[DEBUG] Note analysis: raw="${theNoteToPush}", formatted="${formattedNote}"`);
                     if (formattedNote) {
                         if (currentItemIndex !== -1) {
                             if (!parsedItems[currentItemIndex].sans.includes(formattedNote)) {
                                 parsedItems[currentItemIndex].sans.push(formattedNote);
+                            } else {
+                                // Duplicate note for the current item! Put it in pending for the next item.
+                                pendingNotes.push(formattedNote);
                             }
                         } else {
                             if (!cleanNotes.includes(formattedNote)) {
@@ -856,11 +922,55 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     }
                 }
             }
+            console.log(`[DEBUG] parsedItems BEFORE processing KDS notes: ${JSON.stringify(parsedItems)}`);
+
+            const brandSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("settings").doc("brand").get();
+            const brand = brandSnap.exists ? brandSnap.data() : {};
+            const enableArabicKDS = brand.enableArabicKDS === true;
+
+            const translateToArabic = (text) => {
+                let lower = text.toLowerCase();
+                const isExtra = lower.includes('extra') || lower.includes('ajout');
+                
+                let qtySuffix = "";
+                let qtyMatch = text.match(/^([0-9]+)\s*[xX]\s*/i);
+                if (qtyMatch) {
+                    qtySuffix = " X" + qtyMatch[1]; // e.g. " X1"
+                }
+
+                if (isExtra) {
+                    if (lower.includes('fromage')) return '🧀 إكسترا فرماج' + qtySuffix;
+                    if (lower.includes('frite')) return '🍟 إكسترا فريت' + qtySuffix;
+                    if (lower.includes('viande')) return '🥩 إكسترا لحم' + qtySuffix;
+                    if (lower.includes('poulet')) return '🍗 إكسترا دجاج' + qtySuffix;
+                    return text;
+                }
+
+                if (lower.includes('tomate')) return '🍅 بلا مطيشة' + qtySuffix;
+                if (lower.includes('oignon')) return '🧅 بلا بصلة' + qtySuffix;
+                if (lower.includes('olive')) return '🟢 بلا زيتون' + qtySuffix;
+                if (lower.includes('laitue') || lower.includes('salade')) return '🥗 بلا خس' + qtySuffix;
+                if (lower.includes('carotte')) return '🥕 بلا خيزو' + qtySuffix;
+                if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) return '🥔 بلا بطاطا' + qtySuffix;
+                if (lower.includes('mayonnaise') || lower.includes('mayo')) return '🥣 بلا مايونيز' + qtySuffix;
+                if (lower.includes('harissa') || lower.includes('hrissa')) return '🌶️ بلا هريسة' + qtySuffix;
+                if (lower.includes('ketchup')) return '🍅 بلا كيتشوب' + qtySuffix;
+                if (lower.includes('sauce')) return '🥣 بلا صوص' + qtySuffix;
+                if (lower.includes('fromage')) return '🧀 بلا فرماج' + qtySuffix;
+
+                return text;
+            };
 
             // Finally, format item names with their attached notes/options so the KDS renders them
             // The POS KitchenDashboard uses item.name.split(' (Sans ') to extract options
+            console.log(`enableArabicKDS flag is: ${enableArabicKDS}`);
             for (let item of parsedItems) {
                 if (item.sans && item.sans.length > 0) {
+                    console.log(`Item before translation: ${JSON.stringify(item.sans)}`);
+                    if (enableArabicKDS) {
+                        item.sans = item.sans.map(translateToArabic);
+                    }
+                    console.log(`Item after translation: ${JSON.stringify(item.sans)}`);
                     item.name = item.name + ' (Sans ' + item.sans.join(', ') + ')';
                 }
             }
