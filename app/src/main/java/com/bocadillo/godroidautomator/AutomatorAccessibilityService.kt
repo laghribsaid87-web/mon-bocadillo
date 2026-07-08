@@ -714,91 +714,23 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var useOcr = false
             
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Journal.log("Capture d'écran 1 (Haut) en cours...")
-                val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
-                
-                delay(800) // Wait for screen to settle after capture
                 Journal.log("Petit défilement vers le bas (Scroll NATIF Android x3)...")
                 performSmallSwipeUp()
                 delay(1500) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
                 
-                Journal.log("Capture d'écran 2 (Bas) en cours...")
-                val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
+                Journal.log("Capture d'écran en cours...")
+                val bitmap = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
 
-                if (bitmapTop != null && bitmapBottom != null) {
+                if (bitmap != null) {
                     useOcr = true
-                    Journal.log("Analyse d'image par Intelligence Artificielle (Double Scan)...")
+                    Journal.log("Analyse d'image par Intelligence Artificielle (Simple Scan)...")
                     
-                    val textNum = OcrHelper.extractTextFromBitmap(bitmapTop, rectNum)
+                    val textNum = OcrHelper.extractTextFromBitmap(bitmap, rectNum)
+                    val rawLines = OcrHelper.extractRawLinesFromBitmap(bitmap, null)
                     
-                    val rawLinesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
-                    var linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
-                    
-                    // Calculer le défilement exact (deltaY) avec des textes longs
-                    var deltaY = 0
-                    var didScroll = false
-                    val validTopLines = rawLinesTop.filter { it.second.length > 5 }
-                    
-                    for (lineB in linesBottom) {
-                        if (lineB.second.length > 5) {
-                            val matchingLineTop = validTopLines.find { 
-                                val c1 = it.second.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
-                                val c2 = lineB.second.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
-                                c1.isNotEmpty() && c1 == c2
-                            }
-                            if (matchingLineTop != null) {
-                                val diff = matchingLineTop.first.top - lineB.first.top
-                                if (diff > 50) {
-                                    deltaY = diff
-                                    didScroll = true
-                                    break
-                                }
-                            }
-                        }
-                    }
-                    
-                    val linesTopToKeep = if (didScroll) {
-                        // Si ça a défilé, le texte en bas de l'écran 1 est coupé. On l'ignore (85% max).
-                        rawLinesTop.filter { it.first.bottom < bitmapTop.height * 0.85f }
-                    } else {
-                        rawLinesTop
-                    }
-                    
-                    if (!didScroll) {
-                        Journal.log("L'écran n'a pas défilé (Commande courte). On ignore la 2ème capture.")
-                        linesBottom = emptyList()
-                    } else {
-                        Journal.log("L'écran a défilé de $deltaY pixels vers le haut.")
-                    }
-                    
-                    // Fusion intelligente (Double Scan)
                     val finalLines = mutableListOf<String>()
-                    for (line in linesTopToKeep) {
+                    for (line in rawLines) {
                         finalLines.add(line.second)
-                    }
-                    
-                    for (lineB in linesBottom) {
-                        val isSameText = { t1: String, t2: String ->
-                            val c1 = t1.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
-                            val c2 = t2.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
-                            c1.isNotEmpty() && c1 == c2
-                        }
-
-                        // Élément fixe (entête) : diffY < 30
-                        val isFixedOverlap = linesTopToKeep.any { lineT -> 
-                            isSameText(lineT.second, lineB.second) && Math.abs(lineT.first.top - lineB.first.top) < 30 
-                        }
-                        
-                        // Élément défilé (overlap de scroll) : diffY ~= deltaY
-                        val isScrollOverlap = didScroll && linesTopToKeep.any { lineT -> 
-                            isSameText(lineT.second, lineB.second) && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
-                        }
-                        
-                        if (isFixedOverlap || isScrollOverlap) {
-                            Journal.log("Doublon OCR ignoré: ${lineB.second}")
-                        } else {
-                            finalLines.add(lineB.second)
-                        }
                     }
                     
                     val fullText = finalLines.joinToString("\n")
@@ -1094,91 +1026,23 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var useOcr = false
             
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Journal.log("Capture d'écran 1 (Haut) en cours...")
-                val bitmapTop = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
-                
-                delay(800) // Wait for screen to settle after capture
                 Journal.log("Petit défilement vers le bas (Scroll NATIF Android x3)...")
                 performSmallSwipeUp()
                 delay(1500) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
                 
-                Journal.log("Capture d'écran 2 (Bas) en cours...")
-                val bitmapBottom = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
+                Journal.log("Capture d'écran en cours...")
+                val bitmap = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
 
-                if (bitmapTop != null && bitmapBottom != null) {
+                if (bitmap != null) {
                     useOcr = true
-                    Journal.log("Analyse d'image par Intelligence Artificielle (Double Scan)...")
+                    Journal.log("Analyse d'image par Intelligence Artificielle (Simple Scan)...")
                     
-                    val textNum = OcrHelper.extractTextFromBitmap(bitmapTop, rectNum)
+                    val textNum = OcrHelper.extractTextFromBitmap(bitmap, rectNum)
+                    val rawLines = OcrHelper.extractRawLinesFromBitmap(bitmap, null)
                     
-                    val rawLinesTop = OcrHelper.extractRawLinesFromBitmap(bitmapTop, null)
-                    var linesBottom = OcrHelper.extractRawLinesFromBitmap(bitmapBottom, null)
-                    
-                    // Calculer le défilement exact (deltaY) avec des textes longs
-                    var deltaY = 0
-                    var didScroll = false
-                    val validTopLines = rawLinesTop.filter { it.second.length > 5 }
-                    
-                    for (lineB in linesBottom) {
-                        if (lineB.second.length > 5) {
-                            val matchingLineTop = validTopLines.find { 
-                                val c1 = it.second.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
-                                val c2 = lineB.second.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
-                                c1.isNotEmpty() && c1 == c2
-                            }
-                            if (matchingLineTop != null) {
-                                val diff = matchingLineTop.first.top - lineB.first.top
-                                if (diff > 50) {
-                                    deltaY = diff
-                                    didScroll = true
-                                    break
-                                }
-                            }
-                        }
-                    }
-                    
-                    val linesTopToKeep = if (didScroll) {
-                        // Si ça a défilé, le texte en bas de l'écran 1 est coupé. On l'ignore (85% max).
-                        rawLinesTop.filter { it.first.bottom < bitmapTop.height * 0.85f }
-                    } else {
-                        rawLinesTop
-                    }
-                    
-                    if (!didScroll) {
-                        Journal.log("L'écran n'a pas défilé (Commande courte). On ignore la 2ème capture.")
-                        linesBottom = emptyList()
-                    } else {
-                        Journal.log("L'écran a défilé de $deltaY pixels vers le haut.")
-                    }
-                    
-                    // Fusion intelligente (Double Scan)
                     val finalLines = mutableListOf<String>()
-                    for (line in linesTopToKeep) {
+                    for (line in rawLines) {
                         finalLines.add(line.second)
-                    }
-                    
-                    for (lineB in linesBottom) {
-                        val isSameText = { t1: String, t2: String ->
-                            val c1 = t1.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
-                            val c2 = t2.replace(Regex("\\s+"), "").replace(Regex("[\\d.,]+MAD", RegexOption.IGNORE_CASE), "").lowercase()
-                            c1.isNotEmpty() && c1 == c2
-                        }
-
-                        // Élément fixe (entête) : diffY < 30
-                        val isFixedOverlap = linesTopToKeep.any { lineT -> 
-                            isSameText(lineT.second, lineB.second) && Math.abs(lineT.first.top - lineB.first.top) < 30 
-                        }
-                        
-                        // Élément défilé (overlap de scroll) : diffY ~= deltaY
-                        val isScrollOverlap = didScroll && linesTopToKeep.any { lineT -> 
-                            isSameText(lineT.second, lineB.second) && Math.abs(lineT.first.top - (lineB.first.top + deltaY)) < 40 
-                        }
-                        
-                        if (isFixedOverlap || isScrollOverlap) {
-                            Journal.log("Doublon OCR ignoré: ${lineB.second}")
-                        } else {
-                            finalLines.add(lineB.second)
-                        }
                     }
                     
                     val fullText = finalLines.joinToString("\n")
