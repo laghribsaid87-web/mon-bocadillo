@@ -87,7 +87,7 @@ object OrderParser {
             }
         }
 
-        var finalItemsList = itemsList
+        var finalItemsList: List<String> = itemsList
         
         finalItemsList = mergeSplitItemNames(finalItemsList)
 
