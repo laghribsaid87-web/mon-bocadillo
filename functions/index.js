@@ -845,8 +845,9 @@ async function handleGoDroidOrder(snap, context, branchId) {
 
                 const itemMatch = text.match(/^(\d+)\s*[xX]\s+(.+)$/i);
                 const isNoteModifier = lower.includes('sans') || lower.includes('extra') || lower.includes('ajout');
+                const isKnownOption = itemMatch && validOptionsMap.some(opt => lower.includes(opt.lower));
                 
-                if (itemMatch && !lower.startsWith('0 x ') && !isNoteModifier) {
+                if (itemMatch && !lower.startsWith('0 x ') && !isNoteModifier && !(isKnownOption && currentItemIndex !== -1)) {
                     const qty = parseInt(itemMatch[1]);
                     let rawName = itemMatch[2].trim();
                     const lowerName = rawName.toLowerCase();
