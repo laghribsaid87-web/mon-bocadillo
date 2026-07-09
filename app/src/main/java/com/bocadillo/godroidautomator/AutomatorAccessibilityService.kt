@@ -1002,30 +1002,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var contenuEcran = "{}"
             var useOcr = false
             
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Journal.log("Petit défilement vers le bas (Scroll NATIF Android x3)...")
-                performSmallSwipeUp()
-                delay(1500) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
-                
-                Journal.log("Capture d'écran en cours...")
-                val bitmap = OcrHelper.captureScreenBitmap(this@AutomatorAccessibilityService)
-
-                if (bitmap != null) {
-                    useOcr = true
-                    Journal.log("Analyse d'image par Intelligence Artificielle (Simple Scan)...")
-                    
-                    val textNum = OcrHelper.extractTextFromBitmap(bitmap, rectNum)
-                    val rawLines = OcrHelper.extractRawLinesFromBitmap(bitmap, null)
-                    
-                    val finalLines = mutableListOf<String>()
-                    for (line in rawLines) {
-                        finalLines.add(line.second)
-                    }
-                    
-                    val fullText = finalLines.joinToString("\n")
-                    contenuEcran = OrderParser.parseOcrScreen(fullText, textNum, fullText)
-                }
-            }
+            Journal.log("Petit défilement vers le bas pour afficher la commande...")
+            performSmallSwipeUp()
+            delay(1500) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
+            
+            Journal.log("Utilisation de la méthode classique (Lecture de l'écran).")
             
             if (!useOcr) {
                 val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
