@@ -802,7 +802,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 }
                 
                 if (isQty) return originalNote; // Keep Glovo options
-                return null;
+                return `** NOTE: ${originalNote} **`; // Keep custom client notes
             };
             
             const parsedItems = [];
