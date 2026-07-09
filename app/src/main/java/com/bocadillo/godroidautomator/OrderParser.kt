@@ -62,20 +62,32 @@ object OrderParser {
             }
         }
 
-        // 2. Extract Items sequentially
+        var topBoundaryY = Int.MAX_VALUE
+        var bottomBoundaryY = Int.MAX_VALUE
+
         for (node in nodesList) {
-            itemsList.add(node.second)
+            val text = node.second
+            val rect = node.first
+            if (topBoundaryY == Int.MAX_VALUE && text.matches(Regex("(?i)^\\d+[ \\t\\xA0]*[xX×-].*"))) {
+                topBoundaryY = rect.top - 10
+            }
+            val lowerText = text.lowercase()
+            if (lowerText.contains("sous-total") || lowerText.contains("ajoutez un produit") || lowerText == "total" || lowerText.contains("tva")) {
+                if (rect.top < bottomBoundaryY) {
+                    bottomBoundaryY = rect.top
+                }
+            }
         }
 
-        // 3. Filter items using the "1 x to MAD/Total" rule
-        val fullText = itemsList.joinToString("\n")
-        val firstXMatch = Regex("(?i)\\d+[ \\t\\xA0]*[xX×-]").find(fullText)
-        
-        var finalItemsList = if (firstXMatch != null) {
-            fullText.substring(firstXMatch.range.first).split("\n").map { it.trim() }.filter { it.isNotEmpty() }
-        } else {
-            itemsList
+        // 2. Extract Items sequentially within boundaries
+        for (node in nodesList) {
+            val rect = node.first
+            if (rect.top in topBoundaryY until bottomBoundaryY) {
+                itemsList.add(node.second)
+            }
         }
+
+        var finalItemsList = itemsList
         
         finalItemsList = mergeSplitItemNames(finalItemsList)
 
