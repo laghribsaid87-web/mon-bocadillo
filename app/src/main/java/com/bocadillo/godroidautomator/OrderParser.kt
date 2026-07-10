@@ -193,36 +193,56 @@ object OrderParser {
     private fun mergeSplitItemNames(lines: List<String>): List<String> {
         val mergedItemsList = mutableListOf<String>()
         val quantityRegex = Regex("^(?i)[^a-zA-Z0-9]*(?:\\d+[ \\t\\xA0]*)?[xX×-](?:[ \\t\\xA0]+|$)")
-        val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)?$", RegexOption.IGNORE_CASE)
-        val pureGarbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|^\\d{9,15}$|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier.*|Coursier.*|Notre coursier.*|.*livrée.*|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins)")
+        val pureNumberRegex = Regex("^\\d+$")
+        val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)$", RegexOption.IGNORE_CASE)
+        val pureGarbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|^\\d{9,15}.*|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier.*|Coursier.*|Notre coursier.*|.*livrée.*|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins|.*produits?.*|.*Afficher.*|.*code QR.*|.*Nouvelle.*|.*Acceptée.*|.*À venir.*)")
         
         for (rawLine in lines) {
             val line = rawLine.replace(Regex("(?i)(\\bModifier\\b|\\bAccepter\\b|\\bRefuser\\b|\\bContinuer\\b|\\bAide\\b|\\+?\\s*Ajoutez un produit|\\b\\d+\\+?\\s*mins?\\b)"), "").trim()
             
             if (line.isEmpty() || line == "-" || line == "--" || line == "---") continue
             
-            val isQuantityLine = quantityRegex.containsMatchIn(line)
+            if ((line == "x" || line == "X" || line == "×") && mergedItemsList.isNotEmpty() && pureNumberRegex.matches(mergedItemsList.last().trim())) {
+                val lastItem = mergedItemsList.removeAt(mergedItemsList.size - 1)
+                mergedItemsList.add("${lastItem}x")
+                continue
+            }
+            
+            val isQuantityLine = quantityRegex.containsMatchIn(line) || pureNumberRegex.matches(line)
             val isOptionLine = line.startsWith("Sans ", ignoreCase = true) || 
                                line.startsWith("Ajout ", ignoreCase = true) || 
                                line.startsWith("Avec ", ignoreCase = true) || 
+                               line.startsWith("Extra ", ignoreCase = true) || 
                                line.startsWith("-") ||
                                line.startsWith("+")
             val isMisc = Regex("^(MAD|DH|Total|Sous-total|Produits)", RegexOption.IGNORE_CASE).containsMatchIn(line)
-            // Les prix purs (ex: "34,00 MAD") sont considérés comme Garbage pour ne pas couper le nom du sandwich
             val isGarbage = pureGarbageRegex.containsMatchIn(line) || priceRegex.matches(line)
               
-              if (!isQuantityLine && !isOptionLine && !isMisc && !isGarbage && mergedItemsList.isNotEmpty()) {
-                  if (line.length >= 20 || line.contains("afak", ignoreCase = true) || line.contains("merci", ignoreCase = true) || line.contains("stp", ignoreCase = true) || line.contains("svp", ignoreCase = true)) {
-                      // C'est probablement une note du client
-                      mergedItemsList.add("NOTE: $line")
-                  } else {
-                      // C'est la suite du nom du produit (ou de la note précédente)
-                      val lastItem = mergedItemsList.removeAt(mergedItemsList.size - 1)
-                      mergedItemsList.add("$lastItem $line")
-                  }
-              } else if (!isGarbage) {
-                  mergedItemsList.add(line)
-              }
+            if (isGarbage) continue
+            
+            if (mergedItemsList.isNotEmpty()) {
+                val lastItem = mergedItemsList.last().trim()
+                if (!isQuantityLine && !isMisc) {
+                    if (isOptionLine) {
+                        if (quantityRegex.matches(lastItem) || pureNumberRegex.matches(lastItem)) {
+                            mergedItemsList.removeAt(mergedItemsList.size - 1)
+                            mergedItemsList.add("$lastItem $line")
+                            continue
+                        }
+                    } else {
+                        if (line.contains("afak", ignoreCase = true) || line.contains("merci", ignoreCase = true) || line.contains("stp", ignoreCase = true) || line.contains("svp", ignoreCase = true)) {
+                            mergedItemsList.add("NOTE: $line")
+                            continue
+                        } else {
+                            mergedItemsList.removeAt(mergedItemsList.size - 1)
+                            mergedItemsList.add("$lastItem $line")
+                            continue
+                        }
+                    }
+                }
+            }
+            
+            mergedItemsList.add(line)
         }
         return mergedItemsList
     }
