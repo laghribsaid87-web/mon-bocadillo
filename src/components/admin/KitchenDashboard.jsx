@@ -578,10 +578,15 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 <div className="flex flex-col gap-1 mt-1">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getGlovoName(opt).replace(/"/g, '');
-                                                        const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
+                                                        const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout') || mappedOpt.includes('إكسترا');
+                                                        let displayOpt = mappedOpt;
+                                                        if (isExtra && !displayOpt.trim().startsWith('+')) {
+                                                            displayOpt = `+ ${displayOpt}`;
+                                                        }
+                                                        displayOpt = displayOpt.replace(/^\+\s*\+\s*/, '+ ');
                                                         return (
                                                             <span key={oIdx} className={`text-[10px] font-black uppercase tracking-wider ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
-                                                                {isExtra ? `+ ${mappedOpt}` : mappedOpt}
+                                                                {displayOpt}
                                                             </span>
                                                         );
                                                     })}
@@ -683,10 +688,15 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 <div className="flex flex-col items-start gap-1.5 mt-2">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getGlovoName(opt).replace(/"/g, '');
-                                                        const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout');
+                                                        const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout') || mappedOpt.includes('إكسترا');
+                                                        let displayOpt = mappedOpt;
+                                                        if (isExtra && !displayOpt.trim().startsWith('+')) {
+                                                            displayOpt = `+ ${displayOpt}`;
+                                                        }
+                                                        displayOpt = displayOpt.replace(/^\+\s*\+\s*/, '+ ');
                                                         return (
                                                             <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
-                                                                {isExtra ? `+ ${mappedOpt}` : mappedOpt}
+                                                                {displayOpt}
                                                             </span>
                                                         );
                                                     })}

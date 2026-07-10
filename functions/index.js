@@ -909,7 +909,9 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     let formattedNote = formatPOSNote(theNoteToPush);
                     console.log(`[DEBUG] Note analysis: raw="${theNoteToPush}", formatted="${formattedNote}"`);
                     if (formattedNote) {
-                        if (currentItemIndex !== -1) {
+                        const isCustomNote = formattedNote.startsWith('**');
+                        
+                        if (currentItemIndex !== -1 && !isCustomNote) {
                             let existingIdx = -1;
                             let baseNoteToFind = formattedNote;
                             let newQty = 1;
@@ -941,6 +943,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                                 parsedItems[currentItemIndex].sans.push(formattedNote);
                             }
                         } else {
+                            // Either no current item yet, OR it's a global custom note (bypasses items)
                             if (!cleanNotes.includes(formattedNote)) {
                                 cleanNotes.push(formattedNote);
                             }
@@ -968,20 +971,17 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 let cleanText = text.replace(/^([0-9]+)\s*[xX]\s*/i, '');
 
                 if (isExtra) {
-                    if (lower.includes('fromage')) return '+ 🧀 إكسترا فرماج EXTRA' + qtySuffix;
-                    if (lower.includes('frite')) return '+ 🍟 إكسترا فريت EXTRA' + qtySuffix;
-                    if (lower.includes('viande') || lower.includes('hachée')) return '+ 🥩 إكسترا لحم مفروم EXTRA' + qtySuffix;
-                    if (lower.includes('poulet')) return '+ 🍗 إكسترا دجاج EXTRA' + qtySuffix;
-                    if (lower.includes('oeuf') || lower.includes('œuf')) return '+ 🍳 إكسترا بيض EXTRA' + qtySuffix;
-                    if (lower.includes('thon')) return '+ 🐟 إكسترا طون EXTRA' + qtySuffix;
-                    if (lower.includes('charcuterie')) return '+ 🥓 إكسترا كاشير EXTRA' + qtySuffix;
-                    if (lower.includes('saucisse')) return '+ 🌭 إكسترا صوصيص EXTRA' + qtySuffix;
+                    if (lower.includes('fromage')) return '🧀 إكسترا فرماج' + qtySuffix;
+                    if (lower.includes('frite')) return '🍟 إكسترا فريت' + qtySuffix;
+                    if (lower.includes('viande') || lower.includes('hachée')) return '🥩 إكسترا لحم مفروم' + qtySuffix;
+                    if (lower.includes('poulet')) return '🍗 إكسترا دجاج' + qtySuffix;
+                    if (lower.includes('oeuf') || lower.includes('œuf')) return '🍳 إكسترا بيض' + qtySuffix;
+                    if (lower.includes('thon')) return '🐟 إكسترا طون' + qtySuffix;
+                    if (lower.includes('charcuterie')) return '🥓 إكسترا كاشير' + qtySuffix;
+                    if (lower.includes('saucisse')) return '🌭 إكسترا صوصيص' + qtySuffix;
                     
-                    // Fallback for other extras: we inject the word EXTRA and + so it turns green in KDS!
-                    if (!lower.includes('extra')) {
-                        return '+ ' + cleanText + ' EXTRA' + qtySuffix;
-                    }
-                    return '+ ' + cleanText + qtySuffix;
+                    // Fallback for other extras
+                    return 'إكسترا ' + cleanText + qtySuffix;
                 }
 
                 if (lower.includes('tomate')) return '🍅 بلا مطيشة';
