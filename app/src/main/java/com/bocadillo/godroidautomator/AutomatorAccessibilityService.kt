@@ -713,10 +713,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
             var contenuEcran = "{}"
             var useOcr = false
             
-            Journal.log("Petit défilement vers le bas pour afficher la commande...")
-            performSmallSwipeUp()
-            delay(1500) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
-            
             Journal.log("Utilisation de la méthode classique (Lecture de l'écran).")
             
             if (!useOcr) {
@@ -1001,10 +997,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             var contenuEcran = "{}"
             var useOcr = false
-            
-            Journal.log("Petit défilement vers le bas pour afficher la commande...")
-            performSmallSwipeUp()
-            delay(1500) // Attendre la fin du geste (1500ms) + l'animation (1500ms)
             
             Journal.log("Utilisation de la méthode classique (Lecture de l'écran).")
             
