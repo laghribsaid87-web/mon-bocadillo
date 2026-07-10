@@ -163,10 +163,30 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }, null)
             
             if (!result) {
-                Journal.log("Impossible de lancer le glissement (Swipe Up).")
+                Journal.log("Échec du dispatch du Swipe Up.")
             }
         } catch (e: Exception) {
             Journal.log("Erreur lors du Swipe Up: ${e.message}")
+        }
+    }
+
+    private fun performSmallSwipeUp() {
+        try {
+            val displayMetrics = resources.displayMetrics
+            val middleX = displayMetrics.widthPixels / 2f
+            val startY = displayMetrics.heightPixels * 0.7f // Commencer en bas (70%)
+            val endY = displayMetrics.heightPixels * 0.4f   // Finir au milieu (40%) - Scroll de 30%
+
+            val path = android.graphics.Path()
+            path.moveTo(middleX, startY)
+            path.lineTo(middleX, endY)
+
+            val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
+            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 500))
+
+            dispatchGesture(gestureBuilder.build(), null, null)
+        } catch (e: Exception) {
+            Journal.log("Erreur lors du Small Swipe Up: ${e.message}")
         }
     }
 
@@ -721,22 +741,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 
                 // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
                 var scrollAttempts = 0
-                while (scrollAttempts < 3) {
-                    Journal.log("Défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
-                    val rootForScroll = rootInActiveWindow
-                    if (rootForScroll != null) {
-                        val scrollableNode = findScrollableNode(rootForScroll)
-                        var scrolled = false
-                        if (scrollableNode != null) {
-                            scrolled = scrollableNode.performAction(4096) // 4096 = ACTION_SCROLL_FORWARD
-                        }
-                        if (!scrolled) {
-                            Journal.log("Fallback vers le swipe manuel...")
-                            performSwipeUp()
-                        }
-                    } else {
-                        performSwipeUp()
-                    }
+                while (scrollAttempts < 5) {
+                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/5)")
+                    performSmallSwipeUp()
                     delay(1500) // Wait for scroll animation
                     
                     val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
@@ -1066,22 +1073,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 collectTextNodes(rootInActiveWindow, accumulatedNodes, rectNum, rectDet)
                 
                 var scrollAttempts = 0
-                while (scrollAttempts < 3) {
-                    Journal.log("Défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
-                    val rootForScroll = rootInActiveWindow
-                    if (rootForScroll != null) {
-                        val scrollableNode = findScrollableNode(rootForScroll)
-                        var scrolled = false
-                        if (scrollableNode != null) {
-                            scrolled = scrollableNode.performAction(4096) // 4096 = ACTION_SCROLL_FORWARD
-                        }
-                        if (!scrolled) {
-                            Journal.log("Fallback vers le swipe manuel...")
-                            performSwipeUp()
-                        }
-                    } else {
-                        performSwipeUp()
-                    }
+                while (scrollAttempts < 5) {
+                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/5)")
+                    performSmallSwipeUp()
                     delay(1500) // Wait for scroll animation
                     
                     val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
