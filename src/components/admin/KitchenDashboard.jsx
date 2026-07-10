@@ -585,7 +585,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                         }
                                                         displayOpt = displayOpt.replace(/^\+\s*\+\s*/, '+ ');
                                                         return (
-                                                            <span key={oIdx} className={`text-[10px] font-black uppercase tracking-wider ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
+                                                            <span key={oIdx} className={`text-[11px] font-black uppercase tracking-wider ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
                                                                 {displayOpt}
                                                             </span>
                                                         );
@@ -695,7 +695,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                         }
                                                         displayOpt = displayOpt.replace(/^\+\s*\+\s*/, '+ ');
                                                         return (
-                                                            <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
+                                                            <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-sm font-black uppercase tracking-wider border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
                                                                 {displayOpt}
                                                             </span>
                                                         );
