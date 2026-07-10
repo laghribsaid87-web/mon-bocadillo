@@ -62,39 +62,20 @@ object OrderParser {
             }
         }
 
-        var topBoundaryY = Int.MAX_VALUE
-        var bottomBoundaryY = Int.MAX_VALUE
-
+        // 2. Extract Items sequentially
+        // We no longer rely on Y coordinates because scrolling changes them.
+        // The garbage filter and foundFirstQuantity will handle ignoring the header and footer.
         for (node in nodesList) {
             val text = node.second
-            val rect = node.first
-            if (topBoundaryY == Int.MAX_VALUE) {
-                if (Regex("(?i)\\d+[ \\t\\xA0]*[xX×-]").containsMatchIn(text)) {
-                    topBoundaryY = rect.top - 10
-                } else if (text.trim().lowercase() == "x" || text.trim() == "×") {
-                    topBoundaryY = rect.top - 20
-                }
-            }
             val lowerText = text.lowercase()
-            if (lowerText.contains("sous-total") || lowerText.contains("ajoutez un produit") || lowerText == "total" || lowerText.contains("tva")) {
-                if (rect.top < bottomBoundaryY) {
-                    bottomBoundaryY = rect.top
-                }
+            
+            if (lowerText.contains("sous-total") || lowerText == "total" || lowerText.contains("ajoutez un produit") || lowerText.contains("tva")) {
+                break // End of order items
             }
+            
+            itemsList.add(text)
         }
-
-        if (topBoundaryY == Int.MAX_VALUE) {
-            topBoundaryY = 0 // Fallback si aucune quantité explicite n'est trouvée
-        }
-
-        // 2. Extract Items sequentially within boundaries
-        for (node in nodesList) {
-            val rect = node.first
-            if (rect.top in topBoundaryY until bottomBoundaryY) {
-                itemsList.add(node.second)
-            }
-        }
-
+        
         var finalItemsList: List<String> = itemsList
         
         finalItemsList = mergeSplitItemNames(finalItemsList)

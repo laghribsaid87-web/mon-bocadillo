@@ -716,13 +716,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Utilisation de la méthode classique (Lecture de l'écran).")
             
             if (!useOcr) {
-                val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
-                collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                var accumulatedNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
+                collectTextNodes(rootInActiveWindow, accumulatedNodes, rectNum, rectDet)
                 
                 // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
-                var currentNodesCount = nodesList.distinctBy { it.second }.size
                 var scrollAttempts = 0
-                
                 while (scrollAttempts < 3) {
                     Journal.log("Défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
                     val rootForScroll = rootInActiveWindow
@@ -741,29 +739,38 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                     delay(1500) // Wait for scroll animation
                     
-                    collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                    val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
+                    collectTextNodes(rootInActiveWindow, newNodes, rectNum, rectDet)
                     
-                    val newUniqueCount = nodesList.distinctBy { it.second }.size
-                    if (newUniqueCount == currentNodesCount) {
-                        Journal.log("Fin de la liste atteinte.")
+                    val accStrings = accumulatedNodes.map { it.second }
+                    val newStrings = newNodes.map { it.second }
+                    
+                    var maxOverlap = 0
+                    val minLen = Math.min(accStrings.size, newStrings.size)
+                    for (i in 1..minLen) {
+                        val suffix = accStrings.subList(accStrings.size - i, accStrings.size)
+                        val prefix = newStrings.subList(0, i)
+                        if (suffix == prefix) {
+                            maxOverlap = i
+                        }
+                    }
+                    
+                    if (maxOverlap == newStrings.size) {
+                        Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
                         break
                     }
-                    currentNodesCount = newUniqueCount
+                    
+                    accumulatedNodes.addAll(newNodes.subList(maxOverlap, newNodes.size))
+                    
+                    if (newStrings.any { it.lowercase().contains("sous-total") }) {
+                        Journal.log("Sous-total trouvé, fin du défilement.")
+                        break
+                    }
+                    
                     scrollAttempts++
                 }
                 
-                // Remove approximate duplicates (same text and similar Y position)
-                val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
-                for (node in nodesList) {
-                    val isDuplicate = distinctNodes.any { 
-                        it.second == node.second && kotlin.math.abs(it.first.top - node.first.top) < 30 
-                    }
-                    if (!isDuplicate) {
-                        distinctNodes.add(node)
-                    }
-                }
-                
-                contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
+                contenuEcran = OrderParser.parseOrderScreen(accumulatedNodes)
             }
             
             // Log prominently for debugging
@@ -1019,12 +1026,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Utilisation de la méthode classique (Lecture de l'écran).")
             
             if (!useOcr) {
-                val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
-                collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                var accumulatedNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
+                collectTextNodes(rootInActiveWindow, accumulatedNodes, rectNum, rectDet)
                 
-                var currentNodesCount = nodesList.distinctBy { it.second }.size
                 var scrollAttempts = 0
-                
                 while (scrollAttempts < 3) {
                     Journal.log("Défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
                     val rootForScroll = rootInActiveWindow
@@ -1041,30 +1046,40 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     } else {
                         performSwipeUp()
                     }
-                    delay(1500)
+                    delay(1500) // Wait for scroll animation
                     
-                    collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                    val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
+                    collectTextNodes(rootInActiveWindow, newNodes, rectNum, rectDet)
                     
-                    val newUniqueCount = nodesList.distinctBy { it.second }.size
-                    if (newUniqueCount == currentNodesCount) {
-                        Journal.log("Fin de la liste atteinte.")
+                    val accStrings = accumulatedNodes.map { it.second }
+                    val newStrings = newNodes.map { it.second }
+                    
+                    var maxOverlap = 0
+                    val minLen = Math.min(accStrings.size, newStrings.size)
+                    for (i in 1..minLen) {
+                        val suffix = accStrings.subList(accStrings.size - i, accStrings.size)
+                        val prefix = newStrings.subList(0, i)
+                        if (suffix == prefix) {
+                            maxOverlap = i
+                        }
+                    }
+                    
+                    if (maxOverlap == newStrings.size) {
+                        Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
                         break
                     }
-                    currentNodesCount = newUniqueCount
+                    
+                    accumulatedNodes.addAll(newNodes.subList(maxOverlap, newNodes.size))
+                    
+                    if (newStrings.any { it.lowercase().contains("sous-total") }) {
+                        Journal.log("Sous-total trouvé, fin du défilement.")
+                        break
+                    }
+                    
                     scrollAttempts++
                 }
                 
-                val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
-                for (node in nodesList) {
-                    val isDuplicate = distinctNodes.any { 
-                        it.second == node.second && kotlin.math.abs(it.first.top - node.first.top) < 30 
-                    }
-                    if (!isDuplicate) {
-                        distinctNodes.add(node)
-                    }
-                }
-                
-                contenuEcran = OrderParser.parseOrderScreen(distinctNodes)
+                contenuEcran = OrderParser.parseOrderScreen(accumulatedNodes)
             }
             
             try {
