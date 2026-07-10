@@ -262,37 +262,7 @@ object OrderParser {
     }
 
     private fun mergeAdjacentDuplicates(lines: List<String>): List<String> {
-        if (lines.isEmpty()) return lines
-        val result = mutableListOf<String>()
-        var currentLine = lines[0]
-        
-        val quantityRegex = Regex("^(?i)(\\d+)[ \\t\\xA0]*[xX×][ \\t\\xA0]*(.*)$")
-        
-        for (i in 1 until lines.size) {
-            val nextLine = lines[i]
-            
-            val matchCurrent = quantityRegex.find(currentLine)
-            val matchNext = quantityRegex.find(nextLine)
-            
-            if (matchCurrent != null && matchNext != null) {
-                val qty1 = matchCurrent.groupValues[1].toIntOrNull() ?: 1
-                val name1 = matchCurrent.groupValues[2].trim()
-                
-                val qty2 = matchNext.groupValues[1].toIntOrNull() ?: 1
-                val name2 = matchNext.groupValues[2].trim()
-                
-                if (name1.equals(name2, ignoreCase = true)) {
-                    currentLine = "${qty1 + qty2}x $name1"
-                } else {
-                    result.add(currentLine)
-                    currentLine = nextLine
-                }
-            } else {
-                result.add(currentLine)
-                currentLine = nextLine
-            }
-        }
-        result.add(currentLine)
-        return result
+        // Disabled grouping so identical items stay separate (e.g. 1x Bocadillo + 1x Bocadillo)
+        return lines
     }
 }
