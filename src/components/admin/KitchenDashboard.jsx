@@ -558,7 +558,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     <span className={`text-[9px] font-black uppercase mt-1 tracking-widest flex items-center gap-1`}>
                                         <span className={`${styles.text}`}>{styles.label}</span>
                                         {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
-                                            <span className="text-black bg-red-500 px-1.5 py-0.5 rounded-sm border border-red-600 font-black animate-pulse ml-1">ESPECE $</span>
+                                            <span className="text-white bg-red-500 px-1.5 py-0.5 rounded-sm border border-red-600 font-black animate-pulse ml-1 shadow-[0_0_10px_rgba(239,68,68,0.5)]">ESPECE</span>
                                         )}
                                     </span>
                                     {o.source === 'pos' && (
@@ -619,7 +619,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     })()}
                                 </div>
                             <button onClick={() => markOrderAsReady(o.id)} className="w-full py-3 text-white font-black text-xs uppercase tracking-wider transition-colors hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a' }}>
-                                {o.source === 'glovo' && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Prêt (💵 CASH)' : (brand.texts?.btnKdsReady || 'Prêt')}
+                                {brand.texts?.btnKdsReady || 'Prêt'}
                             </button>
                             </div>
                         );
@@ -637,7 +637,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                 <div className="flex flex-col gap-1">
                                     <span className={`text-[11px] font-black uppercase tracking-widest ${styles.text}`}>
                                         {styles.label}{(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
-                                            <span className="text-black bg-red-500 px-2 py-0.5 rounded border-2 border-red-700 ml-2 font-black shadow-md uppercase animate-pulse">ESPECE $</span>
+                                            <span className="text-white bg-red-500 px-2 py-0.5 rounded border-2 border-red-700 ml-2 font-black shadow-[0_0_10px_rgba(239,68,68,0.5)] uppercase animate-pulse">ESPECE</span>
                                         )}
                                     </span>
                                     <span className={`text-3xl font-black uppercase tracking-tighter ${styles.orderNumberText || 'text-white'}`}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
@@ -747,9 +747,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             <div className="p-6 bg-neutral-900 border-t border-neutral-800 shrink-0">
                                 <button onClick={() => markOrderAsReady(o.id)} className="w-full py-6 text-white rounded-[1.5rem] font-black text-lg uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-3 hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a', boxShadow: `0 0 30px ${brand.kdsBtnReadyColor || '#16a34a'}40` }}>
                                     <CheckCircle size={28} /> 
-                                    {o.source === 'pos' ? 'Prêt (Servi)' : 
-                                     (o.source === 'glovo' && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Prêt (💵 À ENCAISSER CASH)' : 
-                                     (brand.texts?.btnKdsReady || 'Prêt (Wajad)'))}
+                                    {brand.texts?.btnKdsReady || 'Prêt'}
                                 </button>
                             </div>
                         </div>
