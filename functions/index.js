@@ -962,6 +962,8 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 if (qtyMatch) {
                     qtySuffix = " X" + qtyMatch[1]; // e.g. " X1"
                 }
+                
+                let cleanText = text.replace(/^([0-9]+)\s*[xX]\s*/i, '');
 
                 if (isExtra) {
                     if (lower.includes('fromage')) return '+ 🧀 إكسترا فرماج EXTRA' + qtySuffix;
@@ -975,24 +977,24 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     
                     // Fallback for other extras: we inject the word EXTRA and + so it turns green in KDS!
                     if (!lower.includes('extra')) {
-                        return '+ ' + text + ' EXTRA' + qtySuffix;
+                        return '+ ' + cleanText + ' EXTRA' + qtySuffix;
                     }
-                    return '+ ' + text + qtySuffix;
+                    return '+ ' + cleanText + qtySuffix;
                 }
 
-                if (lower.includes('tomate')) return '🍅 بلا مطيشة' + qtySuffix;
-                if (lower.includes('oignon')) return '🧅 بلا بصلة' + qtySuffix;
-                if (lower.includes('olive')) return '🟢 بلا زيتون' + qtySuffix;
-                if (lower.includes('laitue') || lower.includes('salade')) return '🥗 بلا خس' + qtySuffix;
-                if (lower.includes('carotte')) return '🥕 بلا خيزو' + qtySuffix;
-                if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) return '🥔 بلا بطاطا' + qtySuffix;
-                if (lower.includes('mayonnaise') || lower.includes('mayo')) return '🥣 بلا مايونيز' + qtySuffix;
-                if (lower.includes('harissa') || lower.includes('hrissa')) return '🌶️ بلا هريسة' + qtySuffix;
-                if (lower.includes('ketchup')) return '🍅 بلا كيتشوب' + qtySuffix;
-                if (lower.includes('sauce')) return '🥣 بلا صوص' + qtySuffix;
-                if (lower.includes('fromage')) return '🧀 بلا فرماج' + qtySuffix;
+                if (lower.includes('tomate')) return '🍅 بلا مطيشة';
+                if (lower.includes('oignon')) return '🧅 بلا بصلة';
+                if (lower.includes('olive')) return '🟢 بلا زيتون';
+                if (lower.includes('laitue') || lower.includes('salade')) return '🥗 بلا خس';
+                if (lower.includes('carotte')) return '🥕 بلا خيزو';
+                if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) return '🥔 بلا بطاطا';
+                if (lower.includes('mayonnaise') || lower.includes('mayo')) return '🥣 بلا مايونيز';
+                if (lower.includes('harissa') || lower.includes('hrissa')) return '🌶️ بلا هريسة';
+                if (lower.includes('ketchup')) return '🍅 بلا كيتشوب';
+                if (lower.includes('sauce')) return '🥣 بلا صوص';
+                if (lower.includes('fromage')) return '🧀 بلا فرماج';
 
-                return text;
+                return cleanText;
             };
 
             // Finally, format item names with their attached notes/options so the KDS renders them
