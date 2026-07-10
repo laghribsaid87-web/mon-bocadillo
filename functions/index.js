@@ -783,6 +783,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 const lowerNote = originalNote.toLowerCase();
                 
                 if (lowerNote.startsWith('**')) return originalNote; // Keep custom notes
+                if (lowerNote.startsWith('note:') || lowerNote.startsWith('remarque:')) return `** ${originalNote} **`; // Explicit client notes
                 
                 let prefix = "";
                 let contentToMatch = lowerNote;
@@ -954,6 +955,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
             const enableArabicKDS = brand.enableArabicKDS === true;
 
             const translateToArabic = (text) => {
+                if (text.trim().startsWith('**')) return text; // Bypass translation for custom notes!
                 let lower = text.toLowerCase();
                 const isExtra = lower.includes('extra') || lower.includes('ajout');
                 
