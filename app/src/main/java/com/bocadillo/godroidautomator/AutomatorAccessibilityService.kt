@@ -720,19 +720,37 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
                 
                 // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
-                Journal.log("Défilement vers le bas pour lire la suite...")
-                val rootForScroll = rootInActiveWindow
-                if (rootForScroll != null) {
-                    val scrollableNode = findScrollableNode(rootForScroll)
-                    if (scrollableNode != null) {
-                        scrollableNode.performAction(4096) // 4096 = ACTION_SCROLL_FORWARD
+                var currentNodesCount = nodesList.distinctBy { it.second }.size
+                var scrollAttempts = 0
+                
+                while (scrollAttempts < 3) {
+                    Journal.log("Défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
+                    val rootForScroll = rootInActiveWindow
+                    if (rootForScroll != null) {
+                        val scrollableNode = findScrollableNode(rootForScroll)
+                        var scrolled = false
+                        if (scrollableNode != null) {
+                            scrolled = scrollableNode.performAction(4096) // 4096 = ACTION_SCROLL_FORWARD
+                        }
+                        if (!scrolled) {
+                            Journal.log("Fallback vers le swipe manuel...")
+                            performSwipeUp()
+                        }
                     } else {
                         performSwipeUp()
                     }
+                    delay(1500) // Wait for scroll animation
+                    
+                    collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                    
+                    val newUniqueCount = nodesList.distinctBy { it.second }.size
+                    if (newUniqueCount == currentNodesCount) {
+                        Journal.log("Fin de la liste atteinte.")
+                        break
+                    }
+                    currentNodesCount = newUniqueCount
+                    scrollAttempts++
                 }
-                delay(1500) // Wait for scroll animation
-                
-                collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
                 
                 // Remove approximate duplicates (same text and similar Y position)
                 val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
@@ -1004,19 +1022,37 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 val nodesList = mutableListOf<Pair<android.graphics.Rect, String>>()
                 collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
                 
-                Journal.log("Défilement vers le bas pour lire la suite...")
-                val rootForScroll = rootInActiveWindow
-                if (rootForScroll != null) {
-                    val scrollableNode = findScrollableNode(rootForScroll)
-                    if (scrollableNode != null) {
-                        scrollableNode.performAction(4096)
+                var currentNodesCount = nodesList.distinctBy { it.second }.size
+                var scrollAttempts = 0
+                
+                while (scrollAttempts < 3) {
+                    Journal.log("Défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
+                    val rootForScroll = rootInActiveWindow
+                    if (rootForScroll != null) {
+                        val scrollableNode = findScrollableNode(rootForScroll)
+                        var scrolled = false
+                        if (scrollableNode != null) {
+                            scrolled = scrollableNode.performAction(4096) // 4096 = ACTION_SCROLL_FORWARD
+                        }
+                        if (!scrolled) {
+                            Journal.log("Fallback vers le swipe manuel...")
+                            performSwipeUp()
+                        }
                     } else {
                         performSwipeUp()
                     }
+                    delay(1500)
+                    
+                    collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
+                    
+                    val newUniqueCount = nodesList.distinctBy { it.second }.size
+                    if (newUniqueCount == currentNodesCount) {
+                        Journal.log("Fin de la liste atteinte.")
+                        break
+                    }
+                    currentNodesCount = newUniqueCount
+                    scrollAttempts++
                 }
-                delay(1500)
-                
-                collectTextNodes(rootInActiveWindow, nodesList, rectNum, rectDet)
                 
                 val distinctNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                 for (node in nodesList) {
