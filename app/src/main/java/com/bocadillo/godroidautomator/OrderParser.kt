@@ -68,8 +68,12 @@ object OrderParser {
         for (node in nodesList) {
             val text = node.second
             val rect = node.first
-            if (topBoundaryY == Int.MAX_VALUE && Regex("(?i)\\d+[ \\t\\xA0]*[xX×-]").containsMatchIn(text)) {
-                topBoundaryY = rect.top - 10
+            if (topBoundaryY == Int.MAX_VALUE) {
+                if (Regex("(?i)\\d+[ \\t\\xA0]*[xX×-]").containsMatchIn(text)) {
+                    topBoundaryY = rect.top - 10
+                } else if (text.trim().lowercase() == "x" || text.trim() == "×") {
+                    topBoundaryY = rect.top - 20
+                }
             }
             val lowerText = text.lowercase()
             if (lowerText.contains("sous-total") || lowerText.contains("ajoutez un produit") || lowerText == "total" || lowerText.contains("tva")) {
@@ -197,10 +201,22 @@ object OrderParser {
         val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)$", RegexOption.IGNORE_CASE)
         val pureGarbageRegex = Regex("(?i)(^0$|%|\\d{2}:\\d{2}|^\\d{9,15}.*|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier.*|Coursier.*|Notre coursier.*|.*livrée.*|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins?|.*produits?.*|.*Afficher.*|.*code QR.*|.*Nouvelle.*|.*Acceptée.*|.*À venir.*|.*est en route.*|.*Carte Google.*|.*Repère.*|.*#\\d+.*)")
         
+        var foundFirstQuantity = false
+        
         for (rawLine in lines) {
             val line = rawLine.replace(Regex("(?i)(\\bModifier\\b|\\bAccepter\\b|\\bRefuser\\b|\\bContinuer\\b|\\bAide\\b|\\+?\\s*Ajoutez un produit|\\b\\d+\\+?\\s*mins?\\b)"), "").trim()
             
             if (line.isEmpty() || line == "-" || line == "--" || line == "---") continue
+            
+            val isQuantityLine = quantityRegex.containsMatchIn(line) || pureNumberRegex.matches(line) || line.trim().lowercase() == "x" || line.trim() == "×"
+            
+            if (isQuantityLine) {
+                foundFirstQuantity = true
+            }
+            
+            if (!foundFirstQuantity) {
+                continue // Ignorer tout ce qui précède la première quantité (en-tête, nom du client, etc.)
+            }
             
             if ((line == "x" || line == "X" || line == "×") && mergedItemsList.isNotEmpty() && pureNumberRegex.matches(mergedItemsList.last().trim())) {
                 val lastItem = mergedItemsList.removeAt(mergedItemsList.size - 1)
@@ -208,7 +224,6 @@ object OrderParser {
                 continue
             }
             
-            val isQuantityLine = quantityRegex.containsMatchIn(line) || pureNumberRegex.matches(line)
             val isOptionLine = line.startsWith("Sans ", ignoreCase = true) || 
                                line.startsWith("Ajout ", ignoreCase = true) || 
                                line.startsWith("Avec ", ignoreCase = true) || 
