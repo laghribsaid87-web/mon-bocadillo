@@ -747,8 +747,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     
                     // 1. Find the sticky header (longest common prefix)
                     var commonPrefixLen = 0
-                    val minPrefixLen = Math.min(accStrings.size, newStrings.size)
-                    for (i in 0 until minPrefixLen) {
+                    val minLen = Math.min(accStrings.size, newStrings.size)
+                    for (i in 0 until minLen) {
                         if (accStrings[i] == newStrings[i]) {
                             commonPrefixLen++
                         } else {
@@ -756,26 +756,47 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         }
                     }
                     
-                    // 2. Strip the sticky header from newNodes to find the real overlap
-                    val strippedNewNodes = newNodes.subList(commonPrefixLen, newNodes.size)
-                    val strippedNewStrings = strippedNewNodes.map { it.second }
+                    if (commonPrefixLen == newStrings.size) {
+                        Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
+                        break
+                    }
                     
+                    // 2. Find the floating footer (longest common suffix)
+                    var commonSuffixLen = 0
+                    for (i in 0 until (minLen - commonPrefixLen)) {
+                        if (accStrings[accStrings.size - 1 - i] == newStrings[newStrings.size - 1 - i]) {
+                            commonSuffixLen++
+                        } else {
+                            break
+                        }
+                    }
+                    
+                    // 3. Extract the core scrolling content
+                    val coreAccNodes = accumulatedNodes.subList(0, accumulatedNodes.size - commonSuffixLen)
+                    val coreAccStrings = coreAccNodes.map { it.second }
+                    
+                    val coreNewNodes = newNodes.subList(commonPrefixLen, newNodes.size - commonSuffixLen)
+                    val coreNewStrings = coreNewNodes.map { it.second }
+                    
+                    // 4. Find max overlap in the core content
                     var maxOverlap = 0
-                    val minLen = Math.min(accStrings.size, strippedNewStrings.size)
-                    for (i in 1..minLen) {
-                        val suffix = accStrings.subList(accStrings.size - i, accStrings.size)
-                        val prefix = strippedNewStrings.subList(0, i)
+                    val minCoreLen = Math.min(coreAccStrings.size, coreNewStrings.size)
+                    for (i in 1..minCoreLen) {
+                        val suffix = coreAccStrings.subList(coreAccStrings.size - i, coreAccStrings.size)
+                        val prefix = coreNewStrings.subList(0, i)
                         if (suffix == prefix) {
                             maxOverlap = i
                         }
                     }
                     
-                    if (maxOverlap == strippedNewStrings.size) {
-                        Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
-                        break
-                    }
+                    // 5. Merge safely
+                    val footerNodes = accumulatedNodes.subList(accumulatedNodes.size - commonSuffixLen, accumulatedNodes.size)
+                    val newAccumulated = mutableListOf<Pair<android.graphics.Rect, String>>()
+                    newAccumulated.addAll(coreAccNodes)
+                    newAccumulated.addAll(coreNewNodes.subList(maxOverlap, coreNewNodes.size))
+                    newAccumulated.addAll(footerNodes)
                     
-                    accumulatedNodes.addAll(strippedNewNodes.subList(maxOverlap, strippedNewNodes.size))
+                    accumulatedNodes = newAccumulated
                     
                     if (newStrings.any { it.lowercase().contains("sous-total") }) {
                         Journal.log("Sous-total trouvé, fin du défilement.")
@@ -1071,8 +1092,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     
                     // 1. Find the sticky header (longest common prefix)
                     var commonPrefixLen = 0
-                    val minPrefixLen = Math.min(accStrings.size, newStrings.size)
-                    for (i in 0 until minPrefixLen) {
+                    val minLen = Math.min(accStrings.size, newStrings.size)
+                    for (i in 0 until minLen) {
                         if (accStrings[i] == newStrings[i]) {
                             commonPrefixLen++
                         } else {
@@ -1080,26 +1101,47 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         }
                     }
                     
-                    // 2. Strip the sticky header from newNodes to find the real overlap
-                    val strippedNewNodes = newNodes.subList(commonPrefixLen, newNodes.size)
-                    val strippedNewStrings = strippedNewNodes.map { it.second }
+                    if (commonPrefixLen == newStrings.size) {
+                        Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
+                        break
+                    }
                     
+                    // 2. Find the floating footer (longest common suffix)
+                    var commonSuffixLen = 0
+                    for (i in 0 until (minLen - commonPrefixLen)) {
+                        if (accStrings[accStrings.size - 1 - i] == newStrings[newStrings.size - 1 - i]) {
+                            commonSuffixLen++
+                        } else {
+                            break
+                        }
+                    }
+                    
+                    // 3. Extract the core scrolling content
+                    val coreAccNodes = accumulatedNodes.subList(0, accumulatedNodes.size - commonSuffixLen)
+                    val coreAccStrings = coreAccNodes.map { it.second }
+                    
+                    val coreNewNodes = newNodes.subList(commonPrefixLen, newNodes.size - commonSuffixLen)
+                    val coreNewStrings = coreNewNodes.map { it.second }
+                    
+                    // 4. Find max overlap in the core content
                     var maxOverlap = 0
-                    val minLen = Math.min(accStrings.size, strippedNewStrings.size)
-                    for (i in 1..minLen) {
-                        val suffix = accStrings.subList(accStrings.size - i, accStrings.size)
-                        val prefix = strippedNewStrings.subList(0, i)
+                    val minCoreLen = Math.min(coreAccStrings.size, coreNewStrings.size)
+                    for (i in 1..minCoreLen) {
+                        val suffix = coreAccStrings.subList(coreAccStrings.size - i, coreAccStrings.size)
+                        val prefix = coreNewStrings.subList(0, i)
                         if (suffix == prefix) {
                             maxOverlap = i
                         }
                     }
                     
-                    if (maxOverlap == strippedNewStrings.size) {
-                        Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
-                        break
-                    }
+                    // 5. Merge safely
+                    val footerNodes = accumulatedNodes.subList(accumulatedNodes.size - commonSuffixLen, accumulatedNodes.size)
+                    val newAccumulated = mutableListOf<Pair<android.graphics.Rect, String>>()
+                    newAccumulated.addAll(coreAccNodes)
+                    newAccumulated.addAll(coreNewNodes.subList(maxOverlap, coreNewNodes.size))
+                    newAccumulated.addAll(footerNodes)
                     
-                    accumulatedNodes.addAll(strippedNewNodes.subList(maxOverlap, strippedNewNodes.size))
+                    accumulatedNodes = newAccumulated
                     
                     if (newStrings.any { it.lowercase().contains("sous-total") }) {
                         Journal.log("Sous-total trouvé, fin du défilement.")
