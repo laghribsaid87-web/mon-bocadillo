@@ -161,8 +161,15 @@ object OrderParser {
     }
 
     private fun formatLine(line: String): String {
-        var result = line
-        val lowerLine = line.lowercase()
+        var result = line.replace("\"", "") // Remove double quotes
+        result = result.replace("Œ", "Oe").replace("œ", "oe")
+        
+        // The user says anything with EXTRA should be GREEN.
+        // In the KDS, the word "EXTRA" makes it green. If the Arabic translation removes "EXTRA", it won't be green.
+        // So we append "EXTRA" to the end of translated strings, OR we let the user fix it in their KDS visual editor.
+        // The best approach is to clean the string and if it starts with extra, force it uppercase.
+        
+        val lowerLine = result.lowercase()
         
         if (lowerLine.contains("sans ")) {
             result = result.replace(Regex("(?i)sans tomate.*"), "\ud83c\udf45 SANS TOMATE")
