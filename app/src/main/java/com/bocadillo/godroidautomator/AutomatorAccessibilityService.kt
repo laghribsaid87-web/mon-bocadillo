@@ -745,22 +745,37 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val accStrings = accumulatedNodes.map { it.second }
                     val newStrings = newNodes.map { it.second }
                     
+                    // 1. Find the sticky header (longest common prefix)
+                    var commonPrefixLen = 0
+                    val minPrefixLen = Math.min(accStrings.size, newStrings.size)
+                    for (i in 0 until minPrefixLen) {
+                        if (accStrings[i] == newStrings[i]) {
+                            commonPrefixLen++
+                        } else {
+                            break
+                        }
+                    }
+                    
+                    // 2. Strip the sticky header from newNodes to find the real overlap
+                    val strippedNewNodes = newNodes.subList(commonPrefixLen, newNodes.size)
+                    val strippedNewStrings = strippedNewNodes.map { it.second }
+                    
                     var maxOverlap = 0
-                    val minLen = Math.min(accStrings.size, newStrings.size)
+                    val minLen = Math.min(accStrings.size, strippedNewStrings.size)
                     for (i in 1..minLen) {
                         val suffix = accStrings.subList(accStrings.size - i, accStrings.size)
-                        val prefix = newStrings.subList(0, i)
+                        val prefix = strippedNewStrings.subList(0, i)
                         if (suffix == prefix) {
                             maxOverlap = i
                         }
                     }
                     
-                    if (maxOverlap == newStrings.size) {
+                    if (maxOverlap == strippedNewStrings.size) {
                         Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
                         break
                     }
                     
-                    accumulatedNodes.addAll(newNodes.subList(maxOverlap, newNodes.size))
+                    accumulatedNodes.addAll(strippedNewNodes.subList(maxOverlap, strippedNewNodes.size))
                     
                     if (newStrings.any { it.lowercase().contains("sous-total") }) {
                         Journal.log("Sous-total trouvé, fin du défilement.")
@@ -1054,22 +1069,37 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val accStrings = accumulatedNodes.map { it.second }
                     val newStrings = newNodes.map { it.second }
                     
+                    // 1. Find the sticky header (longest common prefix)
+                    var commonPrefixLen = 0
+                    val minPrefixLen = Math.min(accStrings.size, newStrings.size)
+                    for (i in 0 until minPrefixLen) {
+                        if (accStrings[i] == newStrings[i]) {
+                            commonPrefixLen++
+                        } else {
+                            break
+                        }
+                    }
+                    
+                    // 2. Strip the sticky header from newNodes to find the real overlap
+                    val strippedNewNodes = newNodes.subList(commonPrefixLen, newNodes.size)
+                    val strippedNewStrings = strippedNewNodes.map { it.second }
+                    
                     var maxOverlap = 0
-                    val minLen = Math.min(accStrings.size, newStrings.size)
+                    val minLen = Math.min(accStrings.size, strippedNewStrings.size)
                     for (i in 1..minLen) {
                         val suffix = accStrings.subList(accStrings.size - i, accStrings.size)
-                        val prefix = newStrings.subList(0, i)
+                        val prefix = strippedNewStrings.subList(0, i)
                         if (suffix == prefix) {
                             maxOverlap = i
                         }
                     }
                     
-                    if (maxOverlap == newStrings.size) {
+                    if (maxOverlap == strippedNewStrings.size) {
                         Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
                         break
                     }
                     
-                    accumulatedNodes.addAll(newNodes.subList(maxOverlap, newNodes.size))
+                    accumulatedNodes.addAll(strippedNewNodes.subList(maxOverlap, strippedNewNodes.size))
                     
                     if (newStrings.any { it.lowercase().contains("sous-total") }) {
                         Journal.log("Sous-total trouvé, fin du défilement.")
