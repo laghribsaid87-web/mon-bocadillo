@@ -195,7 +195,7 @@ object OrderParser {
         val quantityRegex = Regex("^(?i)[^a-zA-Z0-9]*(?:\\d+[ \\t\\xA0]*)?[xX×-](?:[ \\t\\xA0]+|$)")
         val pureNumberRegex = Regex("^\\d+$")
         val priceRegex = Regex("^[\\d.,\\s]+(MAD|DH)$", RegexOption.IGNORE_CASE)
-        val pureGarbageRegex = Regex("(?i)(%|\\d{2}:\\d{2}|^\\d{9,15}.*|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier.*|Coursier.*|Notre coursier.*|.*livrée.*|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins|.*produits?.*|.*Afficher.*|.*code QR.*|.*Nouvelle.*|.*Acceptée.*|.*À venir.*)")
+        val pureGarbageRegex = Regex("(?i)(^0$|%|\\d{2}:\\d{2}|^\\d{9,15}.*|Test de lecture|Livraison|Adresse|Client|Floride|TVA|Sous-total|Total|Le coursier.*|Coursier.*|Notre coursier.*|.*livrée.*|ESPÈCES|ESPCES|CASH|PAIEMENT EN LIGNE|Ajoutez un produit|--|Modifier|Accepter|Refuser|Continuer|Aide|mins?|.*produits?.*|.*Afficher.*|.*code QR.*|.*Nouvelle.*|.*Acceptée.*|.*À venir.*|.*est en route.*|.*Carte Google.*|.*Repère.*|.*#\\d+.*)")
         
         for (rawLine in lines) {
             val line = rawLine.replace(Regex("(?i)(\\bModifier\\b|\\bAccepter\\b|\\bRefuser\\b|\\bContinuer\\b|\\bAide\\b|\\+?\\s*Ajoutez un produit|\\b\\d+\\+?\\s*mins?\\b)"), "").trim()
@@ -244,6 +244,8 @@ object OrderParser {
             
             mergedItemsList.add(line)
         }
-        return mergedItemsList
+        
+        // Remove any dangling quantities or pure numbers that didn't merge with an item
+        return mergedItemsList.filter { !it.matches(Regex("^(?i)\\d+[xX×-]?$")) }
     }
 }
