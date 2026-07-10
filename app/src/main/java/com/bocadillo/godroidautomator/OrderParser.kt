@@ -68,7 +68,7 @@ object OrderParser {
         for (node in nodesList) {
             val text = node.second
             val rect = node.first
-            if (topBoundaryY == Int.MAX_VALUE && text.matches(Regex("(?i)^\\d+[ \\t\\xA0]*[xX×-].*"))) {
+            if (topBoundaryY == Int.MAX_VALUE && Regex("(?i)\\d+[ \\t\\xA0]*[xX×-]").containsMatchIn(text)) {
                 topBoundaryY = rect.top - 10
             }
             val lowerText = text.lowercase()
@@ -77,6 +77,10 @@ object OrderParser {
                     bottomBoundaryY = rect.top
                 }
             }
+        }
+
+        if (topBoundaryY == Int.MAX_VALUE) {
+            topBoundaryY = 0 // Fallback si aucune quantité explicite n'est trouvée
         }
 
         // 2. Extract Items sequentially within boundaries
