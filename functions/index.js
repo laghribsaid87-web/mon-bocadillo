@@ -909,11 +909,35 @@ async function handleGoDroidOrder(snap, context, branchId) {
                     console.log(`[DEBUG] Note analysis: raw="${theNoteToPush}", formatted="${formattedNote}"`);
                     if (formattedNote) {
                         if (currentItemIndex !== -1) {
-                            if (!parsedItems[currentItemIndex].sans.includes(formattedNote)) {
-                                parsedItems[currentItemIndex].sans.push(formattedNote);
+                            let existingIdx = -1;
+                            let baseNoteToFind = formattedNote;
+                            let newQty = 1;
+                            const qtyMatch = formattedNote.match(/^([0-9]+)\s*[xX]\s*(.*)/i);
+                            if (qtyMatch) {
+                                newQty = parseInt(qtyMatch[1]);
+                                baseNoteToFind = qtyMatch[2].trim();
+                            }
+                            
+                            for (let i = 0; i < parsedItems[currentItemIndex].sans.length; i++) {
+                                const existNote = parsedItems[currentItemIndex].sans[i];
+                                const exMatch = existNote.match(/^([0-9]+)\s*[xX]\s*(.*)/i);
+                                let exQty = 1;
+                                let exBase = existNote;
+                                if (exMatch) {
+                                    exQty = parseInt(exMatch[1]);
+                                    exBase = exMatch[2].trim();
+                                }
+                                if (exBase.toLowerCase() === baseNoteToFind.toLowerCase()) {
+                                    existingIdx = i;
+                                    newQty += exQty;
+                                    break;
+                                }
+                            }
+                            
+                            if (existingIdx !== -1) {
+                                parsedItems[currentItemIndex].sans[existingIdx] = `${newQty}x ${baseNoteToFind}`;
                             } else {
-                                // Duplicate note for the current item! Put it in pending for the next item.
-                                pendingNotes.push(formattedNote);
+                                parsedItems[currentItemIndex].sans.push(formattedNote);
                             }
                         } else {
                             if (!cleanNotes.includes(formattedNote)) {
@@ -940,11 +964,20 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 }
 
                 if (isExtra) {
-                    if (lower.includes('fromage')) return '🧀 إكسترا فرماج' + qtySuffix;
-                    if (lower.includes('frite')) return '🍟 إكسترا فريت' + qtySuffix;
-                    if (lower.includes('viande')) return '🥩 إكسترا لحم' + qtySuffix;
-                    if (lower.includes('poulet')) return '🍗 إكسترا دجاج' + qtySuffix;
-                    return text;
+                    if (lower.includes('fromage')) return '+ 🧀 إكسترا فرماج EXTRA' + qtySuffix;
+                    if (lower.includes('frite')) return '+ 🍟 إكسترا فريت EXTRA' + qtySuffix;
+                    if (lower.includes('viande') || lower.includes('hachée')) return '+ 🥩 إكسترا لحم مفروم EXTRA' + qtySuffix;
+                    if (lower.includes('poulet')) return '+ 🍗 إكسترا دجاج EXTRA' + qtySuffix;
+                    if (lower.includes('oeuf') || lower.includes('œuf')) return '+ 🍳 إكسترا بيض EXTRA' + qtySuffix;
+                    if (lower.includes('thon')) return '+ 🐟 إكسترا طون EXTRA' + qtySuffix;
+                    if (lower.includes('charcuterie')) return '+ 🥓 إكسترا كاشير EXTRA' + qtySuffix;
+                    if (lower.includes('saucisse')) return '+ 🌭 إكسترا صوصيص EXTRA' + qtySuffix;
+                    
+                    // Fallback for other extras: we inject the word EXTRA and + so it turns green in KDS!
+                    if (!lower.includes('extra')) {
+                        return '+ ' + text + ' EXTRA' + qtySuffix;
+                    }
+                    return '+ ' + text + qtySuffix;
                 }
 
                 if (lower.includes('tomate')) return '🍅 بلا مطيشة' + qtySuffix;
