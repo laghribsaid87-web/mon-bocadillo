@@ -1093,9 +1093,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         path.moveTo(startX, startY)
                         path.lineTo(startX, endY)
                         
-                        // Use a long duration (1500ms) to ensure a slow drag, preventing the Android RecyclerView from "flinging"
+                        // Use a duration of 400ms to ensure it's treated as a scroll, not a long-press, but slow enough to avoid massive flings
                         val gesture = android.accessibilityservice.GestureDescription.Builder()
-                            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 1500))
+                            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 400))
                             .build()
                         
                         dispatchGesture(gesture, null, null)
