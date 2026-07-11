@@ -1054,6 +1054,57 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Utilisation de la méthode classique (Lecture de l'écran).")
             
             if (!useOcr) {
+                // --- PRE-SCROLL SMART HIDING ---
+                Journal.log("Recherche du premier produit pour le Pre-Scroll...")
+                val initialNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
+                collectTextNodes(rootInActiveWindow, initialNodes, rectNum, rectDet)
+                
+                val quantityRegex = Regex("^(?i)[^a-zA-Z0-9]*(?:\\d+[ \\t\\xA0]*)?[xX×](?:[ \\t\\xA0]+|$)")
+                val pureNumberRegex = Regex("^\\d+$")
+                var firstItemY = -1
+                
+                for (node in initialNodes) {
+                    if (quantityRegex.containsMatchIn(node.second) || pureNumberRegex.matches(node.second)) {
+                        firstItemY = node.first.top
+                        break
+                    }
+                }
+                
+                if (firstItemY != -1) {
+                    val displayMetrics = resources.displayMetrics
+                    val screenHeight = displayMetrics.heightPixels
+                    val screenWidth = displayMetrics.widthPixels
+                    val targetY = (screenHeight * 0.15).toInt() // 15% of screen height is usually below the app bar
+                    
+                    if (firstItemY > targetY + 50) {
+                        val distanceToScroll = firstItemY - targetY
+                        Journal.log("Pre-Scroll: Remontée du produit pour cacher l'entête.")
+                        val path = android.graphics.Path()
+                        val startX = screenWidth / 2f
+                        val startY = screenHeight * 0.7f
+                        var endY = startY - distanceToScroll
+                        
+                        if (endY < screenHeight * 0.1f) {
+                            endY = screenHeight * 0.1f // Clamp to avoid going out of bounds
+                        }
+                        
+                        path.moveTo(startX, startY)
+                        path.lineTo(startX, endY)
+                        
+                        val gesture = android.accessibilityservice.GestureDescription.Builder()
+                            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 500))
+                            .build()
+                        
+                        dispatchGesture(gesture, null, null)
+                        delay(1500) // Wait for scroll animation to settle
+                    } else {
+                        Journal.log("Pre-Scroll ignoré: Le produit est déjà assez haut.")
+                    }
+                } else {
+                    Journal.log("Pre-Scroll ignoré: Aucun produit trouvé.")
+                }
+                // --- FIN PRE-SCROLL ---
+                
                 var accumulatedNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                 collectTextNodes(rootInActiveWindow, accumulatedNodes, rectNum, rectDet)
                 
