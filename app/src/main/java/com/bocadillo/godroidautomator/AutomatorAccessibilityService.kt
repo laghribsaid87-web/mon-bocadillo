@@ -1075,31 +1075,58 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val screenHeight = displayMetrics.heightPixels
                     val screenWidth = displayMetrics.widthPixels
                     
-                    // Force the target Y to be exactly 300 pixels from the top (below status bar and app bar)
                     val targetY = 300
                     
                     if (firstItemY > targetY + 20) {
                         val distanceToScroll = firstItemY - targetY
-                        Journal.log("Smart Scroll: Remontée exacte de $distanceToScroll pixels pour cacher l'entête.")
-                        val path = android.graphics.Path()
-                        val startX = screenWidth / 2f
-                        val startY = screenHeight * 0.7f
-                        var endY = startY - distanceToScroll
                         
-                        if (endY < screenHeight * 0.1f) {
-                            endY = screenHeight * 0.1f // Clamp to avoid going out of bounds
+                        // 1. Find the scrollable node so we don't accidentally swipe on a floating button
+                        var scrollNode: AccessibilityNodeInfo? = null
+                        val queue = java.util.LinkedList<AccessibilityNodeInfo>()
+                        rootInActiveWindow?.let { queue.add(it) }
+                        while (queue.isNotEmpty()) {
+                            val n = queue.poll()
+                            if (n != null) {
+                                if (n.isScrollable) {
+                                    scrollNode = n
+                                    break
+                                }
+                                for (i in 0 until n.childCount) {
+                                    n.getChild(i)?.let { queue.add(it) }
+                                }
+                            }
                         }
+                        
+                        val bounds = android.graphics.Rect()
+                        if (scrollNode != null) {
+                            scrollNode.getBoundsInScreen(bounds)
+                        } else {
+                            rootInActiveWindow?.getBoundsInScreen(bounds)
+                        }
+                        
+                        // 2. Add 30 pixels to overcome Android's TouchSlop (which absorbs initial finger movement)
+                        val actualSwipeDistance = distanceToScroll + 30
+                        Journal.log("Smart Scroll: Remontée de $distanceToScroll px (Swipe = $actualSwipeDistance px).")
+                        
+                        val path = android.graphics.Path()
+                        val startX = bounds.centerX().toFloat()
+                        
+                        // Center the swipe inside the bounds
+                        var startY = bounds.centerY().toFloat() + (actualSwipeDistance / 2f)
+                        if (startY > bounds.bottom - 20f) startY = bounds.bottom - 20f.toFloat()
+                        
+                        var endY = startY - actualSwipeDistance
+                        if (endY < bounds.top + 20f) endY = bounds.top + 20f.toFloat()
                         
                         path.moveTo(startX, startY)
                         path.lineTo(startX, endY)
                         
-                        // Use a duration of 400ms to ensure it's treated as a scroll, not a long-press, but slow enough to avoid massive flings
                         val gesture = android.accessibilityservice.GestureDescription.Builder()
                             .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 400))
                             .build()
                         
                         dispatchGesture(gesture, null, null)
-                        delay(2000) // Wait for slow scroll animation to settle
+                        delay(2000) // Wait for UI to settle
                     } else {
                         Journal.log("Smart Scroll ignoré: Le produit est déjà assez haut.")
                     }
