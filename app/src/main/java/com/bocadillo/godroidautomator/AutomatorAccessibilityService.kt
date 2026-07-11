@@ -1062,11 +1062,15 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 val quantityRegex = Regex("^(?i)[^a-zA-Z0-9]*(?:\\d+[ \\t\\xA0]*)?[xX×](?:[ \\t\\xA0]+|$)")
                 val pureNumberRegex = Regex("^\\d+$")
                 var firstItemY = -1
+                var clientOrCoursierY = -1
                 
                 for (node in initialNodes) {
-                    if (quantityRegex.containsMatchIn(node.second) || pureNumberRegex.matches(node.second)) {
+                    val text = node.second
+                    if (text.equals("Client", ignoreCase = true) || text.equals("Coursier", ignoreCase = true)) {
+                        if (clientOrCoursierY == -1) clientOrCoursierY = node.first.top
+                    }
+                    if (firstItemY == -1 && (quantityRegex.containsMatchIn(text) || pureNumberRegex.matches(text))) {
                         firstItemY = node.first.top
-                        break
                     }
                 }
                 
@@ -1074,11 +1078,17 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val displayMetrics = resources.displayMetrics
                     val screenHeight = displayMetrics.heightPixels
                     val screenWidth = displayMetrics.widthPixels
-                    val targetY = (screenHeight * 0.15).toInt() // 15% of screen height is usually below the app bar
+                    
+                    // The target is where the Client/Coursier used to be. If not found, use 20% of screen height.
+                    val targetY = if (clientOrCoursierY != -1) {
+                        clientOrCoursierY - 50 // Move slightly above where the Client was to ensure it's hidden
+                    } else {
+                        (screenHeight * 0.20).toInt()
+                    }
                     
                     if (firstItemY > targetY + 50) {
                         val distanceToScroll = firstItemY - targetY
-                        Journal.log("Pre-Scroll: Remontée du produit pour cacher l'entête.")
+                        Journal.log("Pre-Scroll: Remontée exacte de $distanceToScroll pixels.")
                         val path = android.graphics.Path()
                         val startX = screenWidth / 2f
                         val startY = screenHeight * 0.7f
@@ -1091,12 +1101,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         path.moveTo(startX, startY)
                         path.lineTo(startX, endY)
                         
+                        // Use a long duration (1500ms) to ensure a slow drag, preventing the Android RecyclerView from "flinging" (overshooting)
                         val gesture = android.accessibilityservice.GestureDescription.Builder()
-                            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 500))
+                            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 1500))
                             .build()
                         
                         dispatchGesture(gesture, null, null)
-                        delay(1500) // Wait for scroll animation to settle
+                        delay(2000) // Wait for slow scroll animation to settle
                     } else {
                         Journal.log("Pre-Scroll ignoré: Le produit est déjà assez haut.")
                     }
