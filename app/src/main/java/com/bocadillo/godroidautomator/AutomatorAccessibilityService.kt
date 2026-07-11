@@ -1054,21 +1054,17 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Utilisation de la méthode classique (Lecture de l'écran).")
             
             if (!useOcr) {
-                // --- PRE-SCROLL SMART HIDING ---
-                Journal.log("Recherche du premier produit pour le Pre-Scroll...")
+                // --- SMART SCROLL HIDING (ONCE) ---
+                Journal.log("Recherche du premier produit pour le Smart Scroll...")
                 val initialNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                 collectTextNodes(rootInActiveWindow, initialNodes, rectNum, rectDet)
                 
                 val quantityRegex = Regex("^(?i)[^a-zA-Z0-9]*(?:\\d+[ \\t\\xA0]*)?[xX×](?:[ \\t\\xA0]+|$)")
                 val pureNumberRegex = Regex("^\\d+$")
                 var firstItemY = -1
-                var clientOrCoursierY = -1
                 
                 for (node in initialNodes) {
                     val text = node.second
-                    if (text.equals("Client", ignoreCase = true) || text.equals("Coursier", ignoreCase = true)) {
-                        if (clientOrCoursierY == -1) clientOrCoursierY = node.first.top
-                    }
                     if (firstItemY == -1 && (quantityRegex.containsMatchIn(text) || pureNumberRegex.matches(text))) {
                         firstItemY = node.first.top
                     }
@@ -1079,16 +1075,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     val screenHeight = displayMetrics.heightPixels
                     val screenWidth = displayMetrics.widthPixels
                     
-                    // The target is where the Client/Coursier used to be. If not found, use 20% of screen height.
-                    val targetY = if (clientOrCoursierY != -1) {
-                        clientOrCoursierY - 50 // Move slightly above where the Client was to ensure it's hidden
-                    } else {
-                        (screenHeight * 0.20).toInt()
-                    }
+                    // Force the target Y to be exactly 300 pixels from the top (below status bar and app bar)
+                    val targetY = 300
                     
-                    if (firstItemY > targetY + 50) {
+                    if (firstItemY > targetY + 20) {
                         val distanceToScroll = firstItemY - targetY
-                        Journal.log("Pre-Scroll: Remontée exacte de $distanceToScroll pixels.")
+                        Journal.log("Smart Scroll: Remontée exacte de $distanceToScroll pixels pour cacher l'entête.")
                         val path = android.graphics.Path()
                         val startX = screenWidth / 2f
                         val startY = screenHeight * 0.7f
@@ -1101,7 +1093,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         path.moveTo(startX, startY)
                         path.lineTo(startX, endY)
                         
-                        // Use a long duration (1500ms) to ensure a slow drag, preventing the Android RecyclerView from "flinging" (overshooting)
+                        // Use a long duration (1500ms) to ensure a slow drag, preventing the Android RecyclerView from "flinging"
                         val gesture = android.accessibilityservice.GestureDescription.Builder()
                             .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 1500))
                             .build()
@@ -1109,88 +1101,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         dispatchGesture(gesture, null, null)
                         delay(2000) // Wait for slow scroll animation to settle
                     } else {
-                        Journal.log("Pre-Scroll ignoré: Le produit est déjà assez haut.")
+                        Journal.log("Smart Scroll ignoré: Le produit est déjà assez haut.")
                     }
                 } else {
-                    Journal.log("Pre-Scroll ignoré: Aucun produit trouvé.")
+                    Journal.log("Smart Scroll ignoré: Aucun produit trouvé.")
                 }
-                // --- FIN PRE-SCROLL ---
+                // --- FIN SMART SCROLL ---
                 
+                Journal.log("Lecture unique de l'écran après positionnement...")
                 var accumulatedNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                 collectTextNodes(rootInActiveWindow, accumulatedNodes, rectNum, rectDet)
-                
-                var scrollAttempts = 0
-                while (scrollAttempts < 1) {
-                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/1)")
-                    performSystemScrollForward()
-                    delay(1500) // Wait for scroll animation
-                    
-                    val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
-                    collectTextNodes(rootInActiveWindow, newNodes, rectNum, rectDet)
-                    
-                    val accStrings = accumulatedNodes.map { it.second }
-                    val newStrings = newNodes.map { it.second }
-                    
-                    // 1. Find the sticky header (longest common prefix)
-                    var commonPrefixLen = 0
-                    val minLen = Math.min(accStrings.size, newStrings.size)
-                    for (i in 0 until minLen) {
-                        if (accStrings[i] == newStrings[i]) {
-                            commonPrefixLen++
-                        } else {
-                            break
-                        }
-                    }
-                    
-                    if (commonPrefixLen == newStrings.size) {
-                        Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
-                        break
-                    }
-                    
-                    // 2. Find the floating footer (longest common suffix)
-                    var commonSuffixLen = 0
-                    for (i in 0 until (minLen - commonPrefixLen)) {
-                        if (accStrings[accStrings.size - 1 - i] == newStrings[newStrings.size - 1 - i]) {
-                            commonSuffixLen++
-                        } else {
-                            break
-                        }
-                    }
-                    
-                    // 3. Extract the core scrolling content
-                    val coreAccNodes = accumulatedNodes.subList(0, accumulatedNodes.size - commonSuffixLen)
-                    val coreAccStrings = coreAccNodes.map { it.second }
-                    
-                    val coreNewNodes = newNodes.subList(commonPrefixLen, newNodes.size - commonSuffixLen)
-                    val coreNewStrings = coreNewNodes.map { it.second }
-                    
-                    // 4. Find max overlap in the core content
-                    var maxOverlap = 0
-                    val minCoreLen = Math.min(coreAccStrings.size, coreNewStrings.size)
-                    for (i in 1..minCoreLen) {
-                        val suffix = coreAccStrings.subList(coreAccStrings.size - i, coreAccStrings.size)
-                        val prefix = coreNewStrings.subList(0, i)
-                        if (suffix == prefix) {
-                            maxOverlap = i
-                        }
-                    }
-                    
-                    // 5. Merge safely
-                    val footerNodes = accumulatedNodes.subList(accumulatedNodes.size - commonSuffixLen, accumulatedNodes.size)
-                    val newAccumulated = mutableListOf<Pair<android.graphics.Rect, String>>()
-                    newAccumulated.addAll(coreAccNodes)
-                    newAccumulated.addAll(coreNewNodes.subList(maxOverlap, coreNewNodes.size))
-                    newAccumulated.addAll(footerNodes)
-                    
-                    accumulatedNodes = newAccumulated
-                    
-                    if (newStrings.any { it.lowercase().contains("sous-total") }) {
-                        Journal.log("Sous-total trouvé, fin du défilement.")
-                        break
-                    }
-                    
-                    scrollAttempts++
-                }
                 
                 contenuEcran = OrderParser.parseOrderScreen(accumulatedNodes)
             }
