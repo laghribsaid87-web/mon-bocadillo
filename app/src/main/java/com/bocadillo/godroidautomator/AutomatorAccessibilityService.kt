@@ -161,6 +161,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun performSystemScrollForward() {
+        try {
+            val rootForScroll = rootInActiveWindow
+            if (rootForScroll != null) {
+                val scrollableNode = findScrollableNode(rootForScroll)
+                if (scrollableNode != null) {
+                    scrollableNode.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                }
+            }
+        } catch (e: Exception) {
+            Journal.log("Erreur lors du System Scroll Forward: ${e.message}")
+        }
+    }
+
     private fun performSwipeDown() {
         try {
             val displayMetrics = resources.displayMetrics
@@ -712,9 +726,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 
                 // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
                 var scrollAttempts = 0
-                while (scrollAttempts < 5) {
-                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/5)")
-                    performSmallSwipeUp()
+                while (scrollAttempts < 1) {
+                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/1)")
+                    performSystemScrollForward()
                     delay(1500) // Wait for scroll animation
                     
                     val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
@@ -1044,9 +1058,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 collectTextNodes(rootInActiveWindow, accumulatedNodes, rectNum, rectDet)
                 
                 var scrollAttempts = 0
-                while (scrollAttempts < 5) {
-                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/5)")
-                    performSmallSwipeUp()
+                while (scrollAttempts < 1) {
+                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/1)")
+                    performSystemScrollForward()
                     delay(1500) // Wait for scroll animation
                     
                     val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
