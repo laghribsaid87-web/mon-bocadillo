@@ -1138,6 +1138,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 var accumulatedNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                 collectTextNodes(rootInActiveWindow, accumulatedNodes, rectNum, rectDet)
                 
+                // Sort nodes for the first screen
+                accumulatedNodes.sortWith(Comparator { a, b ->
+                    val yDiff = a.first.top - b.first.top
+                    if (kotlin.math.abs(yDiff) < 20) a.first.left.compareTo(b.first.left) else yDiff.compareTo(0)
+                })
+                
                 val displayMetrics = resources.displayMetrics
                 val screenHeight = displayMetrics.heightPixels
                 
@@ -1192,6 +1198,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     
                     val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                     collectTextNodes(rootInActiveWindow, newNodes, rectNum, rectDet)
+                    
+                    // Sort nodes for the new screen
+                    newNodes.sortWith(Comparator { a, b ->
+                        val yDiff = a.first.top - b.first.top
+                        if (kotlin.math.abs(yDiff) < 20) a.first.left.compareTo(b.first.left) else yDiff.compareTo(0)
+                    })
                     
                     val accStrings = accumulatedNodes.map { it.second }
                     val newStrings = newNodes.map { it.second }

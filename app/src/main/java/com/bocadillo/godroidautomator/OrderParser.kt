@@ -11,16 +11,6 @@ object OrderParser {
     fun parseOrderScreen(nodesList: MutableList<Pair<Rect, String>>): String {
         if (nodesList.isEmpty()) return "{}"
 
-        // Sort by Y first, then X
-        nodesList.sortWith(Comparator { a, b ->
-            val yDiff = a.first.top - b.first.top
-            if (abs(yDiff) < 20) {
-                a.first.left.compareTo(b.first.left)
-            } else {
-                yDiff.compareTo(0)
-            }
-        })
-
         var orderId = ""
         var totalAmount = 0.0
         var paymentMethod = "ONLINE" // Default
