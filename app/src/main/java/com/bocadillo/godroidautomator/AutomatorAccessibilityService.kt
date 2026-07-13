@@ -757,8 +757,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 
                 // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
                 var scrollAttempts = 0
-                while (scrollAttempts < 1) {
-                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/1)")
+                while (scrollAttempts < 3) {
+                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
                     performSystemScrollForward()
                     delay(1500) // Wait for scroll animation
                     
@@ -820,11 +820,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     newAccumulated.addAll(footerNodes)
                     
                     accumulatedNodes = newAccumulated
-                    
-                    if (newStrings.any { it.lowercase().contains("sous-total") }) {
-                        Journal.log("Sous-total trouvé, fin du défilement.")
-                        break
-                    }
                     
                     scrollAttempts++
                 }
@@ -1180,10 +1175,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 
                 var scrollAttempts = 0
                 while (scrollAttempts < 3) {
-                    val accStringsLower = accumulatedNodes.map { it.second.lowercase() }
-                    if (accStringsLower.any { it.contains("sous-total") || it.contains("total") }) {
-                        break
-                    }
                     
                     Journal.log("Commande longue: Défilement pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
                     
