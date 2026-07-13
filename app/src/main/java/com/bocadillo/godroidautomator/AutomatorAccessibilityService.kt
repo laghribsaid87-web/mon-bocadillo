@@ -1126,7 +1126,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             .build()
                         
                         dispatchGesture(gesture, null, null)
-                        delay(2000) // Wait for UI to settle
+                        delay(800) // Wait for UI to settle (reduced per user request)
                     } else {
                         Journal.log("Smart Scroll ignoré: Le produit est déjà assez haut.")
                     }
@@ -1194,7 +1194,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         .build()
                     
                     dispatchGesture(gesture, null, null)
-                    delay(1500) // Wait for UI to settle
+                    delay(800) // Wait for UI to settle (reduced per user request)
                     
                     val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                     collectTextNodes(rootInActiveWindow, newNodes, rectNum, rectDet)
