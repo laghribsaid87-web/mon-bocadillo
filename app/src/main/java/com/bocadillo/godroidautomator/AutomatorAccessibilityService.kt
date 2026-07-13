@@ -1135,9 +1135,106 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
                 // --- FIN SMART SCROLL ---
                 
-                Journal.log("Lecture unique de l'écran après positionnement...")
                 var accumulatedNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                 collectTextNodes(rootInActiveWindow, accumulatedNodes, rectNum, rectDet)
+                
+                val displayMetrics = resources.displayMetrics
+                val screenHeight = displayMetrics.heightPixels
+                
+                var scrollAttempts = 0
+                while (scrollAttempts < 3) {
+                    val accStringsLower = accumulatedNodes.map { it.second.lowercase() }
+                    if (accStringsLower.any { it.contains("sous-total") || it.contains("total") }) {
+                        break
+                    }
+                    
+                    Journal.log("Commande longue: Défilement pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
+                    
+                    val scrollDistance = (screenHeight * 0.45).toInt()
+                    
+                    var scrollNode: AccessibilityNodeInfo? = null
+                    val queue = java.util.LinkedList<AccessibilityNodeInfo>()
+                    rootInActiveWindow?.let { queue.add(it) }
+                    while (queue.isNotEmpty()) {
+                        val n = queue.poll()
+                        if (n != null) {
+                            if (n.isScrollable) {
+                                scrollNode = n
+                                break
+                            }
+                            for (i in 0 until n.childCount) {
+                                n.getChild(i)?.let { queue.add(it) }
+                            }
+                        }
+                    }
+                    
+                    val bounds = android.graphics.Rect()
+                    if (scrollNode != null) scrollNode.getBoundsInScreen(bounds)
+                    else rootInActiveWindow?.getBoundsInScreen(bounds)
+                    
+                    val actualSwipeDistance = scrollDistance + 30
+                    val path = android.graphics.Path()
+                    val startX = bounds.centerX().toFloat()
+                    var startY = bounds.centerY().toFloat() + (actualSwipeDistance / 2f)
+                    if (startY > bounds.bottom - 20f) startY = bounds.bottom - 20f.toFloat()
+                    var endY = startY - actualSwipeDistance
+                    if (endY < bounds.top + 20f) endY = bounds.top + 20f.toFloat()
+                    
+                    path.moveTo(startX, startY)
+                    path.lineTo(startX, endY)
+                    
+                    val gesture = android.accessibilityservice.GestureDescription.Builder()
+                        .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 400))
+                        .build()
+                    
+                    dispatchGesture(gesture, null, null)
+                    delay(1500) // Wait for UI to settle
+                    
+                    val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
+                    collectTextNodes(rootInActiveWindow, newNodes, rectNum, rectDet)
+                    
+                    val accStrings = accumulatedNodes.map { it.second }
+                    val newStrings = newNodes.map { it.second }
+                    
+                    var commonPrefixLen = 0
+                    val minLen = Math.min(accStrings.size, newStrings.size)
+                    for (i in 0 until minLen) {
+                        if (accStrings[i] == newStrings[i]) commonPrefixLen++ else break
+                    }
+                    
+                    if (commonPrefixLen == newStrings.size) {
+                        Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
+                        break
+                    }
+                    
+                    var commonSuffixLen = 0
+                    for (i in 0 until (minLen - commonPrefixLen)) {
+                        if (accStrings[accStrings.size - 1 - i] == newStrings[newStrings.size - 1 - i]) commonSuffixLen++ else break
+                    }
+                    
+                    val coreAccNodes = accumulatedNodes.subList(0, accumulatedNodes.size - commonSuffixLen)
+                    val coreAccStrings = coreAccNodes.map { it.second }
+                    
+                    val coreNewNodes = newNodes.subList(commonPrefixLen, newNodes.size - commonSuffixLen)
+                    val coreNewStrings = coreNewNodes.map { it.second }
+                    
+                    var maxOverlap = 0
+                    val minCoreLen = Math.min(coreAccStrings.size, coreNewStrings.size)
+                    for (i in 1..minCoreLen) {
+                        val suffix = coreAccStrings.subList(coreAccStrings.size - i, coreAccStrings.size)
+                        val prefix = coreNewStrings.subList(0, i)
+                        if (suffix == prefix) maxOverlap = i
+                    }
+                    
+                    val footerNodes = accumulatedNodes.subList(accumulatedNodes.size - commonSuffixLen, accumulatedNodes.size)
+                    val newAccumulated = mutableListOf<Pair<android.graphics.Rect, String>>()
+                    newAccumulated.addAll(coreAccNodes)
+                    newAccumulated.addAll(coreNewNodes.subList(maxOverlap, coreNewNodes.size))
+                    newAccumulated.addAll(footerNodes)
+                    
+                    accumulatedNodes = newAccumulated
+                    scrollAttempts++
+                }
                 
                 contenuEcran = OrderParser.parseOrderScreen(accumulatedNodes)
             }
