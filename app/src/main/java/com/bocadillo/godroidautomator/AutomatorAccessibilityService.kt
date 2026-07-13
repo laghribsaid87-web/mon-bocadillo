@@ -507,9 +507,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val nodeText = node.text?.toString() ?: ""
         val nodeDesc = node.contentDescription?.toString() ?: ""
         
-        // Exact match, ends with, or contains to avoid partial matches but catch banners
-        if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || nodeText.contains(text, ignoreCase = true) ||
-            nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true) || nodeDesc.contains(text, ignoreCase = true)) {
+        // Exact match, ends with, or contains for specific banners
+        if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeText.contains(text, ignoreCase = true)) ||
+            nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeDesc.contains(text, ignoreCase = true))) {
             return node
         }
 
@@ -576,8 +576,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val cleanDesc = nodeDesc.replace("#", "").trim()
         val cleanText = text.replace("#", "").trim()
         
-        if (cleanNodeText.equals(cleanText, ignoreCase = true) || cleanNodeText.endsWith(" " + cleanText, ignoreCase = true) || cleanNodeText.contains(cleanText, ignoreCase = true) ||
-            cleanDesc.equals(cleanText, ignoreCase = true) || cleanDesc.endsWith(" " + cleanText, ignoreCase = true) || cleanDesc.contains(cleanText, ignoreCase = true)) {
+        if (cleanNodeText.equals(cleanText, ignoreCase = true) || cleanNodeText.endsWith(" " + cleanText, ignoreCase = true) || (cleanText.equals("nouvelle commande", ignoreCase = true) && cleanNodeText.contains(cleanText, ignoreCase = true)) ||
+            cleanDesc.equals(cleanText, ignoreCase = true) || cleanDesc.endsWith(" " + cleanText, ignoreCase = true) || (cleanText.equals("nouvelle commande", ignoreCase = true) && cleanDesc.contains(cleanText, ignoreCase = true))) {
             result.add(node)
         }
 
