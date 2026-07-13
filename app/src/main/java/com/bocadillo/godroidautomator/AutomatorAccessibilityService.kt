@@ -259,10 +259,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private fun triggerFallbackVisualCheck() {
         val root = rootInActiveWindow
         if (root != null && !isSequenceRunning) {
-            val labelMins = getLabel("btn_mins", "mins")
-            val node = findNodeWithTextRecursively(labelMins, root)
+            val labelMins = getLabel("btn_mins", "min")
+            val labelNouvelle = "nouvelle commande"
+            val node = findNodeWithTextRecursively(labelMins, root) ?: findNodeWithTextRecursively(labelNouvelle, root)
             if (node != null && isNodeClickable(node)) {
-                Journal.log("Suite de commande: '$labelMins' détecté !")
+                Journal.log("Suite de commande: '$labelMins' ou '$labelNouvelle' détecté !")
                 coroutineScope.launch {
                     sequenceMutex.withLock {
                         if (!isSequenceRunning) {
@@ -431,7 +432,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (packageName.contains("deliveryhero", ignoreCase = true) || packageName.contains("glovo", ignoreCase = true)) {
                 
                 val currentTime = System.currentTimeMillis()
-                if (currentTime - lastTriggerTime < 10000) return // Debounce 10 seconds
+                if (currentTime - lastTriggerTime < 3000) return // Debounce 3 seconds
                 lastTriggerTime = currentTime
                 
                 Journal.log("🔔 Notification reçue ! Déclenchement IMMÉDIAT !")
@@ -448,18 +449,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
         
         // 2. Déclenchement par Visuel (Si l'app est déjà ouverte)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val labelMins = getLabel("btn_mins", "mins")
+            val labelMins = getLabel("btn_mins", "min")
+            val labelNouvelle = "nouvelle commande"
             val root = rootInActiveWindow ?: return
             
             if (isSequenceRunning) return
             
             val currentTime = System.currentTimeMillis()
-            if (currentTime - lastTriggerTime < 10000) return // Debounce 10 seconds
+            if (currentTime - lastTriggerTime < 3000) return // Debounce 3 seconds
             
-            val node = findNodeWithTextRecursively(labelMins, root)
+            val nodeMins = findNodeWithTextRecursively(labelMins, root)
+            val nodeNouvelle = findNodeWithTextRecursively(labelNouvelle, root)
             
-            if (node != null && isNodeClickable(node)) {
-                Journal.log("Détection visuelle (Carré vert) avec '$labelMins'")
+            if ((nodeMins != null && isNodeClickable(nodeMins)) || (nodeNouvelle != null && isNodeClickable(nodeNouvelle))) {
+                Journal.log("Détection visuelle (Carré vert ou Nouvelle commande)")
                 lastTriggerTime = currentTime
                 coroutineScope.launch {
                     sequenceMutex.withLock {
@@ -504,9 +507,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val nodeText = node.text?.toString() ?: ""
         val nodeDesc = node.contentDescription?.toString() ?: ""
         
-        // Exact match or ends with to avoid partial matches
-        if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || 
-            nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true)) {
+        // Exact match, ends with, or contains to avoid partial matches but catch banners
+        if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || nodeText.contains(text, ignoreCase = true) ||
+            nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true) || nodeDesc.contains(text, ignoreCase = true)) {
             return node
         }
 
@@ -573,8 +576,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val cleanDesc = nodeDesc.replace("#", "").trim()
         val cleanText = text.replace("#", "").trim()
         
-        if (cleanNodeText.equals(cleanText, ignoreCase = true) || cleanNodeText.endsWith(" " + cleanText, ignoreCase = true) || 
-            cleanDesc.equals(cleanText, ignoreCase = true) || cleanDesc.endsWith(" " + cleanText, ignoreCase = true)) {
+        if (cleanNodeText.equals(cleanText, ignoreCase = true) || cleanNodeText.endsWith(" " + cleanText, ignoreCase = true) || cleanNodeText.contains(cleanText, ignoreCase = true) ||
+            cleanDesc.equals(cleanText, ignoreCase = true) || cleanDesc.endsWith(" " + cleanText, ignoreCase = true) || cleanDesc.contains(cleanText, ignoreCase = true)) {
             result.add(node)
         }
 
@@ -633,7 +636,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         wakeUpScreenAndUnlock()
         delay(1000)
 
-        val labelMins = getLabel("btn_mins", "mins")
+        val labelMins = getLabel("btn_mins", "min")
         val labelModifier = getLabel("btn_modifier", "Modifier")
         val labelContinuer = getLabel("btn_continuer", "Continuer")
         val labelAnnuler = getLabel("btn_annuler", "Annuler")
@@ -672,14 +675,42 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
             }
 
-            // 2. Wait until "mins" appears dynamically
-            Journal.log("Attente de '$labelMins'...")
-            if (waitUntilTextAppears(labelMins, 10000)) {
-                Journal.log("Clic sur '$labelMins'")
-                clickByText(labelMins)
-            } else {
-                Journal.log("Attention: '$labelMins' introuvable")
-                clickByText(labelMins) // Try anyway
+            // 2. Wait until "min", "nouvelle commande" or "Nouvelle" appears
+            val labelNouvelle = "nouvelle commande"
+            val labelNouvelleTab = "Nouvelle"
+            Journal.log("Attente de '$labelMins', '$labelNouvelle' ou onglet '$labelNouvelleTab'...")
+            
+            var clickedBanner = false
+            for (i in 0..20) {
+                if (findNodeWithTextRecursively(labelNouvelle, rootInActiveWindow) != null) {
+                    Journal.log("Clic sur '$labelNouvelle'")
+                    clickByText(labelNouvelle)
+                    clickedBanner = true
+                    break
+                }
+                if (findNodeWithTextRecursively(labelMins, rootInActiveWindow) != null) {
+                    Journal.log("Clic sur '$labelMins'")
+                    clickByText(labelMins)
+                    break
+                }
+                // Try to see if there is a "Nouvelle X" tab
+                val root = rootInActiveWindow
+                if (root != null) {
+                    val nodes = mutableListOf<AccessibilityNodeInfo>()
+                    findAllNodesWithTextRecursively(labelNouvelleTab, root, nodes)
+                    // Ignore the banner itself if it somehow matches "Nouvelle"
+                    val validTabNodes = nodes.filter { !it.text.toString().contains("commande", ignoreCase = true) && !it.contentDescription.toString().contains("commande", ignoreCase = true) }
+                    if (validTabNodes.isNotEmpty()) {
+                        Journal.log("Clic sur l'onglet '$labelNouvelleTab'")
+                        validTabNodes.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        delay(1000)
+                        if (waitUntilTextAppears(labelMins, 3000)) {
+                            clickByText(labelMins)
+                        }
+                        break
+                    }
+                }
+                delay(500)
             }
 
             // 3. Wait until "Modifier" appears (indicates order details loaded)
