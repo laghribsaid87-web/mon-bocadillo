@@ -867,7 +867,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 if (root != null) {
                     val nodes = mutableListOf<AccessibilityNodeInfo>()
                     findAllNodesWithTextRecursively(labelNouvelleTab, root, nodes)
-                    val validTabNodes = nodes.filter { !it.text.toString().contains("commande", ignoreCase = true) && !it.contentDescription.toString().contains("commande", ignoreCase = true) }
+                    val validTabNodes = nodes.filter { !(it.text?.toString() ?: "").contains("commande", ignoreCase = true) && !(it.contentDescription?.toString() ?: "").contains("commande", ignoreCase = true) }
                     if (validTabNodes.isNotEmpty()) {
                         Journal.log("Clic sur l'onglet '$labelNouvelleTab' (Dernier recours)")
                         validTabNodes.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
