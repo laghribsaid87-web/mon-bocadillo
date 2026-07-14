@@ -640,6 +640,63 @@ class AutomatorAccessibilityService : AccessibilityService() {
         Log.e("AutoService", "Service Interrupted")
     }
 
+    private fun extractAllTextsFromNode(node: AccessibilityNodeInfo?): List<String> {
+        val list = mutableListOf<String>()
+        if (node == null) return list
+        if (node.text != null) list.add(node.text.toString())
+        if (node.contentDescription != null) list.add(node.contentDescription.toString())
+        for (i in 0 until node.childCount) {
+            list.addAll(extractAllTextsFromNode(node.getChild(i)))
+        }
+        return list
+    }
+
+    private fun findAndClickNewOrderCard(root: AccessibilityNodeInfo?): Boolean {
+        if (root == null) return false
+        
+        var nouvelleY = -1
+        val nouvelleNodes = mutableListOf<AccessibilityNodeInfo>()
+        findAllNodesWithTextRecursively("Nouvelle", root, nouvelleNodes)
+        // Ignorer les bannières 'nouvelle commande' pour se concentrer sur l'onglet/titre
+        val validNouvelle = nouvelleNodes.firstOrNull { !it.text.toString().contains("commande", ignoreCase = true) && !it.contentDescription.toString().contains("commande", ignoreCase = true) }
+        if (validNouvelle != null) {
+            val rect = android.graphics.Rect()
+            validNouvelle.getBoundsInScreen(rect)
+            nouvelleY = rect.bottom
+        }
+        
+        var accepteeY = Int.MAX_VALUE
+        val accepteeNodes = mutableListOf<AccessibilityNodeInfo>()
+        findAllNodesWithTextRecursively("Acceptée", root, accepteeNodes)
+        if (accepteeNodes.isNotEmpty()) {
+            val rect = android.graphics.Rect()
+            accepteeNodes.first().getBoundsInScreen(rect)
+            accepteeY = rect.top
+        }
+        
+        val clickableNodes = findClickableNodes(root)
+        
+        for (node in clickableNodes) {
+            val rect = android.graphics.Rect()
+            node.getBoundsInScreen(rect)
+            
+            // Doit être sous 'Nouvelle' et au-dessus de 'Acceptée'
+            if (nouvelleY != -1 && rect.top < nouvelleY) continue
+            if (rect.bottom > accepteeY) continue
+            
+            val allTexts = extractAllTextsFromNode(node)
+            val hasMin = allTexts.any { it.endsWith("min", ignoreCase = true) || it.contains("min", ignoreCase = true) }
+            val hasOrderNum = allTexts.any { it.startsWith("#") || it.contains("produit", ignoreCase = true) }
+            
+            if (hasMin || hasOrderNum) {
+                Journal.log("Carte de commande intelligente détectée ! Clic en cours...")
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                return true
+            }
+        }
+        return false
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(receiver)
@@ -738,6 +795,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     clickedBanner = true
                     break
                 }
+                
+                // Smart detection pour la nouvelle mise à jour (ex: "9 min" dans un carré vert)
+                if (findAndClickNewOrderCard(rootInActiveWindow)) {
+                    break
+                }
+                
                 if (findNodeWithTextRecursively(labelMins, rootInActiveWindow) != null) {
                     Journal.log("Clic sur '$labelMins'")
                     clickByText(labelMins)
@@ -754,8 +817,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         Journal.log("Clic sur l'onglet '$labelNouvelleTab'")
                         validTabNodes.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         delay(1000)
-                        if (waitUntilTextAppears(labelMins, 3000)) {
-                            clickByText(labelMins)
+                        if (!findAndClickNewOrderCard(rootInActiveWindow)) {
+                            if (waitUntilTextAppears(labelMins, 3000)) {
+                                clickByText(labelMins)
+                            }
                         }
                         break
                     }
