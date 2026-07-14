@@ -2587,7 +2587,7 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
             {/* MODAL COMMANDES PRÊTES GLOVO */}
             {showGlovoModal && (
                 <div className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowGlovoModal(false)}>
-                    <div className="bg-gray-50 rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                    <div className="bg-gray-50 rounded-3xl w-full max-w-3xl p-6 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-black flex items-center gap-2" style={{color: brand.color || '#FFC244'}}>
                                 <Bike size={24} />
