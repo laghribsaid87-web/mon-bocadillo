@@ -422,6 +422,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
     }
 
     private var lastTriggerTime = 0L
+    private var lastTreeLogTime = 0L // Jdid: Pour ne pas spammer le log avec l'arbre UI
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -444,6 +445,23 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                 }
                 return
+            }
+        }
+        // 1.5 DUMP UI TREE POUR LE DEBUG GLOVO (Toutes les 15s au changement de page)
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val pkg = event.packageName?.toString() ?: ""
+            if (pkg.contains("deliveryhero", ignoreCase = true) || pkg.contains("glovo", ignoreCase = true)) {
+                val now = System.currentTimeMillis()
+                if (now - lastTreeLogTime > 15000) {
+                    lastTreeLogTime = now
+                    Journal.log("--- SCAN DE L'ÉCRAN GLOVO (UI TREE) ---")
+                    try {
+                        dumpNodeTree(rootInActiveWindow, 0)
+                    } catch (e: Exception) {
+                        Journal.log("Erreur pendant le scan: ${e.message}")
+                    }
+                    Journal.log("--- FIN DU SCAN ---")
+                }
             }
         }
         
@@ -1920,6 +1938,37 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
             }
             delay(500)
+        }
+    }
+
+    // 🔥 Jdid: Fonction pour imprimer l'arbre complet de l'interface (Chajara dyal UI)
+    private fun dumpNodeTree(node: AccessibilityNodeInfo?, depth: Int) {
+        if (node == null) return
+        val indent = "  ".repeat(depth)
+        val text = node.text?.toString()?.replace("\n", " ")
+        val desc = node.contentDescription?.toString()?.replace("\n", " ")
+        val className = node.className?.toString()?.substringAfterLast(".")
+        val bounds = android.graphics.Rect()
+        node.getBoundsInScreen(bounds)
+        
+        if (!text.isNullOrBlank() || !desc.isNullOrBlank() || node.isClickable) {
+            val info = buildString {
+                append("$indent[$className]")
+                if (!text.isNullOrBlank()) append(" txt:\"$text\"")
+                if (!desc.isNullOrBlank()) append(" desc:\"$desc\"")
+                if (node.isClickable) append(" [CLICKABLE]")
+                append(" $bounds")
+            }
+            Journal.log(info)
+            Log.d("GoDroidUI", info)
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i)
+            if (child != null) {
+                dumpNodeTree(child, depth + 1)
+                child.recycle() // Clean up memory
+            }
         }
     }
 }
