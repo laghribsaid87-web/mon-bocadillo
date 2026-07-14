@@ -1948,12 +1948,14 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val text = node.text?.toString()?.replace("\n", " ")
         val desc = node.contentDescription?.toString()?.replace("\n", " ")
         val className = node.className?.toString()?.substringAfterLast(".")
+        val viewId = node.viewIdResourceName?.substringAfterLast("/") // ID du composant
         val bounds = android.graphics.Rect()
         node.getBoundsInScreen(bounds)
         
-        if (!text.isNullOrBlank() || !desc.isNullOrBlank() || node.isClickable) {
+        if (!text.isNullOrBlank() || !desc.isNullOrBlank() || node.isClickable || !viewId.isNullOrBlank()) {
             val info = buildString {
                 append("$indent[$className]")
+                if (!viewId.isNullOrBlank()) append(" ID:\"$viewId\"")
                 if (!text.isNullOrBlank()) append(" txt:\"$text\"")
                 if (!desc.isNullOrBlank()) append(" desc:\"$desc\"")
                 if (node.isClickable) append(" [CLICKABLE]")
