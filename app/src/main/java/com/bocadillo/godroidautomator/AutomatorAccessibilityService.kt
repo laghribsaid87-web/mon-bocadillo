@@ -541,8 +541,25 @@ class AutomatorAccessibilityService : AccessibilityService() {
     }
 
     private fun checkAndDismissPopups() {
-        // Disabled to prevent infinite back loops caused by false positives
-        return
+        try {
+            val root = rootInActiveWindow ?: return
+            val text = extractAllText(root)
+            
+            // Handle the full-screen green popup: "Vous avez X nouvelle commande en attente !"
+            if (text.contains("nouvelle commande en attente", ignoreCase = true)) {
+                Journal.log("Popup plein écran détecté. Fermeture...")
+                // Try clicking standard close buttons first
+                val closeClicked = clickByText("Fermer") || clickByText("Close") || clickByText("X")
+                if (!closeClicked) {
+                    // Fallback to the Android BACK button
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    Journal.log("Bouton retour Android utilisé pour fermer le popup.")
+                }
+                Thread.sleep(1000)
+            }
+        } catch (e: Exception) {
+            Log.e("GoDroidUI", "Error dismissing popups", e)
+        }
     }
 
     private fun findClickableNodes(node: AccessibilityNodeInfo?): List<AccessibilityNodeInfo> {
