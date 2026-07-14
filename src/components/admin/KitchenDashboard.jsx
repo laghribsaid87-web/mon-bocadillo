@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2, Minus, Monitor } from 'lucide-react';
+import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2, Minus, Monitor, Type, ChevronUp, ChevronDown } from 'lucide-react';
 import { doc, updateDoc, setDoc, collection, query, where, orderBy, limit, getDocs, startAfter, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { db, appId } from '../../config/firebase';
 import { formatSansIngredient } from '../../utils/helpers';
@@ -64,6 +64,31 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     const [localOrders, setLocalOrders] = useState([]);
     const [wsConnected, setWsConnected] = useState(false);
     const localSocketRef = useRef(null);
+
+    // 🔥 Jdid: Font Settings pour KDS
+    const [showFontConfig, setShowFontConfig] = useState(false);
+    const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+    const [kdsFontSizes, setKdsFontSizes] = useState(() => {
+        const saved = localStorage.getItem('kdsFontSizes');
+        const parsed = saved ? JSON.parse(saved) : {};
+        return { 
+            principal: parsed.principal || 16, 
+            sans: parsed.sans || 11, 
+            extra: parsed.extra || 11,
+            headerNum: parsed.headerNum || 30,
+            headerTags: parsed.headerTags || 11,
+            btnReady: parsed.btnReady || 12
+        };
+    });
+
+    const updateKdsFontSize = (type, delta) => {
+        setKdsFontSizes(prev => {
+            const newVal = Math.max(8, Math.min(48, prev[type] + delta));
+            const updated = { ...prev, [type]: newVal };
+            localStorage.setItem('kdsFontSizes', JSON.stringify(updated));
+            return updated;
+        });
+    };
 
     useEffect(() => {
         if (!posLocalIp) return;
@@ -371,7 +396,11 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
             headerBg: 'bg-[#FFC244]',
             headerBorder: 'border-black/20',
             text: '!text-[15px] text-black',
-            label: 'GLOVO',
+            label: (
+                <svg className="h-[20px] inline-block -mt-1 drop-shadow-sm" viewBox=".06 .127 147.592 47.611" xmlns="http://www.w3.org/2000/svg">
+                    <path d="m.06 31.102v-.092c0-9.057 7.04-16.727 16.946-16.727 4.929 0 8.214 1.154 11.219 3.28a2.866 2.866 0 0 1 1.174 2.31c0 1.526-1.267 2.82-2.864 2.82-.751 0-1.314-.324-1.784-.648-2.112-1.524-4.412-2.542-7.98-2.542-6.055 0-10.655 5.223-10.655 11.414v.093c0 6.654 4.459 11.552 11.172 11.552 3.098 0 5.914-.97 7.933-2.449v-6.053h-6.478c-1.409 0-2.581-1.062-2.581-2.448 0-1.387 1.172-2.496 2.581-2.496h9.154c1.642 0 2.91 1.248 2.91 2.866v8.64c0 1.617-.657 2.773-2.018 3.604-2.817 1.849-6.76 3.512-11.688 3.512-10.282-.001-17.041-7.208-17.041-16.636zm35.924-15.11c0-1.525 1.22-2.773 2.815-2.773 1.597 0 2.864 1.248 2.864 2.773v28.65c0 1.571-1.268 2.772-2.864 2.772-1.548 0-2.815-1.2-2.815-2.773v-28.65zm10.079 19.131v-.094c0-6.977 5.632-12.753 13.237-12.753 7.604 0 13.191 5.684 13.191 12.662v.091c0 6.933-5.633 12.709-13.285 12.709-7.558 0-13.143-5.684-13.143-12.615zm20.748 0v-.094c0-4.296-3.146-7.854-7.605-7.854-4.554 0-7.464 3.512-7.464 7.763v.091c0 4.252 3.145 7.81 7.558 7.81 4.6 0 7.51-3.512 7.51-7.716zm19.861 12.522h-.282c-1.548 0-2.582-.97-3.238-2.45l-8.26-18.622c-.142-.416-.33-.876-.33-1.386 0-1.386 1.267-2.68 2.816-2.68 1.548 0 2.346.878 2.816 2.034l6.384 16.172 6.478-16.264c.423-.971 1.173-1.942 2.676-1.942 1.549 0 2.769 1.156 2.769 2.68 0 .51-.187 1.064-.327 1.34l-8.262 18.669c-.66 1.432-1.69 2.45-3.24 2.45zm13.9-12.522v-.094c0-6.977 5.633-12.753 13.24-12.753 7.602 0 13.189 5.684 13.189 12.662v.091c0 6.933-5.633 12.709-13.285 12.709-7.557 0-13.144-5.684-13.144-12.615zm20.75 0v-.094c0-4.296-3.146-7.854-7.606-7.854-4.553 0-7.463 3.512-7.463 7.763v.091c0 4.252 3.144 7.81 7.558 7.81 4.599 0 7.51-3.512 7.51-7.716zm15.177-34.996c-6.15 0-11.153 4.927-11.153 10.98 0 2.306.728 4.52 2.103 6.402l.297.405 5.806 8.067s.709 1.14 2.254 1.14h1.387c1.546 0 2.252-1.14 2.252-1.14l5.808-8.067.294-.405a10.787 10.787 0 0 0 2.105-6.402c0-6.053-5.003-10.98-11.153-10.98zm4.59 14.222-.309.426-4.28 5.947-4.274-5.935-.314-.431a5.475 5.475 0 0 1 -1.074-3.249c0-3.073 2.54-5.573 5.66-5.573 3.122 0 5.661 2.5 5.661 5.573 0 1.165-.37 2.286-1.07 3.242zm-7.727 17.725v-.022c0-1.64 1.323-2.999 3.11-2.999 1.789 0 3.101 1.336 3.101 2.977v.022c0 1.628-1.324 2.986-3.122 2.986-1.775 0-3.09-1.335-3.09-2.964z" fill="#00a082" fillRule="evenodd"/>
+                </svg>
+            ),
             orderNumberText: 'text-black'
         };
         return {
@@ -394,8 +423,20 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                 </div>
             )}
 
+            {/* Bouton pour afficher/masquer l'en-tête */}
+            <div className="flex justify-center mb-2">
+                <button 
+                    onClick={() => setIsHeaderVisible(!isHeaderVisible)} 
+                    className="bg-neutral-800 hover:bg-neutral-700 text-neutral-400 p-1.5 rounded-full border border-neutral-700 shadow-sm transition-all"
+                    title={isHeaderVisible ? "Masquer l'en-tête pour plus d'espace" : "Afficher l'en-tête"}
+                >
+                    {isHeaderVisible ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
+                </button>
+            </div>
+
             {/* En-tête du Dashboard KDS */}
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b-2 border-neutral-900">
+            {isHeaderVisible && (
+            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b-2 border-neutral-900 animate-in slide-in-from-top-4 fade-in duration-300">
                 <div className="flex items-center gap-4">
                     <div className="bg-neutral-900 p-4 rounded-2xl border border-neutral-800 shadow-lg">
                         <ChefHat size={32} className="text-orange-500" />
@@ -473,6 +514,69 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             <p className="text-[10px] text-neutral-500 mt-2 italic max-w-[200px]">Tapez 'localhost' si KDS est sur le même ordinateur, ou l'IP WiFi de la caisse.</p>
                         </div>
                     )}
+
+                    {/* Bouton Taille de Police */}
+                    <button onClick={() => setShowFontConfig(!showFontConfig)} className={`shrink-0 px-3 py-2 rounded-xl font-bold text-sm flex items-center gap-2 border transition-all shadow-sm ${showFontConfig ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-neutral-900 text-neutral-300 hover:text-white border-neutral-800 hover:border-neutral-700'}`} title="Taille de Police">
+                        <Type size={18}/>
+                    </button>
+                    {showFontConfig && (
+                        <div className="absolute top-20 right-8 bg-neutral-900 p-4 rounded-2xl border border-neutral-800 shadow-xl z-50 animate-in fade-in slide-in-from-top-4 min-w-[250px]">
+                            <label className="block text-xs font-bold text-neutral-400 mb-3 uppercase tracking-widest flex justify-between items-center">
+                                Tailles de police
+                                <button onClick={() => setShowFontConfig(false)} className="text-neutral-500 hover:text-white"><X size={14}/></button>
+                            </label>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between bg-neutral-800 p-2 rounded-xl">
+                                    <span className="text-xs font-bold text-white uppercase">Produits</span>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => updateKdsFontSize('principal', -1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">-</button>
+                                        <span className="text-sm font-black text-orange-400 w-6 text-center">{kdsFontSizes.principal}</span>
+                                        <button onClick={() => updateKdsFontSize('principal', 1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">+</button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between bg-neutral-800 p-2 rounded-xl">
+                                    <span className="text-xs font-bold text-red-400 uppercase">Sans</span>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => updateKdsFontSize('sans', -1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">-</button>
+                                        <span className="text-sm font-black text-red-400 w-6 text-center">{kdsFontSizes.sans}</span>
+                                        <button onClick={() => updateKdsFontSize('sans', 1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">+</button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between bg-neutral-800 p-2 rounded-xl">
+                                    <span className="text-xs font-bold text-green-400 uppercase">Extra</span>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => updateKdsFontSize('extra', -1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">-</button>
+                                        <span className="text-sm font-black text-green-400 w-6 text-center">{kdsFontSizes.extra}</span>
+                                        <button onClick={() => updateKdsFontSize('extra', 1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">+</button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between bg-neutral-800 p-2 rounded-xl">
+                                    <span className="text-xs font-bold text-white uppercase">N° Cmd</span>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => updateKdsFontSize('headerNum', -1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">-</button>
+                                        <span className="text-sm font-black text-white w-6 text-center">{kdsFontSizes.headerNum}</span>
+                                        <button onClick={() => updateKdsFontSize('headerNum', 1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">+</button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between bg-neutral-800 p-2 rounded-xl">
+                                    <span className="text-xs font-bold text-blue-400 uppercase">Tags</span>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => updateKdsFontSize('headerTags', -1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">-</button>
+                                        <span className="text-sm font-black text-blue-400 w-6 text-center">{kdsFontSizes.headerTags}</span>
+                                        <button onClick={() => updateKdsFontSize('headerTags', 1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">+</button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between bg-neutral-800 p-2 rounded-xl">
+                                    <span className="text-xs font-bold text-green-500 uppercase">Btn Prêt</span>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => updateKdsFontSize('btnReady', -1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">-</button>
+                                        <span className="text-sm font-black text-green-500 w-6 text-center">{kdsFontSizes.btnReady}</span>
+                                        <button onClick={() => updateKdsFontSize('btnReady', 1)} className="p-1 bg-neutral-700 hover:bg-neutral-600 rounded text-white">+</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <button 
                         onClick={() => {
                             if ('speechSynthesis' in window) {
@@ -532,7 +636,8 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                     </button>
                 </div>
             </header>
-            
+            )}
+
             {/* Grille Kanban des Commandes */}
             {filteredPreparingOrders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-[50dvh] text-neutral-600 space-y-4">
@@ -547,7 +652,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             <div key={o.id} className={`${styles.bg} border-2 ${styles.border} rounded-2xl flex flex-col overflow-hidden shadow-lg`}>
                                 <div className={`${styles.headerBg} px-3 py-2 border-b ${styles.headerBorder} flex flex-col relative`}>
                                     <div className="flex justify-between items-center">
-                                        <span className={`font-black text-base ${styles.text}`}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                        <span className={`font-black ${styles.text}`} style={{ fontSize: Math.round(kdsFontSizes.headerNum * 0.6) + 'px' }}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
                                         <div className="flex items-center gap-2">
                                             <button onClick={(e) => { e.stopPropagation(); readOrder(o); }} className="p-1.5 bg-blue-500 text-white rounded-md active:scale-95 transition-all" title="Lire la commande">
                                                 <Volume2 size={14} />
@@ -556,13 +661,13 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         </div>
                                     </div>
                                     <span className={`text-[9px] font-black uppercase mt-1 tracking-widest flex items-center gap-1`}>
-                                        <span className={`${styles.text}`}>{styles.label}</span>
+                                        <span className={`${styles.text}`} style={{ fontSize: kdsFontSizes.headerTags + 'px' }}>{styles.label}</span>
                                         {(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
-                                            <span className="text-white bg-red-500 px-1.5 py-0.5 rounded-sm border border-red-600 font-black animate-pulse ml-1 shadow-[0_0_10px_rgba(239,68,68,0.5)]">ESPECE</span>
+                                            <span className="text-white bg-red-500 px-1.5 py-0.5 rounded-sm border border-red-600 font-black animate-pulse ml-1 shadow-[0_0_10px_rgba(239,68,68,0.5)]" style={{ fontSize: kdsFontSizes.headerTags + 'px' }}>ESPECE</span>
                                         )}
                                     </span>
                                     {o.source === 'pos' && (
-                                        <span className={`text-[9px] font-black uppercase mt-1 px-1.5 py-0.5 rounded-md w-fit text-white ${o.orderType === 'sur_place' ? 'bg-blue-600' : 'bg-pink-600'}`}>
+                                        <span className={`font-black uppercase mt-1 px-1.5 py-0.5 rounded-md w-fit text-white ${o.orderType === 'sur_place' ? 'bg-blue-600' : 'bg-pink-600'}`} style={{ fontSize: Math.max(8, kdsFontSizes.headerTags - 1) + 'px' }}>
                                             {o.orderType === 'sur_place' ? '🍽️ SUR PLACE (PLATEAUX)' : '🛍️ À EMPORTER (EMBALLAGE)'}
                                         </span>
                                     )}
@@ -572,10 +677,10 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                 </div>
                                 <div className="p-3 flex-1 no-scrollbar space-y-1.5">
                                     {(o.filteredItems || []).map((item, idx) => (
-                                        <div key={idx} className="text-xs font-bold text-neutral-200 leading-tight border-b border-neutral-800/50 pb-1.5 last:border-0 last:pb-0">
-                                            <span className="text-orange-400 font-black">{item.qty}x</span> <span className="text-white">{(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
+                                        <div key={idx} dir="auto" className="text-xs font-bold text-neutral-200 leading-tight border-b-2 border-dashed border-neutral-600 pb-3 mb-2 last:border-0 last:pb-0 last:mb-0">
+                                            <span className="text-yellow-400 font-black me-3 inline-block" style={{ fontSize: kdsFontSizes.principal + 'px' }}>{item.qty}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span><span className="text-white font-black" style={{ fontSize: kdsFontSizes.principal + 'px' }}>{(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
                                             {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
-                                                <div className="flex flex-col gap-1 mt-1">
+                                                <div className="flex flex-col gap-1 mt-1 items-end w-full" dir="auto">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getGlovoName(opt).replace(/"/g, '');
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout') || mappedOpt.includes('إكسترا');
@@ -584,10 +689,20 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                             displayOpt = `+ ${displayOpt}`;
                                                         }
                                                         displayOpt = displayOpt.replace(/^\+\s*\+\s*/, '+ ');
+                                                        
+                                                        let qtyStr = '';
+                                                        let textStr = displayOpt;
+                                                        const qtyMatch = displayOpt.match(/(?:^|\s)(\d+x)(?:\s|$)/i);
+                                                        if (qtyMatch) {
+                                                            qtyStr = qtyMatch[1];
+                                                            textStr = displayOpt.replace(qtyMatch[1], '').trim();
+                                                        }
+                                                        
                                                         return (
-                                                            <span key={oIdx} className={`text-[11px] font-black uppercase tracking-wider ${isExtra ? 'text-green-500' : 'text-red-400'}`}>
-                                                                {displayOpt}
-                                                            </span>
+                                                            <div key={oIdx} className={`font-black uppercase tracking-wider flex items-center gap-2 ${isExtra ? 'text-green-500' : 'text-red-400'}`} style={{ fontSize: (isExtra ? kdsFontSizes.extra : kdsFontSizes.sans) + 'px' }} dir="ltr">
+                                                                <span dir="auto" className="text-right">{textStr}</span>
+                                                                {qtyStr && <span className="text-yellow-400 shrink-0">{qtyStr.replace(/x/i, '')}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span>}
+                                                            </div>
                                                         );
                                                     })}
                                                 </div>
@@ -608,7 +723,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         });
                                         if (validLines.length === 0) return null;
                                         return (
-                                            <div className="mt-2 text-[11px] text-black font-black bg-yellow-400 p-2 rounded-lg border-2 border-yellow-500 flex flex-col gap-1 shadow-md">
+                                            <div dir="auto" className="mt-2 text-[11px] text-black font-black bg-yellow-400 p-2 rounded-lg border-2 border-yellow-500 flex flex-col gap-1 shadow-md items-start">
                                                 {validLines.map((line, idx) => {
                                                     const lowerLine = line.toLowerCase();
                                                     if (lowerLine.includes('sans ')) {
@@ -623,7 +738,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         );
                                     })()}
                                 </div>
-                            <button onClick={() => markOrderAsReady(o.id)} className="w-full py-3 text-white font-black text-xs uppercase tracking-wider transition-colors hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a' }}>
+                            <button onClick={() => markOrderAsReady(o.id)} className="w-full py-3 text-white font-black uppercase tracking-wider transition-colors hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a', fontSize: kdsFontSizes.btnReady + 'px' }}>
                                 {brand.texts?.btnKdsReady || 'Prêt'}
                             </button>
                             </div>
@@ -640,14 +755,14 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             {/* Header de la carte commande */}
                             <div className={`${styles.headerBg} p-6 border-b ${styles.headerBorder} flex justify-between items-start relative`}>
                                 <div className="flex flex-col gap-1">
-                                    <span className={`text-[11px] font-black uppercase tracking-widest ${styles.text}`}>
+                                    <span className={`font-black uppercase tracking-widest ${styles.text}`} style={{ fontSize: kdsFontSizes.headerTags + 'px' }}>
                                         {styles.label}{(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
-                                            <span className="text-white bg-red-500 px-2 py-0.5 rounded border-2 border-red-700 ml-2 font-black shadow-[0_0_10px_rgba(239,68,68,0.5)] uppercase animate-pulse">ESPECE</span>
+                                            <span className="text-white bg-red-500 px-2 py-0.5 rounded border-2 border-red-700 ml-2 font-black shadow-[0_0_10px_rgba(239,68,68,0.5)] uppercase animate-pulse" style={{ fontSize: kdsFontSizes.headerTags + 'px' }}>ESPECE</span>
                                         )}
                                     </span>
-                                    <span className={`text-3xl font-black uppercase tracking-tighter ${styles.orderNumberText || 'text-white'}`}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                    <span className={`font-black uppercase tracking-tighter ${styles.orderNumberText || 'text-white'}`} style={{ fontSize: kdsFontSizes.headerNum + 'px' }}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
                                     {o.source === 'pos' && (
-                                        <span className={`text-[10px] font-black uppercase mt-1 px-2 py-1 rounded-md w-fit text-white ${o.orderType === 'sur_place' ? 'bg-blue-600' : 'bg-pink-600'}`}>
+                                        <span className={`font-black uppercase mt-1 px-2 py-1 rounded-md w-fit text-white ${o.orderType === 'sur_place' ? 'bg-blue-600' : 'bg-pink-600'}`} style={{ fontSize: Math.max(8, kdsFontSizes.headerTags - 1) + 'px' }}>
                                             {o.orderType === 'sur_place' ? '🍽️ SUR PLACE (PLATEAUX)' : '🛍️ À EMPORTER (EMBALLAGE)'}
                                         </span>
                                     )}
@@ -682,10 +797,10 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                         {typeof item.img === 'string' && (item.img.startsWith('http') || item.img.startsWith('data:image')) ? <img src={item.img} className={`w-full h-full object-cover transition-all ${isChecked ? 'grayscale' : ''}`} alt="" /> : <span className="text-2xl">{item.img}</span>}
                                                     </div>
                                                 )}
-                                                <div className="flex-1 pt-1">
-                                                    <span className={`font-black text-xl block leading-tight ${isChecked ? 'line-through decoration-2' : ''} text-white`}>{item.qty}x {(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
+                                                <div className="flex-1 pt-1 flex flex-col items-start" dir="auto">
+                                                    <span className={`font-black block leading-tight ${isChecked ? 'line-through decoration-2' : ''}`} style={{ fontSize: kdsFontSizes.principal + 'px' }}><span className="text-yellow-400 me-3 inline-block">{item.qty}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span><span className="text-white">{(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span></span>
                                                     {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
-                                                <div className="flex flex-col items-start gap-1.5 mt-2">
+                                                <div className="flex flex-col items-end w-full gap-1.5 mt-2" dir="auto">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getGlovoName(opt).replace(/"/g, '');
                                                         const isExtra = mappedOpt.toLowerCase().includes('extra') || mappedOpt.toLowerCase().includes('ajout') || mappedOpt.includes('إكسترا');
@@ -694,10 +809,20 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                             displayOpt = `+ ${displayOpt}`;
                                                         }
                                                         displayOpt = displayOpt.replace(/^\+\s*\+\s*/, '+ ');
+                                                        
+                                                        let qtyStr = '';
+                                                        let textStr = displayOpt;
+                                                        const qtyMatch = displayOpt.match(/(?:^|\s)(\d+x)(?:\s|$)/i);
+                                                        if (qtyMatch) {
+                                                            qtyStr = qtyMatch[1];
+                                                            textStr = displayOpt.replace(qtyMatch[1], '').trim();
+                                                        }
+
                                                         return (
-                                                            <span key={oIdx} className={`inline-block px-3 py-1 rounded-lg text-sm font-black uppercase tracking-wider border ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
-                                                                {displayOpt}
-                                                            </span>
+                                                            <div key={oIdx} className={`inline-flex px-3 py-1 rounded-lg font-black uppercase tracking-wider border items-center gap-2 ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`} style={{ fontSize: (isExtra ? kdsFontSizes.extra : kdsFontSizes.sans) + 'px' }} dir="ltr">
+                                                                <span dir="auto" className="text-right">{textStr}</span>
+                                                                {qtyStr && <span className="text-yellow-400 shrink-0">{qtyStr.replace(/x/i, '')}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span>}
+                                                            </div>
                                                         );
                                                     })}
                                                 </div>
@@ -755,7 +880,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
 
                             {/* Bouton de validation final */}
                             <div className="p-6 bg-neutral-900 border-t border-neutral-800 shrink-0">
-                                <button onClick={() => markOrderAsReady(o.id)} className="w-full py-6 text-white rounded-[1.5rem] font-black text-lg uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-3 hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a', boxShadow: `0 0 30px ${brand.kdsBtnReadyColor || '#16a34a'}40` }}>
+                                <button onClick={() => markOrderAsReady(o.id)} className="w-full py-6 text-white rounded-[1.5rem] font-black uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-3 hover:opacity-90" style={{ backgroundColor: brand.kdsBtnReadyColor || '#16a34a', boxShadow: `0 0 30px ${brand.kdsBtnReadyColor || '#16a34a'}40`, fontSize: Math.round(kdsFontSizes.btnReady * 1.5) + 'px' }}>
                                     <CheckCircle size={28} /> 
                                     {brand.texts?.btnKdsReady || 'Prêt'}
                                 </button>
