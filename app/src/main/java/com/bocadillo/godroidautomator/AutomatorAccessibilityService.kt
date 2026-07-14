@@ -488,23 +488,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 return
             }
         }
-        // 1.5 DUMP UI TREE POUR LE DEBUG GLOVO (Toutes les 15s au changement de page)
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val pkg = event.packageName?.toString() ?: ""
-            if (pkg.contains("deliveryhero", ignoreCase = true) || pkg.contains("glovo", ignoreCase = true)) {
-                val now = System.currentTimeMillis()
-                if (now - lastTreeLogTime > 15000) {
-                    lastTreeLogTime = now
-                    Journal.log("--- SCAN DE L'ÉCRAN GLOVO (UI TREE) ---")
-                    try {
-                        dumpNodeTree(rootInActiveWindow, 0)
-                    } catch (e: Exception) {
-                        Journal.log("Erreur pendant le scan: ${e.message}")
-                    }
-                    Journal.log("--- FIN DU SCAN ---")
-                }
-            }
-        }
+        // 1.5 DUMP UI TREE POUR LE DEBUG GLOVO (Toutes les 15s au changement de page) - DESACTIVE
+        // (Le scan manuel via le bouton de l'application reste actif)
         
         // 2. Déclenchement par Visuel (Si l'app est déjà ouverte)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
