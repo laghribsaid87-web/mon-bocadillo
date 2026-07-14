@@ -50,6 +50,18 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         }
                     }
                 }
+            } else if (intent?.action == "com.bocadillo.godroidautomator.SCAN_UI_TREE") {
+                Journal.log("Broadcast reçu: SCAN_UI_TREE (Scan dans 4s)")
+                coroutineScope.launch {
+                    delay(4000)
+                    Journal.log("--- SCAN MANUEL DE L'ÉCRAN (UI TREE) ---")
+                    try {
+                        dumpNodeTree(rootInActiveWindow, 0)
+                    } catch (e: Exception) {
+                        Journal.log("Erreur pendant le scan manuel: ${e.message}")
+                    }
+                    Journal.log("--- FIN DU SCAN MANUEL ---")
+                }
             }
         }
     }
@@ -60,6 +72,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val filter = IntentFilter()
         filter.addAction("com.bocadillo.godroidautomator.START_SEQUENCE")
         filter.addAction("com.bocadillo.godroidautomator.TEST_READ_ORDER")
+        filter.addAction("com.bocadillo.godroidautomator.SCAN_UI_TREE")
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)

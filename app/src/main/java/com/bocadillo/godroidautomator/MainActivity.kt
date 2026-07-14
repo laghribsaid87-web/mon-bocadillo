@@ -75,6 +75,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
         layout.addView(btnTest)
+
+        val btnScanTree = Button(this).apply {
+            text = "SCAN ARBRE UI (Glovo) - 4s"
+            setOnClickListener {
+                android.widget.Toast.makeText(this@MainActivity, "Basculez sur Glovo, le scan démarre dans 4s...", android.widget.Toast.LENGTH_LONG).show()
+                val intent = Intent("com.bocadillo.godroidautomator.SCAN_UI_TREE")
+                sendBroadcast(intent)
+            }
+        }
+        layout.addView(btnScanTree)
         
         val btnSettings = Button(this).apply {
             text = "Paramètres de Texte (Boutons Glovo)"
