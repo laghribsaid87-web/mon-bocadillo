@@ -2603,35 +2603,35 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                 </div>
                             ) : (
                                 readyGlovoOrders.map(o => (
-                                    <div key={o.id} className="bg-white p-4 rounded-2xl border-2 border-[#FFC244]/30 shadow-sm flex flex-col gap-3">
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex flex-col">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-black text-xl text-yellow-600 uppercase">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
-                                                    {(o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? (
-                                                        <span className="text-[10px] text-green-700 bg-green-100 px-2 py-1 rounded-md border border-green-300 font-black animate-pulse">ESPECE 💵 À ENCAISSER: {o.total || '???'} DH</span>
-                                                    ) : (
-                                                        <span className="text-[10px] text-blue-700 bg-blue-100 px-2 py-1 rounded-md border border-blue-300 font-black">EN LIGNE 💳 (DÉJÀ PAYÉ)</span>
-                                                    )}
-                                                </div>
-                                                <span className="text-xs font-bold text-gray-500 mt-1">{o.items?.length || 0} article(s)</span>
-                                            </div>
-                                            <div className="flex flex-col items-end">
-                                                <span className="font-black text-lg text-gray-900">{o.total || '???'} DH</span>
-                                            </div>
+                                    <div key={o.id} className="bg-white p-3 rounded-2xl border-2 border-[#FFC244]/30 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex items-center flex-wrap gap-2">
+                                            <span className="font-black text-2xl text-yellow-600 uppercase">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                            
+                                            {(o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? (
+                                                <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-md border border-green-300 font-black shadow-sm">
+                                                    ESPECE 💵: {o.total || '???'} DH
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded-md border border-blue-300 font-black shadow-sm">
+                                                    EN LIGNE 💳
+                                                </span>
+                                            )}
+
+                                            {o.pickupCode && (
+                                                <span className="text-sm text-purple-800 bg-purple-100 px-3 py-1 rounded-md border border-purple-400 font-black tracking-widest uppercase shadow-sm">
+                                                    PIN: {o.pickupCode}
+                                                </span>
+                                            )}
                                         </div>
-                                        {o.pickupCode && (
-                                            <div className="bg-purple-100 border-2 border-purple-400 text-purple-800 p-3 rounded-lg text-center font-black shadow-sm flex flex-col mt-1">
-                                                <span className="text-xs uppercase opacity-80 mb-1">CODE DE RETRAIT (PIN)</span>
-                                                <span className="text-4xl tracking-widest uppercase">{o.pickupCode}</span>
-                                            </div>
-                                        )}
+
                                         <button onClick={() => { 
                                             updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() }); 
                                             printTicket(o, brand);
                                             showNotify("Remis au Livreur Glovo !", "success"); 
                                             if (readyGlovoOrders.length === 1) setShowGlovoModal(false); 
-                                        }} className="bg-[#FFC244] hover:bg-yellow-500 text-black px-5 py-3 rounded-xl font-black text-sm transition-colors shadow-md flex items-center justify-center gap-2"><CheckCircle size={18}/> Remis au Livreur</button>
+                                        }} className="bg-[#FFC244] hover:bg-yellow-500 text-black px-4 py-2 rounded-xl font-black text-sm transition-colors shadow-md flex items-center gap-2 whitespace-nowrap">
+                                            <CheckCircle size={18}/> Remis
+                                        </button>
                                     </div>
                                 ))
                             )}
