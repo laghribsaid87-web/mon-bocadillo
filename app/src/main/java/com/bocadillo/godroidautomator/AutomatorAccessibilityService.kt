@@ -793,55 +793,58 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Attente de '$labelMins', '$labelNouvelle' ou onglet '$labelNouvelleTab'...")
             
             var clickedBanner = false
+            var cardFound = false
             for (i in 0..20) {
                 // Smart detection pour la nouvelle mise à jour (ex: "9 min" dans un carré vert) en PREMIER !
                 try {
                     if (findAndClickNewOrderCard(rootInActiveWindow)) {
+                        cardFound = true
                         break
                     }
                 } catch (e: Exception) {
                     Journal.log("Erreur dans findAndClickNewOrderCard: ${e.message}")
                 }
 
-                if (findNodeWithTextRecursively(labelNouvelle, rootInActiveWindow) != null) {
+                if (!clickedBanner && findNodeWithTextRecursively(labelNouvelle, rootInActiveWindow) != null) {
                     Journal.log("Clic sur '$labelNouvelle'")
                     clickByText(labelNouvelle)
                     clickedBanner = true
-                    break
+                    // On ne fait pas de break ici ! On continue d'attendre l'apparition du carré vert.
                 }
                 
                 if (findNodeWithTextRecursively(labelMins, rootInActiveWindow) != null) {
                     Journal.log("Clic sur '$labelMins'")
-                    clickByText(labelMins)
-                    break
+                    if (clickByText(labelMins)) {
+                        cardFound = true
+                        break
+                    }
                 }
-                // Try to see if there is a "Nouvelle X" tab
+                
+                delay(500)
+            }
+            
+            // Si après 10 secondes on n'a toujours rien trouvé, on tente l'onglet "Nouvelle" en dernier recours
+            if (!cardFound) {
                 val root = rootInActiveWindow
                 if (root != null) {
                     val nodes = mutableListOf<AccessibilityNodeInfo>()
                     findAllNodesWithTextRecursively(labelNouvelleTab, root, nodes)
-                    // Ignore the banner itself if it somehow matches "Nouvelle"
                     val validTabNodes = nodes.filter { !it.text.toString().contains("commande", ignoreCase = true) && !it.contentDescription.toString().contains("commande", ignoreCase = true) }
                     if (validTabNodes.isNotEmpty()) {
-                        Journal.log("Clic sur l'onglet '$labelNouvelleTab'")
+                        Journal.log("Clic sur l'onglet '$labelNouvelleTab' (Dernier recours)")
                         validTabNodes.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         delay(1000)
-                        var cardClicked = false
                         try {
-                            cardClicked = findAndClickNewOrderCard(rootInActiveWindow)
+                            if (!findAndClickNewOrderCard(rootInActiveWindow)) {
+                                if (waitUntilTextAppears(labelMins, 3000)) {
+                                    clickByText(labelMins)
+                                }
+                            }
                         } catch (e: Exception) {
                             Journal.log("Erreur dans findAndClickNewOrderCard: ${e.message}")
                         }
-                        
-                        if (!cardClicked) {
-                            if (waitUntilTextAppears(labelMins, 3000)) {
-                                clickByText(labelMins)
-                            }
-                        }
-                        break
                     }
                 }
-                delay(500)
             }
 
             // 3. Wait until "Modifier" appears (indicates order details loaded)
