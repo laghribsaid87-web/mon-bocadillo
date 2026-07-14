@@ -2630,6 +2630,12 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                                 <span className="text-xs uppercase opacity-80">Commande En Ligne (Déjà Payée)</span>
                                             </div>
                                         )}
+                                        {o.pickupCode && (
+                                            <div className="bg-purple-100 border-2 border-purple-400 text-purple-800 p-3 rounded-lg text-center font-black shadow-sm flex flex-col mt-1">
+                                                <span className="text-xs uppercase opacity-80 mb-1">CODE DE RETRAIT (PIN)</span>
+                                                <span className="text-4xl tracking-widest uppercase">{o.pickupCode}</span>
+                                            </div>
+                                        )}
                                         <button onClick={() => { 
                                             updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() }); 
                                             printTicket(o, brand);
