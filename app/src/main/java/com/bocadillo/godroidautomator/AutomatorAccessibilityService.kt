@@ -557,8 +557,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 return node
             }
         } else {
-            if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeText.contains(text, ignoreCase = true)) ||
-                nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeDesc.contains(text, ignoreCase = true))) {
+            if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeText.contains(text, ignoreCase = true) && !nodeText.contains("aucune", ignoreCase = true)) ||
+                nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeDesc.contains(text, ignoreCase = true) && !nodeDesc.contains("aucune", ignoreCase = true))) {
                 return node
             }
         }
@@ -626,8 +626,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val cleanDesc = nodeDesc.replace("#", "").trim()
         val cleanText = text.replace("#", "").trim()
         
-        if (cleanNodeText.equals(cleanText, ignoreCase = true) || cleanNodeText.endsWith(" " + cleanText, ignoreCase = true) || (cleanText.equals("nouvelle commande", ignoreCase = true) && cleanNodeText.contains(cleanText, ignoreCase = true)) ||
-            cleanDesc.equals(cleanText, ignoreCase = true) || cleanDesc.endsWith(" " + cleanText, ignoreCase = true) || (cleanText.equals("nouvelle commande", ignoreCase = true) && cleanDesc.contains(cleanText, ignoreCase = true))) {
+        if (cleanNodeText.equals(cleanText, ignoreCase = true) || cleanNodeText.endsWith(" " + cleanText, ignoreCase = true) || (cleanText.equals("nouvelle commande", ignoreCase = true) && cleanNodeText.contains(cleanText, ignoreCase = true) && !cleanNodeText.contains("aucune", ignoreCase = true)) ||
+            cleanDesc.equals(cleanText, ignoreCase = true) || cleanDesc.endsWith(" " + cleanText, ignoreCase = true) || (cleanText.equals("nouvelle commande", ignoreCase = true) && cleanDesc.contains(cleanText, ignoreCase = true) && !cleanDesc.contains("aucune", ignoreCase = true))) {
             result.add(node)
         }
 
@@ -683,10 +683,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
         for (node in clickableNodes) {
             val rect = android.graphics.Rect()
             node.getBoundsInScreen(rect)
+            val centerY = (rect.top + rect.bottom) / 2
             
             // Doit être sous 'Nouvelle' et au-dessus de 'Acceptée'
-            if (nouvelleY != -1 && rect.top < nouvelleY) continue
-            if (rect.bottom > accepteeY) continue
+            if (nouvelleY != -1 && centerY < nouvelleY) continue
+            if (centerY > accepteeY) continue
             
             val allTexts = extractAllTextsFromNode(node)
             val hasMin = allTexts.any { it.endsWith("min", ignoreCase = true) || it.contains("min", ignoreCase = true) }
