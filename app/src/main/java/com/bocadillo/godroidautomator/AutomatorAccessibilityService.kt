@@ -51,8 +51,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                 }
             } else if (intent?.action == "com.bocadillo.godroidautomator.SCAN_UI_TREE") {
-                Journal.log("Broadcast reçu: SCAN_UI_TREE (Scan dans 4s)")
+                Journal.log("Broadcast reçu: SCAN_UI_TREE (Ouverture de Glovo et Scan dans 4s)")
                 coroutineScope.launch {
+                    val launchIntent = packageManager.getLaunchIntentForPackage("com.deliveryhero.rps.restaurantandroidapp")
+                    if (launchIntent != null) {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(launchIntent)
+                    } else {
+                        Journal.log("Glovo introuvable sur l'appareil.")
+                    }
+                    
                     delay(4000)
                     Journal.log("--- SCAN MANUEL DE L'ÉCRAN (UI TREE) ---")
                     try {
