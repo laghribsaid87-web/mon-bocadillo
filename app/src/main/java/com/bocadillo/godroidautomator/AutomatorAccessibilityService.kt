@@ -480,9 +480,22 @@ class AutomatorAccessibilityService : AccessibilityService() {
         
         // 2. Déclenchement par Visuel (Si l'app est déjà ouverte)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val root = rootInActiveWindow ?: return
+            
+            // --- FERMETURE DES POPUPS GLOVO ---
+            val welcomePopup = findNodeWithTextRecursively("Bienvenue dans la nouvelle version", root, true)
+            if (welcomePopup != null) {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastTriggerTime > 2000) {
+                    lastTriggerTime = currentTime
+                    Journal.log("Popup 'Nouvelle version' détecté ! Fermeture automatique...")
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                }
+                return
+            }
+
             val labelMins = getLabel("btn_mins", "min")
             val labelNouvelle = "nouvelle commande"
-            val root = rootInActiveWindow ?: return
             
             if (isSequenceRunning) return
             
@@ -532,20 +545,26 @@ class AutomatorAccessibilityService : AccessibilityService() {
         return false
     }
 
-    private fun findNodeWithTextRecursively(text: String, node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+    private fun findNodeWithTextRecursively(text: String, node: AccessibilityNodeInfo?, containsMode: Boolean = false): AccessibilityNodeInfo? {
         if (node == null) return null
         
         val nodeText = node.text?.toString() ?: ""
         val nodeDesc = node.contentDescription?.toString() ?: ""
         
         // Exact match, ends with, or contains for specific banners
-        if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeText.contains(text, ignoreCase = true)) ||
-            nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeDesc.contains(text, ignoreCase = true))) {
-            return node
+        if (containsMode) {
+            if (nodeText.contains(text, ignoreCase = true) || nodeDesc.contains(text, ignoreCase = true)) {
+                return node
+            }
+        } else {
+            if (nodeText.equals(text, ignoreCase = true) || nodeText.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeText.contains(text, ignoreCase = true)) ||
+                nodeDesc.equals(text, ignoreCase = true) || nodeDesc.endsWith(" " + text, ignoreCase = true) || (text.equals("nouvelle commande", ignoreCase = true) && nodeDesc.contains(text, ignoreCase = true))) {
+                return node
+            }
         }
 
         for (i in 0 until node.childCount) {
-            val childNode = findNodeWithTextRecursively(text, node.getChild(i))
+            val childNode = findNodeWithTextRecursively(text, node.getChild(i), containsMode)
             if (childNode != null) return childNode
         }
         return null
