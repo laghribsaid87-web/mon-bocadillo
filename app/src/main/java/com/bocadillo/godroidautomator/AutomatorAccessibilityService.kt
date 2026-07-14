@@ -793,20 +793,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             var clickedBanner = false
             for (i in 0..20) {
-                if (findNodeWithTextRecursively(labelNouvelle, rootInActiveWindow) != null) {
-                    Journal.log("Clic sur '$labelNouvelle'")
-                    clickByText(labelNouvelle)
-                    clickedBanner = true
-                    break
-                }
-                
-                // Smart detection pour la nouvelle mise à jour (ex: "9 min" dans un carré vert)
+                // Smart detection pour la nouvelle mise à jour (ex: "9 min" dans un carré vert) en PREMIER !
                 try {
                     if (findAndClickNewOrderCard(rootInActiveWindow)) {
                         break
                     }
                 } catch (e: Exception) {
                     Journal.log("Erreur dans findAndClickNewOrderCard: ${e.message}")
+                }
+
+                if (findNodeWithTextRecursively(labelNouvelle, rootInActiveWindow) != null) {
+                    Journal.log("Clic sur '$labelNouvelle'")
+                    clickByText(labelNouvelle)
+                    clickedBanner = true
+                    break
                 }
                 
                 if (findNodeWithTextRecursively(labelMins, rootInActiveWindow) != null) {
