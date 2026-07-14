@@ -658,7 +658,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
         val nouvelleNodes = mutableListOf<AccessibilityNodeInfo>()
         findAllNodesWithTextRecursively("Nouvelle", root, nouvelleNodes)
         // Ignorer les bannières 'nouvelle commande' pour se concentrer sur l'onglet/titre
-        val validNouvelle = nouvelleNodes.firstOrNull { !it.text.toString().contains("commande", ignoreCase = true) && !it.contentDescription.toString().contains("commande", ignoreCase = true) }
+        val validNouvelle = nouvelleNodes.firstOrNull { 
+            val txt = it.text?.toString() ?: ""
+            val desc = it.contentDescription?.toString() ?: ""
+            !txt.contains("commande", ignoreCase = true) && !desc.contains("commande", ignoreCase = true) 
+        }
         if (validNouvelle != null) {
             val rect = android.graphics.Rect()
             validNouvelle.getBoundsInScreen(rect)
@@ -797,8 +801,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
                 
                 // Smart detection pour la nouvelle mise à jour (ex: "9 min" dans un carré vert)
-                if (findAndClickNewOrderCard(rootInActiveWindow)) {
-                    break
+                try {
+                    if (findAndClickNewOrderCard(rootInActiveWindow)) {
+                        break
+                    }
+                } catch (e: Exception) {
+                    Journal.log("Erreur dans findAndClickNewOrderCard: ${e.message}")
                 }
                 
                 if (findNodeWithTextRecursively(labelMins, rootInActiveWindow) != null) {
@@ -817,7 +825,14 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         Journal.log("Clic sur l'onglet '$labelNouvelleTab'")
                         validTabNodes.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         delay(1000)
-                        if (!findAndClickNewOrderCard(rootInActiveWindow)) {
+                        var cardClicked = false
+                        try {
+                            cardClicked = findAndClickNewOrderCard(rootInActiveWindow)
+                        } catch (e: Exception) {
+                            Journal.log("Erreur dans findAndClickNewOrderCard: ${e.message}")
+                        }
+                        
+                        if (!cardClicked) {
                             if (waitUntilTextAppears(labelMins, 3000)) {
                                 clickByText(labelMins)
                             }
