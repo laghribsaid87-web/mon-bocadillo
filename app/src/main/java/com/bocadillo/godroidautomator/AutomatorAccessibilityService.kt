@@ -1959,18 +1959,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
 
         Journal.log("Retour en haut de la page pour surveiller les nouvelles commandes...")
-        for (i in 0..3) {
-            val rootForScroll = rootInActiveWindow
-            if (rootForScroll != null) {
-                val scrollableNode = findScrollableNode(rootForScroll)
-                if (scrollableNode != null) {
-                    scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) // 8192
-                } else {
-                    performSwipeDown()
-                }
+        val rootForScroll = rootInActiveWindow
+        if (rootForScroll != null) {
+            val scrollableNode = findScrollableNode(rootForScroll)
+            if (scrollableNode != null) {
+                scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) // 8192
+            } else {
+                performSwipeDown()
             }
-            delay(500)
         }
+        delay(500)
     }
 
     // 🔥 Jdid: Fonction pour imprimer l'arbre complet de l'interface (Chajara dyal UI)
