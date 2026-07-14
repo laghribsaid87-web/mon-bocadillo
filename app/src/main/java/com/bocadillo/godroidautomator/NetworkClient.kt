@@ -144,28 +144,31 @@ object NetworkClient {
         }
     }
 
-    suspend fun markOrderAsGlovoReady(documentId: String) {
+    suspend fun markOrderAsGlovoReady(documentId: String, pickupCode: String? = null) {
         withContext(Dispatchers.IO) {
             try {
                 // We use a PATCH request to update the specific field using updateMask
-                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/orders/$documentId?updateMask.fieldPaths=isGlovoReadyClicked"
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/orders/$documentId"
                 
-                val jsonStr = """
-                {
-                  "fields": {
-                    "isGlovoReadyClicked": {
-                      "booleanValue": true
-                    }
-                  }
+                val fields = JSONObject()
+                fields.put("isGlovoReadyClicked", JSONObject().put("booleanValue", true))
+                if (pickupCode != null) {
+                    fields.put("pickupCode", JSONObject().put("stringValue", pickupCode))
                 }
-                """.trimIndent()
+                
+                val jsonObject = JSONObject().put("fields", fields)
 
                 val mediaType = "application/json; charset=utf-8".toMediaType()
-                val body = jsonStr.toRequestBody(mediaType)
+                val body = jsonObject.toString().toRequestBody(mediaType)
+                
+                var patchUrl = "$url?updateMask.fieldPaths=isGlovoReadyClicked"
+                if (pickupCode != null) {
+                    patchUrl += "&updateMask.fieldPaths=pickupCode"
+                }
 
                 // OkHttp doesn't have a direct PATCH method on builder in older versions, but you can do .method("PATCH", body)
                 val request = Request.Builder()
-                    .url(url)
+                    .url(patchUrl)
                     .method("PATCH", body)
                     .build()
 

@@ -385,6 +385,34 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
             if (orderFound) {
                 delay(500)
+                
+                var extractedPin: String? = null
+                try {
+                    Journal.log("Recherche du code QR pour $orderTextToFind")
+                    val clickedQrButton = clickButtonInSameContainer(orderTextToFind, "code QR") || clickButtonInSameContainer(orderTextToFind, "Afficher")
+                    if (clickedQrButton) {
+                        Journal.log("Popup QR ouvert. Lecture...")
+                        delay(1500)
+                        
+                        val popupText = extractAllText(rootInActiveWindow)
+                        val pinRegex = Regex("PIN\\s*:\\s*([a-zA-Z0-9]+)", RegexOption.IGNORE_CASE)
+                        val match = pinRegex.find(popupText)
+                        if (match != null) {
+                            extractedPin = match.groupValues[1]
+                            Journal.log("Code PIN extrait : $extractedPin")
+                        } else {
+                            Journal.log("Aucun code PIN trouvé dans le popup.")
+                        }
+                        
+                        clickByText("Fermer")
+                        delay(1000)
+                    } else {
+                        Journal.log("Bouton QR introuvable pour $orderTextToFind")
+                    }
+                } catch (e: Exception) {
+                    Journal.log("Erreur lors de la lecture du QR: ${e.message}")
+                }
+
                 Journal.log("Clic sur '$labelPret' pour $orderTextToFind")
                 
                 val clickedInSameContainer = clickButtonInSameContainer(orderTextToFind, labelPret)
@@ -417,12 +445,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 
                 delay(500)
                 // Mark as clicked in Firestore
-                NetworkClient.markOrderAsGlovoReady(documentId)
+                NetworkClient.markOrderAsGlovoReady(documentId, extractedPin)
                 Journal.log("=== SÉQUENCE PRÊT TERMINÉE ===")
             } else {
                 Journal.log("Commande $orderTextToFind introuvable même après défilement.")
                 // Mark as handled to prevent endless retries
-                NetworkClient.markOrderAsGlovoReady(documentId)
+                NetworkClient.markOrderAsGlovoReady(documentId, null)
             }
 
         } catch (e: Exception) {
