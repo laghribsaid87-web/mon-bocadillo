@@ -27,6 +27,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showReadyPosModal, setShowReadyPosModal] = useState(false); // Jdid: Modal Commandes Prêtes
     const [showGlovoModal, setShowGlovoModal] = useState(false); // Modal Commandes Glovo
     const [showConfirmToutDonner, setShowConfirmToutDonner] = useState(false); // Jdid: Modal Custom Confirmation
+    const [glovoConfirmPaymentOrder, setGlovoConfirmPaymentOrder] = useState(null); // Modal Confirmation Paiement Glovo
     const [confirmDialog, setConfirmDialog] = useState(null);
     const [printCuisine, setPrintCuisine] = useState(true);
     const [printAddition, setPrintAddition] = useState(true);
@@ -2625,16 +2626,49 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                         </div>
 
                                         <button onClick={() => { 
-                                            updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() }); 
-                                            printTicket(o, brand);
-                                            showNotify("Remis au Livreur Glovo !", "success"); 
-                                            if (readyGlovoOrders.length === 1) setShowGlovoModal(false); 
+                                            if (o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') {
+                                                setGlovoConfirmPaymentOrder(o);
+                                            } else {
+                                                updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() }); 
+                                                printTicket(o, brand);
+                                                showNotify("Remis au Livreur Glovo !", "success"); 
+                                                if (readyGlovoOrders.length === 1) setShowGlovoModal(false); 
+                                            }
                                         }} className="bg-[#FFC244] hover:bg-yellow-500 text-black px-4 py-2 rounded-xl font-black text-sm transition-colors shadow-md flex items-center gap-2 whitespace-nowrap">
                                             <CheckCircle size={18}/> Remis
                                         </button>
                                     </div>
                                 ))
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL CONFIRMATION PAIEMENT GLOVO ESPECE */}
+            {glovoConfirmPaymentOrder && (
+                <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl flex flex-col items-center animate-in zoom-in-95 text-center">
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 text-green-600">
+                            <span className="text-3xl">💵</span>
+                        </div>
+                        <h2 className="text-2xl font-black text-gray-800 mb-2">Paiement Espèce</h2>
+                        <p className="text-gray-600 mb-6 text-lg font-medium">
+                            Wach khditi <span className="font-black text-green-600 text-xl">{glovoConfirmPaymentOrder.total} DH</span> mn 3nd le livreur Glovo ?
+                        </p>
+                        <div className="flex gap-3 w-full">
+                            <button onClick={() => setGlovoConfirmPaymentOrder(null)} className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-xl font-bold hover:bg-gray-300">
+                                Non, pas encore
+                            </button>
+                            <button onClick={() => {
+                                updateStatus(glovoConfirmPaymentOrder.id, 'delivered', { deliveredAtLocal: Date.now() }); 
+                                printTicket(glovoConfirmPaymentOrder, brand);
+                                showNotify("Paiement confirmé et remis !", "success");
+                                setGlovoConfirmPaymentOrder(null);
+                                if (readyGlovoOrders.length === 1) setShowGlovoModal(false);
+                            }} className="flex-1 bg-green-500 text-white py-3 rounded-xl font-black hover:bg-green-600 shadow-lg flex items-center justify-center gap-2">
+                                <CheckCircle size={20}/> Oui, Khdit'ha
+                            </button>
                         </div>
                     </div>
                 </div>
