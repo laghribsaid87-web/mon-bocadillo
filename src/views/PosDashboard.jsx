@@ -2620,16 +2620,6 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                                 <span className="font-black text-lg text-gray-900">{o.total || '???'} DH</span>
                                             </div>
                                         </div>
-                                        {(o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? (
-                                            <div className="bg-green-100 border-2 border-green-400 text-green-800 p-3 rounded-lg text-center font-black animate-pulse shadow-sm flex flex-col">
-                                                <span className="text-xs uppercase opacity-80 mb-1">TOTAL À PAYER (CE QUE LE LIVREUR DOIT DONNER)</span>
-                                                <span className="text-2xl">{o.total || '???'} DH</span>
-                                            </div>
-                                        ) : (
-                                            <div className="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-lg text-center font-bold shadow-sm">
-                                                <span className="text-xs uppercase opacity-80">Commande En Ligne (Déjà Payée)</span>
-                                            </div>
-                                        )}
                                         {o.pickupCode && (
                                             <div className="bg-purple-100 border-2 border-purple-400 text-purple-800 p-3 rounded-lg text-center font-black shadow-sm flex flex-col mt-1">
                                                 <span className="text-xs uppercase opacity-80 mb-1">CODE DE RETRAIT (PIN)</span>
