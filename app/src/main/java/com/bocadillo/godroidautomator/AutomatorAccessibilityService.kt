@@ -540,6 +540,25 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun clickCenterOfScreen() {
+        try {
+            val displayMetrics = resources.displayMetrics
+            val middleX = displayMetrics.widthPixels / 2f
+            val middleY = displayMetrics.heightPixels / 2f
+
+            val path = android.graphics.Path()
+            path.moveTo(middleX, middleY)
+            
+            val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
+            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 100))
+
+            dispatchGesture(gestureBuilder.build(), null, null)
+            Journal.log("Clic physique au centre de l'écran (pour fermer Popup).")
+        } catch (e: Exception) {
+            Log.e("GoDroidUI", "Error click center", e)
+        }
+    }
+
     private fun checkAndDismissPopups() {
         try {
             val root = rootInActiveWindow ?: return
@@ -547,14 +566,18 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             // Handle the full-screen green popup: "Vous avez X nouvelle commande en attente !"
             if (text.contains("nouvelle commande en attente", ignoreCase = true)) {
-                Journal.log("Popup plein écran détecté. Fermeture...")
-                // Try clicking standard close buttons first
-                val closeClicked = clickByText("Fermer") || clickByText("Close") || clickByText("X")
-                if (!closeClicked) {
-                    // Fallback to the Android BACK button
-                    performGlobalAction(GLOBAL_ACTION_BACK)
-                    Journal.log("Bouton retour Android utilisé pour fermer le popup.")
-                }
+                Journal.log("Popup plein écran détecté. Clic au milieu...")
+                
+                // Le client indique qu'il FAUT cliquer au milieu de l'écran
+                clickCenterOfScreen()
+                
+                // Essayer aussi de cliquer sur le texte ou fermer par sécurité
+                clickByText("nouvelle commande en attente") 
+                clickByText("Commencez à accepter")
+                clickByText("Fermer") || clickByText("X")
+                
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                
                 Thread.sleep(1000)
             }
         } catch (e: Exception) {
