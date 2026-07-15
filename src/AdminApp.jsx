@@ -369,8 +369,7 @@ function AdminAppInner() {
                             phone: cleanPhone || "Inconnu",
                             items: items,
                             parsedGlovo: true,
-                            status: "preparing", // 🔥 Important: Envoie directement au KDS !
-                            nearestBranch: orderData.nearestBranch || { id: "laymoune", name: "Laymoune" }
+                            status: "preparing" // 🔥 Important: Envoie directement au KDS !
                         };
 
                         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderData.id), updateData);
