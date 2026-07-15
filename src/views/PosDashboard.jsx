@@ -118,7 +118,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         setIsVerifyingGlovo(true);
         try {
             const triggerId = Date.now().toString() + Math.floor(Math.random() * 1000);
-            await setDoc(doc(db, "artifacts", appId, "public", "data", "settings", "glovo_trigger"), {
+            const suffix = activeBranchId === 'oum_rabii' ? '_OumRabii' : activeBranchId === 'zoubire' ? '_Zoubire' : '';
+            await setDoc(doc(db, "artifacts", appId, "public", "data", "settings", "glovo_trigger" + suffix), {
                 action: "VERIFY_CANCELLATIONS",
                 isHandled: false,
                 triggerId: triggerId,

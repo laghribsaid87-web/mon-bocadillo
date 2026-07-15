@@ -1114,8 +1114,8 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     // Delay to overwrite the Cloud Function's default config_sync trigger
                                     setTimeout(() => {
                                         let ruptureDoc = 'glovo_rupture';
-                                        if (profile?.branchId === 'oum_rabii') ruptureDoc = 'glovo_rupture_OumRabii';
-                                        if (profile?.branchId === 'zoubire') ruptureDoc = 'glovo_rupture_Zoubire';
+                                        if (selectedBranchId === 'oum_rabii') ruptureDoc = 'glovo_rupture_OumRabii';
+                                        if (selectedBranchId === 'zoubire') ruptureDoc = 'glovo_rupture_Zoubire';
 
                                         setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', ruptureDoc), {
                                             glovoName: getGlovoName(item.name),
