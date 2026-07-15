@@ -315,9 +315,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             val allTexts = extractAllTextsFromNode(node)
             val hasMin = allTexts.any { it.endsWith("min", ignoreCase = true) || it.contains("min", ignoreCase = true) }
-            val hasOrderNum = allTexts.any { it.startsWith("#") || it.contains("produit", ignoreCase = true) }
+            val hasProduit = allTexts.any { it.contains("produit", ignoreCase = true) }
+            val hasHash = allTexts.any { it.startsWith("#") || it.contains("#") }
             
-            if (hasMin || hasOrderNum) {
+            if (hasMin && hasProduit && hasHash) {
                 return true
             }
         }
@@ -800,9 +801,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             val allTexts = extractAllTextsFromNode(node)
             val hasMin = allTexts.any { it.endsWith("min", ignoreCase = true) || it.contains("min", ignoreCase = true) }
-            val hasOrderNum = allTexts.any { it.startsWith("#") || it.contains("produit", ignoreCase = true) }
+            val hasProduit = allTexts.any { it.contains("produit", ignoreCase = true) }
+            val hasHash = allTexts.any { it.startsWith("#") || it.contains("#") }
             
-            if (hasMin || hasOrderNum) {
+            if (hasMin && hasProduit && hasHash) {
                 Journal.log("Carte de commande intelligente détectée ! Clic en cours...")
                 node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 return true
