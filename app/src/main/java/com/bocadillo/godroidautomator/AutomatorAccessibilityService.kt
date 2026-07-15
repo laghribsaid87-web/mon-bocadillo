@@ -325,12 +325,30 @@ class AutomatorAccessibilityService : AccessibilityService() {
         return false
     }
 
+    private fun findBannerNode(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (root == null) return null
+        val nodes = mutableListOf<AccessibilityNodeInfo>()
+        findAllNodesWithTextRecursively("nouvelle commande", root, nodes)
+        
+        for (node in nodes) {
+            var clickableNode: AccessibilityNodeInfo? = node
+            while (clickableNode != null && !clickableNode.isClickable) {
+                clickableNode = clickableNode.parent
+            }
+            if (clickableNode != null && clickableNode.isClickable) {
+                val allTexts = extractAllTextsFromNode(clickableNode)
+                if (allTexts.any { it.contains("Afficher", ignoreCase = true) }) {
+                    return clickableNode
+                }
+            }
+        }
+        return null
+    }
+
     private fun triggerFallbackVisualCheck() {
         val root = rootInActiveWindow
         if (root != null && !isSequenceRunning) {
-            val labelNouvelle = "nouvelle commande"
-            val nodeNouvelle = findNodeWithTextRecursively(labelNouvelle, root)
-            val isBannerPresent = (nodeNouvelle != null && isNodeClickable(nodeNouvelle))
+            val isBannerPresent = (findBannerNode(root) != null)
             
             if (hasNewOrderCard(root) || isBannerPresent) {
                 Journal.log("Suite de commande: Carte ou Bannière détectée ! (Fallback)")
@@ -916,9 +934,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     Journal.log("Erreur dans findAndClickNewOrderCard: ${e.message}")
                 }
 
-                if (!clickedBanner && findNodeWithTextRecursively(labelNouvelle, rootInActiveWindow) != null) {
-                    Journal.log("Clic sur '$labelNouvelle'")
-                    clickByText(labelNouvelle)
+                val bannerNode = findBannerNode(rootInActiveWindow)
+                if (!clickedBanner && bannerNode != null) {
+                    Journal.log("Clic sur la bannière 'nouvelle commande'")
+                    bannerNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     clickedBanner = true
                     // On ne fait pas de break ici ! On continue d'attendre l'apparition du carré vert.
                 }
