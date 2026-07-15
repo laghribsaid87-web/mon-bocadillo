@@ -11,6 +11,26 @@ import org.json.JSONObject
 
 object NetworkClient {
 
+    private fun getBranchSuffix(context: android.content.Context): String {
+        val prefs = context.getSharedPreferences("AutomatorPrefs", android.content.Context.MODE_PRIVATE)
+        val branch = prefs.getString("point_de_vente", "Laymoune")
+        return when (branch) {
+            "OumRabii" -> "_OumRabii"
+            "Zoubire" -> "_Zoubire"
+            else -> ""
+        }
+    }
+
+    private fun getBranchId(context: android.content.Context): String {
+        val prefs = context.getSharedPreferences("AutomatorPrefs", android.content.Context.MODE_PRIVATE)
+        val branch = prefs.getString("point_de_vente", "Laymoune")
+        return when (branch) {
+            "OumRabii" -> "oum_rabii"
+            "Zoubire" -> "zoubire"
+            else -> "laymoune"
+        }
+    }
+
     private val client = OkHttpClient()
     // Default Firestore REST API URL
     private const val DEFAULT_FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/Commandes_Brutes_Glovo"
@@ -79,8 +99,9 @@ object NetworkClient {
 
     data class ReadyOrder(val documentId: String, val orderNumber: String)
 
-    suspend fun checkReadyOrders(): List<ReadyOrder> {
+    suspend fun checkReadyOrders(context: android.content.Context): List<ReadyOrder> {
         return withContext(Dispatchers.IO) {
+            val branchId = getBranchId(context)
             val orders = mutableListOf<ReadyOrder>()
             try {
                 val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data:runQuery"
@@ -104,6 +125,13 @@ object NetworkClient {
                               "field": {"fieldPath": "source"},
                               "op": "EQUAL",
                               "value": {"stringValue": "glovo"}
+                            }
+                          },
+                          {
+                            "fieldFilter": {
+                              "field": {"fieldPath": "nearestBranch.id"},
+                              "op": "EQUAL",
+                              "value": {"stringValue": "$branchId"}
                             }
                           }
                         ]
@@ -184,10 +212,11 @@ object NetworkClient {
         }
     }
 
-    suspend fun checkCancellationTrigger(): Boolean {
+    suspend fun checkCancellationTrigger(context: android.content.Context): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_trigger"
+                val suffix = getBranchSuffix(context)
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_trigger$suffix"
                 val request = Request.Builder().url(url).get().build()
                 val response = client.newCall(request).execute()
                 
@@ -210,10 +239,11 @@ object NetworkClient {
         }
     }
 
-    suspend fun markCancellationTriggerHandled() {
+    suspend fun markCancellationTriggerHandled(context: android.content.Context) {
         withContext(Dispatchers.IO) {
             try {
-                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_trigger?updateMask.fieldPaths=isHandled"
+                val suffix = getBranchSuffix(context)
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_trigger$suffix?updateMask.fieldPaths=isHandled"
                 val jsonStr = """
                 {
                   "fields": {
@@ -296,10 +326,11 @@ object NetworkClient {
 
     data class RuptureTask(val glovoName: String, val action: String)
 
-    suspend fun checkRuptureTrigger(): RuptureTask? {
+    suspend fun checkRuptureTrigger(context: android.content.Context): RuptureTask? {
         return withContext(Dispatchers.IO) {
             try {
-                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_rupture"
+                val suffix = getBranchSuffix(context)
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_rupture$suffix"
                 val request = Request.Builder().url(url).get().build()
                 val response = client.newCall(request).execute()
                 
@@ -324,10 +355,11 @@ object NetworkClient {
         }
     }
 
-    suspend fun markRuptureTriggerHandled() {
+    suspend fun markRuptureTriggerHandled(context: android.content.Context) {
         withContext(Dispatchers.IO) {
             try {
-                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_rupture?updateMask.fieldPaths=isHandled&updateMask.fieldPaths=status"
+                val suffix = getBranchSuffix(context)
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/glovo_rupture$suffix?updateMask.fieldPaths=isHandled&updateMask.fieldPaths=status"
                 val jsonStr = """
                 {
                   "fields": {

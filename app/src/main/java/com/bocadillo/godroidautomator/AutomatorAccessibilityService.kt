@@ -237,7 +237,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     if (!sequenceMutex.isLocked && !isSequenceRunning) {
                         
                         // 1. Check for Manual Trigger from POS to verify Cancellations
-                        val shouldVerifyCancellations = NetworkClient.checkCancellationTrigger()
+                        val shouldVerifyCancellations = NetworkClient.checkCancellationTrigger(applicationContext)
                         if (shouldVerifyCancellations) {
                             sequenceMutex.withLock {
                                 startCancellationCheckSequence()
@@ -245,7 +245,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             continue // skip ready orders check in this tick
                         }
                         // 2. Check for Rupture de Stock trigger from KDS
-                        val ruptureTask = NetworkClient.checkRuptureTrigger()
+                        val ruptureTask = NetworkClient.checkRuptureTrigger(applicationContext)
                         if (ruptureTask != null) {
                             sequenceMutex.withLock {
                                 startRuptureSequence(ruptureTask.glovoName, ruptureTask.action)
@@ -254,7 +254,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         }
 
                         // 3. Normal check for Ready Orders
-                        val readyOrders = NetworkClient.checkReadyOrders()
+                        val readyOrders = NetworkClient.checkReadyOrders(applicationContext)
                         for (order in readyOrders) {
                             if (!processedReadyOrders.contains(order.documentId)) {
                                 processedReadyOrders.add(order.documentId)
@@ -1508,7 +1508,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
         try {
             // 1. Mark trigger as handled
-            NetworkClient.markCancellationTriggerHandled()
+            NetworkClient.markCancellationTriggerHandled(applicationContext)
 
             // 2. Launch goDroid
             var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
@@ -1982,7 +1982,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             delay(500)
 
             // Mark as handled
-            NetworkClient.markRuptureTriggerHandled()
+            NetworkClient.markRuptureTriggerHandled(applicationContext)
             Journal.log("=== SÉQUENCE RUPTURE TERMINÉE ===")
             
         } catch (e: Exception) {
