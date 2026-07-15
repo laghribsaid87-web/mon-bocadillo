@@ -277,14 +277,62 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun hasNewOrderCard(root: AccessibilityNodeInfo?): Boolean {
+        if (root == null) return false
+        
+        var nouvelleY = -1
+        val nouvelleNodes = mutableListOf<AccessibilityNodeInfo>()
+        findAllNodesWithTextRecursively("Nouvelle", root, nouvelleNodes)
+        val validNouvelle = nouvelleNodes.firstOrNull { 
+            val txt = it.text?.toString() ?: ""
+            val desc = it.contentDescription?.toString() ?: ""
+            !txt.contains("commande", ignoreCase = true) && !desc.contains("commande", ignoreCase = true) 
+        }
+        if (validNouvelle != null) {
+            val rect = android.graphics.Rect()
+            validNouvelle.getBoundsInScreen(rect)
+            nouvelleY = rect.bottom
+        }
+        
+        var accepteeY = Int.MAX_VALUE
+        val accepteeNodes = mutableListOf<AccessibilityNodeInfo>()
+        findAllNodesWithTextRecursively("Acceptée", root, accepteeNodes)
+        if (accepteeNodes.isNotEmpty()) {
+            val rect = android.graphics.Rect()
+            accepteeNodes.first().getBoundsInScreen(rect)
+            accepteeY = rect.top
+        }
+        
+        val clickableNodes = findClickableNodes(root)
+        
+        for (node in clickableNodes) {
+            val rect = android.graphics.Rect()
+            node.getBoundsInScreen(rect)
+            val centerY = (rect.top + rect.bottom) / 2
+            
+            if (nouvelleY != -1 && centerY < nouvelleY) continue
+            if (centerY > accepteeY) continue
+            
+            val allTexts = extractAllTextsFromNode(node)
+            val hasMin = allTexts.any { it.endsWith("min", ignoreCase = true) || it.contains("min", ignoreCase = true) }
+            val hasOrderNum = allTexts.any { it.startsWith("#") || it.contains("produit", ignoreCase = true) }
+            
+            if (hasMin || hasOrderNum) {
+                return true
+            }
+        }
+        return false
+    }
+
     private fun triggerFallbackVisualCheck() {
         val root = rootInActiveWindow
         if (root != null && !isSequenceRunning) {
-            val labelMins = getLabel("btn_mins", "min")
             val labelNouvelle = "nouvelle commande"
-            val node = findNodeWithTextRecursively(labelMins, root) ?: findNodeWithTextRecursively(labelNouvelle, root)
-            if (node != null && isNodeClickable(node)) {
-                Journal.log("Suite de commande: '$labelMins' ou '$labelNouvelle' détecté !")
+            val nodeNouvelle = findNodeWithTextRecursively(labelNouvelle, root)
+            val isBannerPresent = (nodeNouvelle != null && isNodeClickable(nodeNouvelle))
+            
+            if (hasNewOrderCard(root) || isBannerPresent) {
+                Journal.log("Suite de commande: Carte ou Bannière détectée ! (Fallback)")
                 coroutineScope.launch {
                     sequenceMutex.withLock {
                         if (!isSequenceRunning) {
