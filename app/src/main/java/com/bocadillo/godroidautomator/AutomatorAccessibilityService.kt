@@ -280,9 +280,15 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private fun hasNewOrderCard(root: AccessibilityNodeInfo?): Boolean {
         if (root == null) return false
         
+        val labelNouvelle = getLabel("btn_nouvelle", "Nouvelle")
+        val labelAcceptee = getLabel("btn_acceptee", "Acceptée")
+        val labelMin = getLabel("btn_mins", "min")
+        val labelProduit = getLabel("btn_produit", "produit")
+        val labelHash = getLabel("btn_hash", "#")
+
         var nouvelleY = -1
         val nouvelleNodes = mutableListOf<AccessibilityNodeInfo>()
-        findAllNodesWithTextRecursively("Nouvelle", root, nouvelleNodes)
+        findAllNodesWithTextRecursively(labelNouvelle, root, nouvelleNodes)
         val validNouvelle = nouvelleNodes.firstOrNull { 
             val txt = it.text?.toString() ?: ""
             val desc = it.contentDescription?.toString() ?: ""
@@ -296,7 +302,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         
         var accepteeY = Int.MAX_VALUE
         val accepteeNodes = mutableListOf<AccessibilityNodeInfo>()
-        findAllNodesWithTextRecursively("Acceptée", root, accepteeNodes)
+        findAllNodesWithTextRecursively(labelAcceptee, root, accepteeNodes)
         if (accepteeNodes.isNotEmpty()) {
             val rect = android.graphics.Rect()
             accepteeNodes.first().getBoundsInScreen(rect)
@@ -314,9 +320,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (centerY > accepteeY) continue
             
             val allTexts = extractAllTextsFromNode(node)
-            val hasMin = allTexts.any { it.endsWith("min", ignoreCase = true) || it.contains("min", ignoreCase = true) }
-            val hasProduit = allTexts.any { it.contains("produit", ignoreCase = true) }
-            val hasHash = allTexts.any { it.startsWith("#") || it.contains("#") }
+            val hasMin = allTexts.any { it.endsWith(labelMin, ignoreCase = true) || it.contains(labelMin, ignoreCase = true) }
+            val hasProduit = allTexts.any { it.contains(labelProduit, ignoreCase = true) }
+            val hasHash = allTexts.any { it.startsWith(labelHash) || it.contains(labelHash) }
             
             if (hasMin && hasProduit && hasHash) {
                 return true
@@ -327,8 +333,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
     private fun findBannerNode(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         if (root == null) return null
+        val labelNouvelleCommande = getLabel("btn_nouvelle_commande", "nouvelle commande")
+        val labelAfficher = getLabel("btn_afficher", "Afficher")
+
         val nodes = mutableListOf<AccessibilityNodeInfo>()
-        findAllNodesWithTextRecursively("nouvelle commande", root, nodes)
+        findAllNodesWithTextRecursively(labelNouvelleCommande, root, nodes)
         
         for (node in nodes) {
             var clickableNode: AccessibilityNodeInfo? = node
@@ -337,7 +346,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             if (clickableNode != null && clickableNode.isClickable) {
                 val allTexts = extractAllTextsFromNode(clickableNode)
-                if (allTexts.any { it.contains("Afficher", ignoreCase = true) }) {
+                if (allTexts.any { it.contains(labelAfficher, ignoreCase = true) }) {
                     return clickableNode
                 }
             }
@@ -583,7 +592,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
 
             val labelMins = getLabel("btn_mins", "min")
-            val labelNouvelle = "nouvelle commande"
+            val labelNouvelle = getLabel("btn_nouvelle_commande", "nouvelle commande")
             
             if (isSequenceRunning) return
             
@@ -782,9 +791,15 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private fun findAndClickNewOrderCard(root: AccessibilityNodeInfo?): Boolean {
         if (root == null) return false
         
+        val labelNouvelle = getLabel("btn_nouvelle", "Nouvelle")
+        val labelAcceptee = getLabel("btn_acceptee", "Acceptée")
+        val labelMin = getLabel("btn_mins", "min")
+        val labelProduit = getLabel("btn_produit", "produit")
+        val labelHash = getLabel("btn_hash", "#")
+
         var nouvelleY = -1
         val nouvelleNodes = mutableListOf<AccessibilityNodeInfo>()
-        findAllNodesWithTextRecursively("Nouvelle", root, nouvelleNodes)
+        findAllNodesWithTextRecursively(labelNouvelle, root, nouvelleNodes)
         // Ignorer les bannières 'nouvelle commande' pour se concentrer sur l'onglet/titre
         val validNouvelle = nouvelleNodes.firstOrNull { 
             val txt = it.text?.toString() ?: ""
@@ -799,7 +814,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         
         var accepteeY = Int.MAX_VALUE
         val accepteeNodes = mutableListOf<AccessibilityNodeInfo>()
-        findAllNodesWithTextRecursively("Acceptée", root, accepteeNodes)
+        findAllNodesWithTextRecursively(labelAcceptee, root, accepteeNodes)
         if (accepteeNodes.isNotEmpty()) {
             val rect = android.graphics.Rect()
             accepteeNodes.first().getBoundsInScreen(rect)
@@ -818,9 +833,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (centerY > accepteeY) continue
             
             val allTexts = extractAllTextsFromNode(node)
-            val hasMin = allTexts.any { it.endsWith("min", ignoreCase = true) || it.contains("min", ignoreCase = true) }
-            val hasProduit = allTexts.any { it.contains("produit", ignoreCase = true) }
-            val hasHash = allTexts.any { it.startsWith("#") || it.contains("#") }
+            val hasMin = allTexts.any { it.endsWith(labelMin, ignoreCase = true) || it.contains(labelMin, ignoreCase = true) }
+            val hasProduit = allTexts.any { it.contains(labelProduit, ignoreCase = true) }
+            val hasHash = allTexts.any { it.startsWith(labelHash) || it.contains(labelHash) }
             
             if (hasMin && hasProduit && hasHash) {
                 Journal.log("Carte de commande intelligente détectée ! Clic en cours...")
@@ -917,8 +932,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
 
             // 2. Wait until "min", "nouvelle commande" or "Nouvelle" appears
-            val labelNouvelle = "nouvelle commande"
-            val labelNouvelleTab = "Nouvelle"
+            val labelNouvelle = getLabel("btn_nouvelle_commande", "nouvelle commande")
+            val labelNouvelleTab = getLabel("btn_nouvelle", "Nouvelle")
             Journal.log("Attente de '$labelMins', '$labelNouvelle' ou onglet '$labelNouvelleTab'...")
             
             var clickedBanner = false

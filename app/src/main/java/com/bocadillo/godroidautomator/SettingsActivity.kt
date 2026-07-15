@@ -40,7 +40,12 @@ class SettingsActivity : AppCompatActivity() {
         layout.addView(desc)
 
         val keys = listOf(
-            "btn_mins" to "Bouton Chrono (ex: mins, min)",
+            "btn_mins" to "Mot-clé Chrono (ex: min)",
+            "btn_produit" to "Mot-clé Produit (ex: produit)",
+            "btn_hash" to "Mot-clé Numéro (ex: #)",
+            "btn_nouvelle" to "Onglet Nouvelle",
+            "btn_nouvelle_commande" to "Bannière Nouvelle commande",
+            "btn_afficher" to "Bouton Afficher",
             "btn_modifier" to "Bouton Modifier",
             "btn_continuer" to "Bouton Continuer",
             "btn_annuler" to "Bouton Annuler",
@@ -51,7 +56,12 @@ class SettingsActivity : AppCompatActivity() {
         )
         
         val defaultValues = mapOf(
-            "btn_mins" to "mins",
+            "btn_mins" to "min",
+            "btn_produit" to "produit",
+            "btn_hash" to "#",
+            "btn_nouvelle" to "Nouvelle",
+            "btn_nouvelle_commande" to "nouvelle commande",
+            "btn_afficher" to "Afficher",
             "btn_modifier" to "Modifier",
             "btn_continuer" to "Continuer",
             "btn_annuler" to "Annuler",
