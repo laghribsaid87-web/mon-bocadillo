@@ -232,18 +232,12 @@ object OrderParser {
                             continue
                         }
                     } else {
-                        val isNoteKeyword = line.contains("afak", ignoreCase = true) || 
-                                            line.contains("merci", ignoreCase = true) || 
-                                            line.contains("stp", ignoreCase = true) || 
-                                            line.contains("svp", ignoreCase = true) ||
-                                            line.contains("bla", ignoreCase = true) ||
-                                            line.contains("kter", ignoreCase = true) ||
-                                            line.contains("katro", ignoreCase = true) ||
-                                            line.contains("na9as", ignoreCase = true) ||
-                                            line.contains("zayad", ignoreCase = true) ||
-                                            line.contains("bghit", ignoreCase = true) ||
-                                            line.contains("matdir", ignoreCase = true) ||
-                                            line.contains("!")
+                        val noteKeywords = listOf(
+                            "afak", "3afak", "merci", "stp", "svp", "bla", "kter", "katro", "na9as", 
+                            "zayad", "bghit", "matdir", "madir", "wach momkin", "khoya", "lah yjazik", 
+                            "ingridient", "drari", "enfant", "3andak"
+                        )
+                        val isNoteKeyword = noteKeywords.any { line.contains(it, ignoreCase = true) } || line.contains("!")
                         if (isNoteKeyword) {
                             mergedItemsList.add("NOTE: $line")
                             continue
