@@ -232,12 +232,12 @@ object OrderParser {
                             continue
                         }
                     } else {
-                        if (line.contains("afak", ignoreCase = true) || line.contains("merci", ignoreCase = true) || line.contains("stp", ignoreCase = true) || line.contains("svp", ignoreCase = true)) {
-                            mergedItemsList.add("NOTE: $line")
-                            continue
-                        } else {
+                        if (quantityRegex.matches(lastItem) || pureNumberRegex.matches(lastItem)) {
                             mergedItemsList.removeAt(mergedItemsList.size - 1)
                             mergedItemsList.add("$lastItem $line")
+                            continue
+                        } else {
+                            mergedItemsList.add("NOTE: $line")
                             continue
                         }
                     }
