@@ -23,6 +23,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
     private var isSequenceRunning = false
     private val sequenceMutex = kotlinx.coroutines.sync.Mutex()
     private val processedReadyOrders = mutableSetOf<String>()
+    private val reportedGroupedOrders = mutableSetOf<String>()
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -789,6 +790,41 @@ class AutomatorAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {
         Log.e("AutoService", "Service Interrupted")
     }
+
+    private fun checkForGroupedOrders(root: AccessibilityNodeInfo) {
+        val groupIndicators = mutableListOf<AccessibilityNodeInfo>()
+        findAllNodesWithTextRecursively("Commandes groupées", root, groupIndicators)
+        
+        for (indicator in groupIndicators) {
+            var parent = indicator.parent
+            val foundOrders = mutableListOf<String>()
+            
+            // Remonter dans l'arbre pour trouver un parent commun contenant les commandes
+            for (i in 0..4) {
+                if (parent == null) break
+                val texts = extractAllTextsFromNode(parent)
+                val orderIds = texts.filter { it.matches(Regex("^#[0-9A-Za-z]+.*")) }.map { it.split(" ")[0] }.distinct()
+                if (orderIds.size >= 2) {
+                    foundOrders.addAll(orderIds)
+                    break
+                }
+                parent = parent.parent
+            }
+            
+            if (foundOrders.size >= 2) {
+                val groupHash = foundOrders.sorted().joinToString("-")
+                if (!reportedGroupedOrders.contains(groupHash)) {
+                    reportedGroupedOrders.add(groupHash)
+                    Journal.log("🔗 Commandes groupées détectées: ${foundOrders.joinToString(", ")}")
+                    
+                    coroutineScope.launch {
+                        NetworkClient.sendGroupedOrders(this@AutomatorAccessibilityService, foundOrders)
+                    }
+                }
+            }
+        }
+    }
+
 
     private fun extractAllTextsFromNode(node: AccessibilityNodeInfo?): List<String> {
         val list = mutableListOf<String>()

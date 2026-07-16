@@ -35,6 +35,41 @@ object NetworkClient {
     // Default Firestore REST API URL
     private const val DEFAULT_FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/Commandes_Brutes_Glovo"
 
+    suspend fun sendGroupedOrders(context: android.content.Context, orderIds: List<String>) {
+        withContext(Dispatchers.IO) {
+            try {
+                val fields = JSONObject()
+                val typeObj = JSONObject().put("stringValue", "GROUP_ORDERS")
+                val elementsArray = JSONArray()
+                for (id in orderIds) {
+                    elementsArray.put(JSONObject().put("stringValue", id))
+                }
+                val arrayValue = JSONObject().put("values", elementsArray)
+                val ordersObj = JSONObject().put("arrayValue", arrayValue)
+                fields.put("type", typeObj)
+                fields.put("orders", ordersObj)
+                fields.put("status", JSONObject().put("stringValue", "new"))
+                val jsonObject = JSONObject().put("fields", fields)
+                val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+                
+                val prefs = context.getSharedPreferences("AutomatorPrefs", android.content.Context.MODE_PRIVATE)
+                val pointDeVente = prefs.getString("point_de_vente", "Laymoune") ?: "Laymoune"
+                val suffix = if (pointDeVente.equals("Laymoune", ignoreCase = true) || pointDeVente.isBlank()) "" else "_$pointDeVente"
+                val collectionUrl = "${DEFAULT_FIRESTORE_URL}$suffix"
+                
+                val requestBuilder = Request.Builder().url(collectionUrl).post(body)
+                val response = client.newCall(requestBuilder.build()).execute()
+                if (response.isSuccessful) {
+                    Journal.log("✅ Groupe envoyé au Webhook (${orderIds.joinToString(", ")})")
+                } else {
+                    Journal.log("❌ Erreur envoi groupe: ${response.code}")
+                }
+            } catch (e: Exception) {
+                Journal.log("❌ Exception envoi groupe: ${e.message}")
+            }
+        }
+    }
+
     suspend fun sendOrderData(context: android.content.Context, telephoneEcran: String, contenuEcran: String, existingDocId: String? = null): String? {
         return withContext(Dispatchers.IO) {
             try {
