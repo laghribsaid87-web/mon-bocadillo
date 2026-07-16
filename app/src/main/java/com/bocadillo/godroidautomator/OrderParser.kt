@@ -232,13 +232,32 @@ object OrderParser {
                             continue
                         }
                     } else {
-                        if (quantityRegex.matches(lastItem) || pureNumberRegex.matches(lastItem)) {
-                            mergedItemsList.removeAt(mergedItemsList.size - 1)
-                            mergedItemsList.add("$lastItem $line")
-                            continue
-                        } else {
+                        val isNoteKeyword = line.contains("afak", ignoreCase = true) || 
+                                            line.contains("merci", ignoreCase = true) || 
+                                            line.contains("stp", ignoreCase = true) || 
+                                            line.contains("svp", ignoreCase = true) ||
+                                            line.contains("bla", ignoreCase = true) ||
+                                            line.contains("kter", ignoreCase = true) ||
+                                            line.contains("katro", ignoreCase = true) ||
+                                            line.contains("na9as", ignoreCase = true) ||
+                                            line.contains("zayad", ignoreCase = true) ||
+                                            line.contains("bghit", ignoreCase = true) ||
+                                            line.contains("matdir", ignoreCase = true) ||
+                                            line.contains("!")
+                        if (isNoteKeyword) {
                             mergedItemsList.add("NOTE: $line")
                             continue
+                        } else {
+                            if (quantityRegex.matches(lastItem) || pureNumberRegex.matches(lastItem)) {
+                                mergedItemsList.removeAt(mergedItemsList.size - 1)
+                                mergedItemsList.add("$lastItem $line")
+                                continue
+                            } else {
+                                // If not a note keyword, merge it with the item name just in case Glovo split the product name
+                                mergedItemsList.removeAt(mergedItemsList.size - 1)
+                                mergedItemsList.add("$lastItem $line")
+                                continue
+                            }
                         }
                     }
                 }
