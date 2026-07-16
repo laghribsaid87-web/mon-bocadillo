@@ -7,6 +7,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 
 object NetworkClient {
@@ -39,17 +40,32 @@ object NetworkClient {
         withContext(Dispatchers.IO) {
             try {
                 val fields = JSONObject()
-                val typeObj = JSONObject().put("stringValue", "GROUP_ORDERS")
+                
+                val typeObj = JSONObject()
+                typeObj.put("stringValue", "GROUP_ORDERS")
+                
                 val elementsArray = JSONArray()
                 for (id in orderIds) {
-                    elementsArray.put(JSONObject().put("stringValue", id))
+                    val idObj = JSONObject()
+                    idObj.put("stringValue", id)
+                    elementsArray.put(idObj)
                 }
-                val arrayValue = JSONObject().put("values", elementsArray)
-                val ordersObj = JSONObject().put("arrayValue", arrayValue)
+                
+                val arrayValue = JSONObject()
+                arrayValue.put("values", elementsArray)
+                
+                val ordersObj = JSONObject()
+                ordersObj.put("arrayValue", arrayValue)
+                
                 fields.put("type", typeObj)
                 fields.put("orders", ordersObj)
-                fields.put("status", JSONObject().put("stringValue", "new"))
-                val jsonObject = JSONObject().put("fields", fields)
+                
+                val statusObj = JSONObject()
+                statusObj.put("stringValue", "new")
+                fields.put("status", statusObj)
+                
+                val jsonObject = JSONObject()
+                jsonObject.put("fields", fields)
                 val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
                 
                 val prefs = context.getSharedPreferences("AutomatorPrefs", android.content.Context.MODE_PRIVATE)
