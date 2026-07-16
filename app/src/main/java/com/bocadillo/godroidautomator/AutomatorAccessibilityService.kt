@@ -591,11 +591,14 @@ class AutomatorAccessibilityService : AccessibilityService() {
             
             // --- FERMETURE DES POPUPS GLOVO ---
             val welcomePopup = findNodeWithTextRecursively("Bienvenue dans la nouvelle version", root, true)
-            if (welcomePopup != null) {
+            val attentePopup = findNodeWithTextRecursively("commande en attente", root, true)
+            
+            if (welcomePopup != null || attentePopup != null) {
                 val currentTime = System.currentTimeMillis()
                 if (currentTime - lastTriggerTime > 2000) {
                     lastTriggerTime = currentTime
-                    Journal.log("Popup 'Nouvelle version' détecté ! Fermeture automatique...")
+                    val popupName = if (welcomePopup != null) "Nouvelle version" else "Commande en attente"
+                    Journal.log("Popup '$popupName' détecté ! Fermeture automatique...")
                     performGlobalAction(GLOBAL_ACTION_BACK)
                 }
                 return
