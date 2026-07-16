@@ -57,7 +57,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     const [compactMode, setCompactMode] = useState(false);
     const [showStockModal, setShowStockModal] = useState(false);
     const [selectedBranchId, setSelectedBranchId] = useState('');
-
+    const [glovoGroupedOrders, setGlovoGroupedOrders] = useState({});
     // 🔥 Jdid: Local WebSocket Server
     const [posLocalIp, setPosLocalIp] = useState(() => localStorage.getItem('posLocalIp') || 'localhost');
     const [showIpConfig, setShowIpConfig] = useState(false);
@@ -237,6 +237,35 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
         
         prevOrdersRef.current = currentIds;
     }, [preparingOrders]);
+
+    // Ecoute des commandes groupées brutes
+    useEffect(() => {
+        if (!appId) return;
+        let suffix = "";
+        if (selectedBranchId !== 'ALL' && settings?.branches?.length > 0) {
+            const branch = settings.branches.find(b => b.id === selectedBranchId);
+            if (branch && branch.name && branch.name.toLowerCase() === 'oum rabii') {
+                suffix = "_OumRabii";
+            }
+        }
+        
+        const rawGlovoCollection = collection(db, 'artifacts', appId, 'public', 'data', `Commandes_Brutes_Glovo${suffix}`);
+        const qGroups = query(rawGlovoCollection, where('type', '==', 'GROUP_ORDERS'));
+        
+        const unsubscribe = onSnapshot(qGroups, (snapshot) => {
+            const groups = {};
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                if (data.orders && Array.isArray(data.orders)) {
+                    data.orders.forEach(orderId => {
+                        groups[orderId] = data.orders.filter(id => id !== orderId);
+                    });
+                }
+            });
+            setGlovoGroupedOrders(groups);
+        });
+        return () => unsubscribe();
+    }, [db, appId, selectedBranchId, settings]);
 
     // Extraction automatique du nmro de tlphone pour les commandes GoDroid Automator (Glovo)
     useEffect(() => {
@@ -648,11 +677,25 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                     {filteredPreparingOrders.map(o => {
                         const styles = getSourceStyles(o.source);
+                        const oNum = o.orderNumber || o.id.slice(-4).toUpperCase();
+                        const groupedWith = glovoGroupedOrders[`#${oNum}`];
+                        const isGrouped = !!groupedWith && groupedWith.length > 0;
+                        
+                        const bgClass = isGrouped ? 'bg-blue-900/40 border-2 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)] animate-[pulse_2s_ease-in-out_infinite]' : `${styles.bg} border-2 ${styles.border} shadow-lg`;
+                        const headerBgClass = isGrouped ? 'bg-blue-600 border-b border-blue-500/50' : `${styles.headerBg} border-b ${styles.headerBorder}`;
+                        
                         return (
-                            <div key={o.id} className={`${styles.bg} border-2 ${styles.border} rounded-2xl flex flex-col overflow-hidden shadow-lg`}>
-                                <div className={`${styles.headerBg} px-3 py-2 border-b ${styles.headerBorder} flex flex-col relative`}>
+                            <div key={o.id} className={`${bgClass} rounded-2xl flex flex-col overflow-hidden`}>
+                                <div className={`${headerBgClass} px-3 py-2 flex flex-col relative`}>
                                     <div className="flex justify-between items-center">
-                                        <span className={`font-black ${styles.text}`} style={{ fontSize: Math.round(kdsFontSizes.headerNum * 0.6) + 'px' }}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`font-black ${styles.text} ${isGrouped ? '!text-white' : ''}`} style={{ fontSize: Math.round(kdsFontSizes.headerNum * 0.6) + 'px' }}>#{oNum}</span>
+                                            {isGrouped && (
+                                                <span className="flex items-center gap-1 bg-white text-blue-800 px-2 py-0.5 rounded text-[10px] font-black">
+                                                    🔗 + {groupedWith.join(', ')}
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="flex items-center gap-2">
                                             <button onClick={(e) => { e.stopPropagation(); readOrder(o); }} className="p-1.5 bg-blue-500 text-white rounded-md active:scale-95 transition-all" title="Lire la commande">
                                                 <Volume2 size={14} />
@@ -749,18 +792,32 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
                     {filteredPreparingOrders.map(o => {
                         const styles = getSourceStyles(o.source);
+                        const oNum = o.orderNumber || o.id.slice(-4).toUpperCase();
+                        const groupedWith = glovoGroupedOrders[`#${oNum}`];
+                        const isGrouped = !!groupedWith && groupedWith.length > 0;
+                        
+                        const bgClass = isGrouped ? 'bg-blue-900/40 border-2 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.6)] animate-[pulse_2s_ease-in-out_infinite]' : `${styles.bg} border-2 ${styles.border}`;
+                        const headerBgClass = isGrouped ? 'bg-blue-600 border-b border-blue-500/50' : `${styles.headerBg} border-b ${styles.headerBorder}`;
+
                         return (
-                        <div key={o.id} className={`${styles.bg} border-2 ${styles.border} transition-colors rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl`}>
+                        <div key={o.id} className={`${bgClass} transition-colors rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl`}>
                             
                             {/* Header de la carte commande */}
-                            <div className={`${styles.headerBg} p-6 border-b ${styles.headerBorder} flex justify-between items-start relative`}>
+                            <div className={`${headerBgClass} p-6 flex justify-between items-start relative`}>
                                 <div className="flex flex-col gap-1">
-                                    <span className={`font-black uppercase tracking-widest ${styles.text}`} style={{ fontSize: kdsFontSizes.headerTags + 'px' }}>
+                                    <span className={`font-black uppercase tracking-widest ${styles.text} ${isGrouped ? '!text-blue-100' : ''}`} style={{ fontSize: kdsFontSizes.headerTags + 'px' }}>
                                         {styles.label}{(o.paymentMethod === 'espece' || o.paymentMethod === 'cash') && o.source === 'glovo' && (
                                             <span className="text-white bg-red-500 px-2 py-0.5 rounded border-2 border-red-700 ml-2 font-black shadow-[0_0_10px_rgba(239,68,68,0.5)] uppercase animate-pulse" style={{ fontSize: kdsFontSizes.headerTags + 'px' }}>ESPECE</span>
                                         )}
                                     </span>
-                                    <span className={`font-black uppercase tracking-tighter ${styles.orderNumberText || 'text-white'}`} style={{ fontSize: kdsFontSizes.headerNum + 'px' }}>#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`font-black uppercase tracking-tighter ${styles.orderNumberText || 'text-white'}`} style={{ fontSize: kdsFontSizes.headerNum + 'px' }}>#{oNum}</span>
+                                        {isGrouped && (
+                                            <span className="flex items-center gap-1 bg-white text-blue-800 px-3 py-1 rounded-md text-xs font-black">
+                                                🔗 + {groupedWith.join(', ')}
+                                            </span>
+                                        )}
+                                    </div>
                                     {o.source === 'pos' && (
                                         <span className={`font-black uppercase mt-1 px-2 py-1 rounded-md w-fit text-white ${o.orderType === 'sur_place' ? 'bg-blue-600' : 'bg-pink-600'}`} style={{ fontSize: Math.max(8, kdsFontSizes.headerTags - 1) + 'px' }}>
                                             {o.orderType === 'sur_place' ? '🍽️ SUR PLACE (PLATEAUX)' : '🛍️ À EMPORTER (EMBALLAGE)'}

@@ -45,6 +45,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showAchatsModal, setShowAchatsModal] = useState(false);
     const [achatsToday, setAchatsToday] = useState([]);
     const [glovoCancellationsToday, setGlovoCancellationsToday] = useState(0);
+    const [glovoGroupedOrders, setGlovoGroupedOrders] = useState({});
     const [isVerifyingGlovo, setIsVerifyingGlovo] = useState(false);
     const [activeBranchId, setActiveBranchId] = useState(isAdmin ? (adminSelectedBranch && adminSelectedBranch !== 'ALL' ? adminSelectedBranch : 'ALL') : (managerBranchId || ''));
     const prevPendingCount = useRef(0);
@@ -112,6 +113,35 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         });
         return () => unsub();
     }, [db, appId]);
+
+    // Ecoute des commandes groupées brutes
+    useEffect(() => {
+        if (!appId) return;
+        let suffix = "";
+        if (activeBranchId !== 'ALL' && settings?.branches?.length > 0) {
+            const branch = settings.branches.find(b => b.id === activeBranchId);
+            if (branch && branch.name && branch.name.toLowerCase() === 'oum rabii') {
+                suffix = "_OumRabii";
+            }
+        }
+        
+        const rawGlovoCollection = collection(db, 'artifacts', appId, 'public', 'data', `Commandes_Brutes_Glovo${suffix}`);
+        const qGroups = query(rawGlovoCollection, where('type', '==', 'GROUP_ORDERS'));
+        
+        const unsubscribe = onSnapshot(qGroups, (snapshot) => {
+            const groups = {};
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                if (data.orders && Array.isArray(data.orders)) {
+                    data.orders.forEach(orderId => {
+                        groups[orderId] = data.orders.filter(id => id !== orderId);
+                    });
+                }
+            });
+            setGlovoGroupedOrders(groups);
+        });
+        return () => unsubscribe();
+    }, [db, appId, activeBranchId, settings]);
 
     const triggerGlovoVerification = async (isAuto = false) => {
         if (isVerifyingGlovo) return;
@@ -2604,11 +2634,21 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                     <span>Aucune commande Glovo prête.</span>
                                 </div>
                             ) : (
-                                readyGlovoOrders.map(o => (
-                                    <div key={o.id} className="bg-white p-3 rounded-2xl border-2 border-[#FFC244]/30 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                                readyGlovoOrders.map(o => {
+                                    const oNum = o.orderNumber || o.id.slice(-4).toUpperCase();
+                                    const groupedWith = glovoGroupedOrders[`#${oNum}`];
+                                    const isGrouped = !!groupedWith && groupedWith.length > 0;
+                                    
+                                    return (
+                                    <div key={o.id} className={`p-3 rounded-2xl border-2 shadow-sm flex flex-wrap items-center justify-between gap-3 transition-all ${isGrouped ? 'bg-blue-50 border-blue-500 animate-pulse' : 'bg-white border-[#FFC244]/30'}`}>
                                         <div className="flex items-center flex-wrap gap-2">
-                                            <span className="font-black text-2xl text-yellow-600 uppercase">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
+                                            <span className={`font-black text-2xl uppercase ${isGrouped ? 'text-blue-700' : 'text-yellow-600'}`}>#{oNum}</span>
                                             
+                                            {isGrouped && (
+                                                <span className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-xs font-black ml-2 border border-blue-200">
+                                                    🔗 + {groupedWith.join(', ')}
+                                                </span>
+                                            )}
                                             {(o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? (
                                                 <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-md border border-green-300 font-black shadow-sm">
                                                     ESPECE 💵: {o.total || '???'} DH
@@ -2639,7 +2679,8 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                             <CheckCircle size={18}/> Remis
                                         </button>
                                     </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>
