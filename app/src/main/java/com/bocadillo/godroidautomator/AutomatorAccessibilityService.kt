@@ -908,7 +908,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         isSequenceRunning = true
         
         wakeUpScreenAndUnlock()
-        delay(1000)
+        delay(500)
 
         val labelMins = getLabel("btn_mins", "min")
         val labelModifier = getLabel("btn_modifier", "Modifier")
@@ -983,7 +983,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                 }
                 
-                delay(500)
+                delay(200)
             }
             
             // Si après 10 secondes on n'a toujours rien trouvé, on tente l'onglet "Nouvelle" en dernier recours
