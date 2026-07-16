@@ -23,8 +23,8 @@ object OrderParser {
             val text = node.second
             val rect = node.first
 
-            // Find Order ID (# followed by digits/letters)
-            if (text.matches(Regex("^#[0-9A-Za-z]+.*"))) {
+            // Find Order ID (# followed by digits/letters) - Prendre uniquement le premier trouvé
+            if (orderId.isEmpty() && text.matches(Regex("^#[0-9A-Za-z]+.*"))) {
                 orderId = text.split(" ")[0]
             }
 
