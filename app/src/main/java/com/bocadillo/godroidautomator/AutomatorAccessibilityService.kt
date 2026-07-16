@@ -300,6 +300,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
             nouvelleY = rect.bottom
         }
         
+        // Si l'onglet/titre "Nouvelle" n'est pas à l'écran, on n'est pas sur le dashboard principal
+        if (nouvelleY == -1) {
+            return false
+        }
+        
         var accepteeY = Int.MAX_VALUE
         val accepteeNodes = mutableListOf<AccessibilityNodeInfo>()
         findAllNodesWithTextRecursively(labelAcceptee, root, accepteeNodes)
@@ -815,6 +820,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val rect = android.graphics.Rect()
             validNouvelle.getBoundsInScreen(rect)
             nouvelleY = rect.bottom
+        }
+        
+        // Si l'onglet/titre "Nouvelle" n'est pas à l'écran, on n'est pas sur le dashboard principal
+        if (nouvelleY == -1) {
+            return false
         }
         
         var accepteeY = Int.MAX_VALUE
