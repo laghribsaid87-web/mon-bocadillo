@@ -579,6 +579,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val root = rootInActiveWindow ?: return
             
+            val rootPackage = root.packageName?.toString() ?: ""
+            if (!rootPackage.contains("deliveryhero", ignoreCase = true) && !rootPackage.contains("glovo", ignoreCase = true)) {
+                return
+            }
+            
             // --- FERMETURE DES POPUPS GLOVO ---
             val welcomePopup = findNodeWithTextRecursively("Bienvenue dans la nouvelle version", root, true)
             if (welcomePopup != null) {
