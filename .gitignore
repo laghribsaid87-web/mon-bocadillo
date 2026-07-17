@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 release/
 dist/
+
+jdk21*
+*.log
+*.txt
+tail_large.txt

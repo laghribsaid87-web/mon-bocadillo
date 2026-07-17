@@ -204,7 +204,9 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
             
         // Filtrer les doublons au cas où la commande est à la fois en local et sur firebase
         const fbIds = new Set(preparingFirebase.map(o => o.orderNumber));
-        const preparingLocal = localOrders.filter(o => !fbIds.has(o.orderNumber));
+        const preparingLocal = localOrders
+            .filter(o => !fbIds.has(o.orderNumber))
+            .filter(o => selectedBranchId === 'ALL' || !o.nearestBranch?.id || o.nearestBranch?.id === selectedBranchId);
 
         const allPreparing = [...preparingLocal, ...preparingFirebase].sort((a, b) => {
             const timeA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : (a.offlineCreatedAt || Date.now());

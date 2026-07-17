@@ -1131,3 +1131,25 @@ exports.processGoDroidAutomatorOrders_OumRabii = functions.firestore
 exports.processGoDroidAutomatorOrders_Zoubire = functions.firestore
     .document('artifacts/{appId}/public/data/Commandes_Brutes_Glovo_Zoubire/{docId}')
     .onCreate((snap, context) => handleGoDroidOrder(snap, context, 'zoubire'));
+
+// ==========================================
+// GLOVO API WEBHOOKS (OFFICIAL INTEGRATION)
+// ==========================================
+
+exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) => {
+    console.log("Glovo Order Dispatch Received:", req.body);
+    // TODO: Process the order data from Glovo API
+    res.status(200).send("OK");
+});
+
+exports.glovoWebhookOrderCancel = functions.https.onRequest(async (req, res) => {
+    console.log("Glovo Order Cancel Received:", req.body);
+    // TODO: Process the order cancellation from Glovo API
+    res.status(200).send("OK");
+});
+
+exports.glovoWebhookCustomerPickup = functions.https.onRequest(async (req, res) => {
+    console.log("Glovo Customer Pickup Received:", req.body);
+    // TODO: Process the customer pickup from Glovo API
+    res.status(200).send("OK");
+});
