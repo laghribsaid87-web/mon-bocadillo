@@ -979,7 +979,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(launchIntent)
                     Journal.log("Ouverture de l'app: $targetPackage")
-                    delay(2000)
+                    delay(400)
                 } else {
                     Journal.log("ERREUR: App goDroid introuvable !")
                 }
@@ -1061,7 +1061,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             
             // Wait extra time for the transition animation and list to fully load
-            delay(2500)
+            delay(1000)
 
             // 4. Read full details (Items, Price, Order Num)
             Journal.log("Lecture détails de la commande...")
@@ -1093,7 +1093,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 while (scrollAttempts < 3) {
                     Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
                     performSystemScrollForward()
-                    delay(1500) // Wait for scroll animation
+                    delay(600) // Wait for scroll animation
                     
                     val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                     collectTextNodes(rootInActiveWindow, newNodes, rectNum, rectDet)
@@ -1229,7 +1229,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             waitUntilTextAppears(labelAnnuler, 4000)
             
             // Attendre un peu que la page charge complètement le numéro et le nom
-            delay(800)
+            delay(400)
 
             // 9. Read Phone number from this screen
             Journal.log("Lecture du numéro de téléphone...")
@@ -1390,7 +1390,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     startActivity(launchIntent)
                     Journal.log("Ouverture de l'app: $targetPackage")
                     // Increased delay for PC Emulators (LDPlayer) to fully load
-                    delay(2000)
+                    delay(400)
                 }
             }
             
@@ -1485,7 +1485,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             .build()
                         
                         dispatchGesture(gesture, null, null)
-                        delay(800) // Wait for UI to settle (reduced per user request)
+                        delay(400) // Wait for UI to settle (reduced per user request)
                     } else {
                         Journal.log("Smart Scroll ignoré: Le produit est déjà assez haut.")
                     }
@@ -1549,7 +1549,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         .build()
                     
                     dispatchGesture(gesture, null, null)
-                    delay(800) // Wait for UI to settle (reduced per user request)
+                    delay(400) // Wait for UI to settle (reduced per user request)
                     
                     val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
                     collectTextNodes(rootInActiveWindow, newNodes, rectNum, rectDet)
@@ -1692,7 +1692,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
             }
             
-            delay(2000)
+            delay(400)
 
             // 4. Click "Commandes récentes"
             Journal.log("Clic sur 'Commandes récentes'")
@@ -1755,7 +1755,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                 }
             }
-            delay(2000)
+            delay(400)
             // Click on Aperçu des commandes is moved to finally
         } catch (e: Exception) {
             Journal.log("ERREUR: ${"$"}{e.message}")
@@ -1961,7 +1961,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
 
             // 5. Find the toggle switch for the product and click it
-            delay(2000) // Wait for search results
+            delay(400) // Wait for search results
             Journal.log("Désactivation du produit...")
             val resultRoot = rootInActiveWindow
             
