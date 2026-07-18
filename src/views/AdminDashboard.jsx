@@ -580,10 +580,27 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
 
     // Recharger l'historique quand le filtre ou l'onglet change
     useEffect(() => {
-        if (tab === 'history' || tab === 'analytics') {
+        if (tab === 'history') {
             loadLazyHistory(false, f);
         }
     }, [tab, f.type, f.date]);
+
+    // 🔥 NOUVEAU: Fonction dédiée pour charger manuellement les Analytics sans toucher au Quota
+    const handleFetchAnalytics = () => {
+        let filterType = 'none';
+        if (analyticsPeriod === 'today') filterType = 'today';
+        else if (analyticsPeriod === 'yesterday') filterType = 'yesterday';
+        else if (analyticsPeriod === 'all') filterType = 'all';
+        else filterType = 'custom';
+        
+        const filterObj = { type: filterType, date: filterType === 'custom' ? analyticsPeriod : '' };
+        
+        if (filterType === 'all') {
+            if (!window.confirm("⚠️ ATTENTION : Charger 'Toujours' va télécharger TOUTES les commandes de Firebase. Cela peut consommer beaucoup de quotas. Voulez-vous continuer ?")) return;
+        }
+        
+        loadLazyHistory(false, filterObj);
+    };
 
     const { safeOrders, branchOrders, pending, actives, problemOrders } = useMemo(() => {
         const sOrders = [...(orders || [])];
@@ -1719,6 +1736,14 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                    <button onClick={()=>setAnalyticsPeriod('all')} className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all ${analyticsPeriod==='all'?'bg-white text-gray-900 shadow-sm border border-gray-200':'text-gray-500 hover:text-gray-700'}`}>Toujours</button>
                                </div>
                                <input type="date" value={!['today','yesterday','all'].includes(analyticsPeriod) ? analyticsPeriod : ''} onChange={e=>setAnalyticsPeriod(e.target.value || 'all')} className="flex-1 bg-white p-2.5 rounded-lg text-gray-900 outline-none border border-gray-300 font-medium text-sm" />
+                               <button 
+                                   onClick={handleFetchAnalytics} 
+                                   disabled={loadingLazyHistory}
+                                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 flex-1 md:flex-none disabled:opacity-50"
+                               >
+                                   {loadingLazyHistory ? <Activity size={18} className="animate-spin"/> : <Search size={18}/>}
+                                   {loadingLazyHistory ? 'Chargement...' : 'Chercher'}
+                               </button>
                            </div>
 
                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
