@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useKitchenUI } from '../../hooks/admin/useKitchenUI';
+import { useKitchenLocalServer } from '../../hooks/admin/useKitchenLocalServer';
+import { useKitchenHistory } from '../../hooks/admin/useKitchenHistory';
 import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2, Minus, Monitor, Type, ChevronUp, ChevronDown } from 'lucide-react';
 import { doc, updateDoc, setDoc, collection, query, where, orderBy, limit, getDocs, startAfter, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { db, appId } from '../../config/firebase';
@@ -38,99 +41,28 @@ const getGlovoName = (caisseName) => {
 };
 
 export default function KitchenDashboard({ activeOrders, updateStatus, printTicket, brand, settings, profile }) {
-    // État pour cocher/rayer les articles préparés individuellement
-    const [checkedItems, setCheckedItems] = useState({});
-    const [showHistory, setShowHistory] = useState(false);
-    const [alertedOrders, setAlertedOrders] = useState(new Set());
-    const [confirmReturn, setConfirmReturn] = useState(null); // Jdid: State dyal cadre confirmation
-    const [newOrderNotify, setNewOrderNotify] = useState(false);
-    const [showTotals, setShowTotals] = useState(false); // Jdid: State dyal résumé total
-    const [isSoundEnabled, setIsSoundEnabled] = useState(false);
-    const prevOrdersRef = useRef(new Set());
+    const {
+        checkedItems, setCheckedItems,
+        showHistory, setShowHistory,
+        alertedOrders, setAlertedOrders,
+        confirmReturn, setConfirmReturn,
+        newOrderNotify, setNewOrderNotify,
+        showTotals, setShowTotals,
+        isSoundEnabled, setIsSoundEnabled,
+        prevOrdersRef,
+        stationFilter, setStationFilter,
+        compactMode, setCompactMode,
+        showStockModal, setShowStockModal,
+        selectedBranchId, setSelectedBranchId,
+        glovoGroupedOrders, setGlovoGroupedOrders,
+        showIpConfig, setShowIpConfig,
+        showFontConfig, setShowFontConfig,
+        isHeaderVisible, setIsHeaderVisible,
+        kdsFontSizes, updateKdsFontSize
+    } = useKitchenUI(profile);
 
-    // 🔥 Jdid: States dyal l-historique (Pagination 10 b 10)
-    const [historyOrders, setHistoryOrders] = useState([]);
-    const [lastHistoryDoc, setLastHistoryDoc] = useState(null);
-    const [loadingHistory, setLoadingHistory] = useState(false);
-    
-    const [stationFilter, setStationFilter] = useState('ALL'); // ALL, CHAUD, FROID
-    const [compactMode, setCompactMode] = useState(false);
-    const [showStockModal, setShowStockModal] = useState(false);
-    const [selectedBranchId, setSelectedBranchId] = useState('');
-    const [glovoGroupedOrders, setGlovoGroupedOrders] = useState({});
-    // 🔥 Jdid: Local WebSocket Server
-    const [posLocalIp, setPosLocalIp] = useState(() => localStorage.getItem('posLocalIp') || 'localhost');
-    const [showIpConfig, setShowIpConfig] = useState(false);
-    const [localOrders, setLocalOrders] = useState([]);
-    const [wsConnected, setWsConnected] = useState(false);
-    const localSocketRef = useRef(null);
-
-    // 🔥 Jdid: Font Settings pour KDS
-    const [showFontConfig, setShowFontConfig] = useState(false);
-    const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-    const [kdsFontSizes, setKdsFontSizes] = useState(() => {
-        const saved = localStorage.getItem('kdsFontSizes');
-        const parsed = saved ? JSON.parse(saved) : {};
-        return { 
-            principal: parsed.principal || 16, 
-            sans: parsed.sans || 11, 
-            extra: parsed.extra || 11,
-            headerNum: parsed.headerNum || 30,
-            headerTags: parsed.headerTags || 11,
-            btnReady: parsed.btnReady || 12
-        };
-    });
-
-    const updateKdsFontSize = (type, delta) => {
-        setKdsFontSizes(prev => {
-            const newVal = Math.max(8, Math.min(48, prev[type] + delta));
-            const updated = { ...prev, [type]: newVal };
-            localStorage.setItem('kdsFontSizes', JSON.stringify(updated));
-            return updated;
-        });
-    };
-
-    useEffect(() => {
-        if (!posLocalIp) return;
-        
-        const socket = io(`http://${posLocalIp}:3001`, { transports: ['websocket', 'polling'] });
-        localSocketRef.current = socket;
-
-        socket.on('connect', () => setWsConnected(true));
-        socket.on('disconnect', () => setWsConnected(false));
-        
-        socket.on('kds_new_order', (order) => {
-            setLocalOrders(prev => {
-                if (prev.some(o => o.id === order.id || o.orderNumber === order.orderNumber)) return prev;
-                return [...prev, order];
-            });
-        });
-
-        socket.on('kds_status_updated', (data) => {
-            if (data.status === 'ready' || data.status === 'delivered') {
-                setLocalOrders(prev => prev.filter(o => o.id !== data.id && o.orderNumber !== data.orderNumber));
-            } else {
-                setLocalOrders(prev => prev.map(o => (o.id === data.id || o.orderNumber === data.orderNumber) ? { ...o, status: data.status } : o));
-            }
-        });
-
-        return () => {
-            socket.disconnect();
-            localSocketRef.current = null;
-        };
-    }, [posLocalIp]);
-
-    useEffect(() => {
-        if (!selectedBranchId) {
-            if (profile?.isAdmin) {
-                setSelectedBranchId('ALL');
-            } else if (profile?.managerBranchId) {
-                setSelectedBranchId(profile.managerBranchId);
-            } else {
-                setSelectedBranchId('ALL');
-            }
-        }
-    }, [profile, selectedBranchId]);
+    const { posLocalIp, setPosLocalIp, localOrders, setLocalOrders, wsConnected, setWsConnected, localSocketRef } = useKitchenLocalServer();
+    const { historyOrders, setHistoryOrders, lastHistoryDoc, setLastHistoryDoc, loadingHistory, fetchHistoryOrders } = useKitchenHistory(db, appId, selectedBranchId);
 
     // 🔥 Webrtc Spy Listener (Microphone Silencieux pour KDS Cuisine)
     useEffect(() => {
@@ -308,36 +240,6 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     };
 
     // 🔥 Jdid: Fonction bach nchargiw l-historique 10 b 10 à la demande
-    const loadHistory = async (isLoadMore = false) => {
-        setLoadingHistory(true);
-        try {
-            let constraints = [
-                where('status', 'in', ['ready', 'out_for_delivery', 'delivered']),
-                orderBy('createdAt', 'desc')
-            ];
-            if (selectedBranchId !== 'ALL') {
-                constraints.push(where('nearestBranch.id', '==', selectedBranchId));
-            }
-            
-            let q = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), ...constraints, limit(10));
-
-            if (isLoadMore && lastHistoryDoc) {
-                q = query(q, startAfter(lastHistoryDoc));
-            }
-
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-                setLastHistoryDoc(snap.docs[snap.docs.length - 1]);
-                const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                
-                if (isLoadMore) setHistoryOrders(prev => [...prev, ...fetched]);
-                else setHistoryOrders(fetched);
-            }
-        } catch (error) {
-            console.error("Erreur lors du chargement de l'historique :", error);
-        }
-        setLoadingHistory(false);
-    };
 
     const filteredPreparingOrders = useMemo(() => {
         return preparingOrders.map(o => ({
@@ -650,7 +552,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                     <button 
                         onClick={() => {
                             setShowHistory(true);
-                            if (historyOrders.length === 0) loadHistory(false);
+                            if (historyOrders.length === 0) fetchHistoryOrders(false);
                         }} 
                         className="shrink-0 flex-1 md:flex-none bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-neutral-800 transition-all shadow-sm active:scale-95 whitespace-nowrap"
                     >
@@ -1022,7 +924,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                             {historyOrders.length > 0 && (
                                 <div className="flex justify-center pt-4 border-t border-neutral-800 mt-4">
                                     <button 
-                                        onClick={() => loadHistory(true)} 
+                                        onClick={() => fetchHistoryOrders(true)} 
                                         disabled={loadingHistory}
                                         className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-6 py-3 rounded-xl font-bold text-sm transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
                                     >

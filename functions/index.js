@@ -663,7 +663,7 @@ exports.syncStatusToGlovo = functions.firestore
         const glovoStoreId = storeIdMap[branchId];
 
         // ⚠️ HAD L-TOKEN GHADI Y3TIH LIK L-ACCOUNT MANAGER DYAL GLOVO
-        const GLOVO_API_TOKEN = "VOTRE_TOKEN_API_GLOVO_ICI";
+        const GLOVO_API_TOKEN = "76a633d6-08e1-423f-813d-008b77df13b5";
 
         if (glovoStatus && glovoStoreId) {
             try {
@@ -1137,19 +1137,111 @@ exports.processGoDroidAutomatorOrders_Zoubire = functions.firestore
 // ==========================================
 
 exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) => {
-    console.log("Glovo Order Dispatch Received:", req.body);
-    // TODO: Process the order data from Glovo API
-    res.status(200).send("OK");
+    try {
+        const payload = Object.keys(req.body).length > 0 ? req.body : req.query;
+        console.log("Glovo Order Dispatch Received:", JSON.stringify(payload));
+        
+        const appId = "mon-bocadillo-menu";
+        const glovoOrder = payload;
+        if (!glovoOrder || !glovoOrder.order_id) {
+            res.status(400).send('Bad Request');
+            return;
+        }
+
+        const GLOVO_STORES_MAP = {
+            "370282": { id: "laymoune", name: "Laymoune" },
+            "249396": { id: "oum_rabii", name: "Oum Rabii" }
+        };
+
+        const glovoStoreId = glovoOrder.store_id ? glovoOrder.store_id.toString() : "";
+        const assignedBranch = GLOVO_STORES_MAP[glovoStoreId] || { id: "laymoune", name: "Laymoune" };
+
+        const newOrder = {
+            userId: "glovo",
+            orderNumber: glovoOrder.order_code || glovoOrder.order_id.toString().slice(-4),
+            customerName: glovoOrder.customer?.name || "Client Glovo",
+            phone: glovoOrder.customer?.phone_number || "GLOVO",
+            address: glovoOrder.delivery_address?.label || "Commande Glovo",
+            nearestBranch: assignedBranch,
+            source: "glovo",
+            orderType: "a_emporter",
+            paymentMethod: glovoOrder.payment_method === 'CASH' ? 'espece' : 'glovo',
+            status: "pending", 
+            total: glovoOrder.estimated_total_price / 100, 
+            subtotal: glovoOrder.estimated_total_price / 100,
+            deliveryFee: 0,
+            items: (glovoOrder.products || []).map(p => {
+                let selectedSans = [];
+                let selectedExtras = [];
+                
+                if (p.attributes && Array.isArray(p.attributes)) {
+                    p.attributes.forEach(attr => {
+                        if (attr.name.toLowerCase().includes('sans')) {
+                            selectedSans.push(attr.name.replace(/sans/i, '').trim());
+                        } else {
+                            selectedExtras.push({ name: attr.name, price: (attr.price || 0) / 100 });
+                        }
+                    });
+                }
+
+                return {
+                    id: p.id,
+                    name: p.name,
+                    qty: p.quantity,
+                    price: p.price / 100,
+                    selectedSans: selectedSans,
+                    selectedExtras: selectedExtras
+                };
+            }),
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await db.collection("artifacts").doc(appId)
+                .collection("public").doc("data")
+                .collection("orders").doc(glovoOrder.order_id.toString())
+                .set(newOrder);
+
+        res.status(200).send("OK");
+    } catch (e) {
+        console.error("Glovo Dispatch Error", e);
+        res.status(500).send("Error");
+    }
 });
 
 exports.glovoWebhookOrderCancel = functions.https.onRequest(async (req, res) => {
-    console.log("Glovo Order Cancel Received:", req.body);
-    // TODO: Process the order cancellation from Glovo API
-    res.status(200).send("OK");
+    try {
+        const payload = Object.keys(req.body).length > 0 ? req.body : req.query;
+        console.log("Glovo Order Cancel Received:", JSON.stringify(payload));
+        const appId = "mon-bocadillo-menu";
+        
+        if (payload && payload.order_id) {
+            await db.collection("artifacts").doc(appId)
+                .collection("public").doc("data")
+                .collection("orders").doc(payload.order_id.toString())
+                .update({ status: 'cancelled' });
+        }
+        res.status(200).send("OK");
+    } catch (e) {
+        console.error("Glovo Cancel Error", e);
+        res.status(500).send("Error");
+    }
 });
 
 exports.glovoWebhookCustomerPickup = functions.https.onRequest(async (req, res) => {
-    console.log("Glovo Customer Pickup Received:", req.body);
-    // TODO: Process the customer pickup from Glovo API
-    res.status(200).send("OK");
+    try {
+        const payload = Object.keys(req.body).length > 0 ? req.body : req.query;
+        console.log("Glovo Customer Pickup Received:", JSON.stringify(payload));
+        const appId = "mon-bocadillo-menu";
+        
+        if (payload && payload.order_id) {
+            await db.collection("artifacts").doc(appId)
+                .collection("public").doc("data")
+                .collection("orders").doc(payload.order_id.toString())
+                .update({ status: 'delivered', deliveredAtLocal: Date.now() });
+        }
+        res.status(200).send("OK");
+    } catch (e) {
+        console.error("Glovo Pickup Error", e);
+        res.status(500).send("Error");
+    }
 });

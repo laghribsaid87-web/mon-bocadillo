@@ -3,7 +3,7 @@
   "description": "Caisse Mon Bocadillo Management Application",
   "author": "Mon Bocadillo",
   "private": true,
-  "version": "1.0.60",
+  "version": "1.0.61",
   "type": "module",
   "main": "public/electron.cjs",
   "scripts": {
@@ -34,8 +34,10 @@
     "@capacitor/push-notifications": "^8.0.4",
     "@google/generative-ai": "^0.24.1",
     "electron-updater": "^6.8.3",
+    "react-router-dom": "^7.18.1",
     "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@capacitor/android": "^8.3.3",

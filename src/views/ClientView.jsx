@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { ShoppingBag, User, Plus, ChevronRight, Lock, MapPin, Navigation, MessageCircle, Star, X, Home, Clock, Check, Phone, Utensils, Trash2, FileText, ClipboardList, BellRing, Share, PlusSquare, CheckCircle } from 'lucide-react';
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, updateDoc, increment, onSnapshot } from 'firebase/firestore';
 import { getMessaging, onMessage, getToken } from 'firebase/messaging';
 import { getDatabase, ref as rtdbRef, onValue } from 'firebase/database';
 import { getClosestBranch, getDeliveryFee, getWhatsAppFormat, generateOrderNumber, buildMessage, formatSansIngredient, openWhatsAppDirect } from '../utils/helpers';
-import ClientTrackingMap from '../components/ClientTrackingMap';
+const ClientTrackingMap = lazy(() => import('../components/ClientTrackingMap'));
 import StatusBadge from '../components/StatusBadge';
 import RatingCard from '../components/RatingCard';
 import { DEFAULT_BRANCHES, PREDEFINED_DRINKS } from '../config/constants';
@@ -826,7 +826,9 @@ function ClientViewInner({ cart, setCart, orders, user, showNotify, settings, br
                           </div>
 
                           <div className="flex-1 w-full relative bg-gray-200 mt-auto min-h-[250px] rounded-b-[2.5rem] overflow-hidden border-t border-gray-100">
-                              <ClientTrackingMap dLat={dInfo?.lat} dLng={dInfo?.lng} cLat={o.lat} cLng={o.lng} bLat={o.nearestBranch?.lat} bLng={o.nearestBranch?.lng} color={brand.color} height="100%" />
+                              <Suspense fallback={<div className="animate-pulse bg-gray-100 h-[100%] w-full rounded-2xl"></div>}>
+                                <ClientTrackingMap dLat={dInfo?.lat} dLng={dInfo?.lng} cLat={o.lat} cLng={o.lng} bLat={o.nearestBranch?.lat} bLng={o.nearestBranch?.lng} color={brand.color} height="100%" />
+                              </Suspense>
                           </div>
                        </div>
                      );
