@@ -5,7 +5,7 @@ import { usePosContext } from '../PosContext';
 export default function OnlineOrdersModal({
     onlineOrders, validOnlineDrivers, handleReassignOrder, updateStatus, printTicket, getDriverAssignmentData
 }) {
-    const { showOnlineOrdersModal, setShowOnlineOrdersModal, brand, showNotify, setConfirmDialog } = usePosContext();
+    const { showOnlineOrdersModal, setShowOnlineOrdersModal, brand, showNotify, setConfirmDialog, orders, defaultPosDriver } = usePosContext();
 
     if (!showOnlineOrdersModal) return null;
 
@@ -73,6 +73,23 @@ export default function OnlineOrdersModal({
                                                 onChange={(e) => {
                                                     const val = e.target.value;
                                                     if (val === 'ROBOT') {
+                                                        if (defaultPosDriver) {
+                                                            const defaultDriverOrdersCount = (orders || []).filter(ord => ord.driverId === defaultPosDriver && !['delivered', 'rejected'].includes(ord.status)).length;
+                                                            if (defaultDriverOrdersCount >= 3) {
+                                                                setConfirmDialog({
+                                                                    message: `⚠️ Le livreur salarié a déjà ${defaultDriverOrdersCount} commandes en cours.\nVoulez-vous lancer l'alerte aux livreurs Freelances ?`,
+                                                                    onConfirm: () => {
+                                                                        handleReassignOrder(o, null, true, true);
+                                                                        showNotify("Recherche automatique lancée (Freelance)", "info");
+                                                                    }
+                                                                });
+                                                                return;
+                                                            } else {
+                                                                handleReassignOrder(o, null, false, false, defaultPosDriver);
+                                                                showNotify("Assigné automatiquement au livreur salarié", "success");
+                                                                return;
+                                                            }
+                                                        }
                                                         handleReassignOrder(o, null, true, true);
                                                         showNotify("Recherche automatique lancée", "info");
                                                     } else if (val) {

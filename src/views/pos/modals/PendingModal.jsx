@@ -6,7 +6,7 @@ import { usePosContext } from '../PosContext';
 export default function PendingModal({
     pendingOnline, updateStatus, getDriverAssignmentData, printTicket, setTab
 }) {
-    const { showPendingModal, setShowPendingModal, brand, showNotify, defaultPosDriver } = usePosContext();
+    const { showPendingModal, setShowPendingModal, brand, showNotify, defaultPosDriver, orders, setConfirmDialog } = usePosContext();
     const navigate = useNavigate();
 
     if (!showPendingModal) return null;
@@ -47,6 +47,33 @@ export default function PendingModal({
                             </div>
                             <div className="flex gap-2 mt-2">
                                 <button onClick={() => {
+                                    if (defaultPosDriver) {
+                                        const defaultDriverOrdersCount = (orders || []).filter(ord => ord.driverId === defaultPosDriver && !['delivered', 'rejected'].includes(ord.status)).length;
+                                        if (defaultDriverOrdersCount >= 3) {
+                                            setConfirmDialog({
+                                                message: `⚠️ Le livreur salarié a déjà ${defaultDriverOrdersCount} commandes en cours.\nVoulez-vous lancer l'alerte aux livreurs Freelances ?`,
+                                                confirmText: "Oui, utiliser Freelance",
+                                                cancelText: "Non, forcer au Salarié",
+                                                onConfirm: () => {
+                                                    updateStatus(o.id, 'preparing', {
+                                                        isFreelanceDriver: true,
+                                                        driverId: null,
+                                                        driverName: null,
+                                                        driverAccepted: false,
+                                                        assignedAtLocal: Date.now()
+                                                    });
+                                                    printTicket(o, brand);
+                                                    showNotify("Commande acceptée et envoyée aux Freelances! ✅", "success");
+                                                },
+                                                onCancel: () => {
+                                                    updateStatus(o.id, 'preparing', getDriverAssignmentData());
+                                                    printTicket(o, brand);
+                                                    showNotify("Commande acceptée w mchat l'KDS! ✅", "success");
+                                                }
+                                            });
+                                            return;
+                                        }
+                                    }
                                     updateStatus(o.id, 'preparing', getDriverAssignmentData());
                                     printTicket(o, brand);
                                     showNotify(defaultPosDriver ? "Commande acceptée w mchat l-livreur! 🛵" : "Commande acceptée w mchat l'KDS! ✅", "success");

@@ -1064,13 +1064,15 @@ export default function AdminConfig({
                                             { id: 'problemes', label: 'Problèmes' },
                                             { id: 'suivi', label: 'Suivi Web/Tél' },
                                             { id: 'pretes', label: 'Prêtes (Servir)' },
+                                            { id: 'glovo_ready', label: 'Glovo (Livreur)' },
+                                            { id: 'glovo_verify', label: 'Glovo (Verify)' },
                                             { id: 'tv', label: 'Écran TV' },
                                             { id: 'standard', label: 'Standard Tél' },
                                             { id: 'kds', label: 'Cuisine (KDS)' },
                                             { id: 'quitter', label: 'Bouton Quitter' }
                                         ].map(btn => (
                                             <label key={btn.id} className="flex items-center gap-3 cursor-pointer bg-white p-3 rounded-xl border border-orange-100 shadow-sm hover:bg-orange-50 transition-colors">
-                                                <input type="checkbox" className="w-4 h-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500 accent-orange-600 cursor-pointer" checked={branch.posButtons ? branch.posButtons.includes(btn.id) : true} onChange={ev => { const b = [...editableBranches]; let branchPosBtns = b[idx].posButtons || ['commandes_web', 'problemes', 'suivi', 'pretes', 'tv', 'standard', 'kds', 'quitter']; if (ev.target.checked) { if (!branchPosBtns.includes(btn.id)) branchPosBtns.push(btn.id); } else { branchPosBtns = branchPosBtns.filter(id => id !== btn.id); } b[idx].posButtons = branchPosBtns; setEditableBranches(b); }} />
+                                                <input type="checkbox" className="w-4 h-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500 accent-orange-600 cursor-pointer" checked={branch.posButtons ? branch.posButtons.includes(btn.id) : true} onChange={ev => { const b = [...editableBranches]; let branchPosBtns = b[idx].posButtons || ['commandes_web', 'problemes', 'suivi', 'pretes', 'glovo_ready', 'glovo_verify', 'tv', 'standard', 'kds', 'quitter']; if (ev.target.checked) { if (!branchPosBtns.includes(btn.id)) branchPosBtns.push(btn.id); } else { branchPosBtns = branchPosBtns.filter(id => id !== btn.id); } b[idx].posButtons = branchPosBtns; setEditableBranches(b); }} />
                                                 <span className="text-xs font-bold text-gray-700">{btn.label}</span>
                                             </label>
                                         ))}

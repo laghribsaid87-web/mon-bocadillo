@@ -262,7 +262,25 @@ export default function App() {
 
   // 🔥 Route directe vers l'Écran TV (Support Electron w Web)
   if (window.location.pathname === '/tv' || window.location.hash.includes('/tv')) {
-    if (brand && brand.isTvEnabled === false) {
+    
+    let isTvDisabled = brand && brand.isTvEnabled === false;
+    
+    if (!isTvDisabled) {
+        const params = new URLSearchParams(window.location.search);
+        const urlBranch = params.get('branch');
+        const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
+        const hashBranch = hashParams?.get('branch');
+        const branchFromUrl = urlBranch || hashBranch;
+        
+        if (branchFromUrl && branchFromUrl !== 'ALL' && settings && settings.branches) {
+             const currentBranch = settings.branches.find(b => b.id === branchFromUrl);
+             if (currentBranch && currentBranch.posButtons && !currentBranch.posButtons.includes('tv')) {
+                 isTvDisabled = true;
+             }
+        }
+    }
+
+    if (isTvDisabled) {
       return (
         <div className="h-screen flex items-center justify-center bg-black text-white font-bold text-2xl flex-col gap-4">
            <span>📺 L'Écran TV est actuellement désactivé.</span>

@@ -186,11 +186,40 @@ exports.notifyDriverOnNewOrder = functions.firestore
                     await admin.messaging().sendToDevice(token, payload, { priority: "high", timeToLive: 60 * 60 * 24 });
                 }
             } else if (isNewFreelance) {
+                // Fetch config to get branch coordinates
+                const configSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("settings").doc("config").get();
+                const config = configSnap.exists ? configSnap.data() : {};
+                const branches = config.branches || [];
+                const branchId = orderData.nearestBranch?.id || "laymoune";
+                const branch = branches.find(b => b.id === branchId);
+
                 const driversSnap = await db.collection("artifacts").doc(appId).collection("public").doc("data").collection("drivers")
                     .where('isAvailable', '==', true).get();
                 
                 const tokens = [];
-                driversSnap.forEach(doc => { if (doc.data().fcmToken) tokens.push(doc.data().fcmToken); });
+                driversSnap.forEach(doc => { 
+                    const driver = doc.data();
+                    if (!driver.fcmToken) return;
+                    
+                    let isWithin2Km = true; // Par défaut on accepte si on n'a pas les coords
+                    if (branch && branch.lat && branch.lng && driver.lat && driver.lng) {
+                        const R = 6371; // Rayon de la Terre en km
+                        const dLat = (driver.lat - branch.lat) * (Math.PI / 180);
+                        const dLon = (driver.lng - branch.lng) * (Math.PI / 180);
+                        const a = 
+                            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                            Math.cos(branch.lat * (Math.PI / 180)) * Math.cos(driver.lat * (Math.PI / 180)) * 
+                            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                        const distance = R * c;
+                        
+                        if (distance > 2) isWithin2Km = false;
+                    }
+                    
+                    if (isWithin2Km) {
+                        tokens.push(driver.fcmToken); 
+                    }
+                });
 
                 if (tokens.length > 0) {
                     const payload = {
@@ -577,7 +606,8 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
 
         const GLOVO_STORES_MAP = {
             "370282": { id: "laymoune", name: "Laymoune" },
-            "249396": { id: "oum_rabii", name: "Oum Rabii" }
+            "249396": { id: "oum_rabii", name: "Oum Rabii" },
+            "962002": { id: "laymoune", name: "Glovo Test" }
         };
 
         const glovoStoreId = glovoOrder.store_id ? glovoOrder.store_id.toString() : "";
@@ -597,6 +627,7 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
             total: glovoOrder.estimated_total_price / 100, 
             subtotal: glovoOrder.estimated_total_price / 100,
             deliveryFee: 0,
+            glovoStoreId: glovoStoreId,
             items: (glovoOrder.products || []).map(p => {
                 let selectedSans = [];
                 let selectedExtras = [];
@@ -660,7 +691,7 @@ exports.syncStatusToGlovo = functions.firestore
             "oum_rabii": "249396"
         };
         const branchId = newData.nearestBranch?.id || "laymoune";
-        const glovoStoreId = storeIdMap[branchId];
+        const glovoStoreId = newData.glovoStoreId || storeIdMap[branchId];
 
         // ⚠️ HAD L-TOKEN GHADI Y3TIH LIK L-ACCOUNT MANAGER DYAL GLOVO
         const GLOVO_API_TOKEN = "76a633d6-08e1-423f-813d-008b77df13b5";
