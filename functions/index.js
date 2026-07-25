@@ -606,7 +606,7 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
 
         const GLOVO_STORES_MAP = {
             "370282": { id: "laymoune", name: "Laymoune" },
-            "249396": { id: "oum_rabii", name: "Oum Rabii" },
+            "249094": { id: "oum_rabii", name: "Oum Rabii" },
             "962002": { id: "laymoune", name: "Glovo Test" }
         };
 
@@ -615,7 +615,8 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
 
         const newOrder = {
             userId: "glovo",
-            orderNumber: glovoOrder.order_code || glovoOrder.order_id.toString().slice(-4),
+            glovoOrderId: glovoOrder.order_id,
+            orderNumber: glovoOrder.pick_up_code || glovoOrder.order_code || glovoOrder.order_id.toString(),
             customerName: glovoOrder.customer?.name || "Client Glovo",
             phone: glovoOrder.customer?.phone_number || "GLOVO",
             address: glovoOrder.delivery_address?.label || "Commande Glovo",
@@ -634,10 +635,37 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                 
                 if (p.attributes && Array.isArray(p.attributes)) {
                     p.attributes.forEach(attr => {
-                        if (attr.name.toLowerCase().includes('sans')) {
-                            selectedSans.push(attr.name.replace(/sans/i, '').trim());
+                        let lowerName = attr.name.toLowerCase();
+                        
+                        const translateGlovoOption = (text) => {
+                            let lower = text.toLowerCase();
+                            if (lower.includes('tomate')) return '🍅 مطيشة';
+                            if (lower.includes('oignon')) return '🧅 بصل';
+                            if (lower.includes('olive')) return '🫒 زيتون';
+                            if (lower.includes('laitue') || lower.includes('salade')) return '🥬 خس';
+                            if (lower.includes('carotte')) return '🥕 خيزو';
+                            if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) return '🍟 فريت';
+                            if (lower.includes('mayonnaise') || lower.includes('mayo')) return '🥚 مايونيز';
+                            if (lower.includes('harissa') || lower.includes('hrissa')) return '🌶️ هريسة';
+                            if (lower.includes('ketchup')) return '🍅 كيتشوب';
+                            if (lower.includes('sauce')) return '🥣 صوص';
+                            if (lower.includes('fromage')) return '🧀 الجبن';
+                            if (lower.includes('viande') || lower.includes('hachée')) return '🥩 اللحم المفروم';
+                            if (lower.includes('poulet')) return '🍗 الدجاج';
+                            if (lower.includes('oeuf') || lower.includes('œuf')) return '🍳 البيض';
+                            if (lower.includes('thon')) return '🐟 الطون';
+                            if (lower.includes('charcuterie')) return '🥓 الكاشير';
+                            if (lower.includes('saucisse')) return '🌭 الصوصيص';
+                            return text;
+                        };
+
+                        if (lowerName.includes('sans')) {
+                            const rawSans = attr.name.replace(/sans/i, '').trim();
+                            selectedSans.push(translateGlovoOption(rawSans));
                         } else {
-                            selectedExtras.push({ name: attr.name, price: (attr.price || 0) / 100 });
+                            let rawExtra = attr.name.replace(/extra/i, '').replace(/ajout/i, '').trim();
+                            if (!rawExtra) rawExtra = attr.name.trim();
+                            selectedExtras.push({ name: translateGlovoOption(rawExtra), price: (attr.price || 0) / 100 });
                         }
                     });
                 }
@@ -1181,7 +1209,7 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
 
         const GLOVO_STORES_MAP = {
             "370282": { id: "laymoune", name: "Laymoune" },
-            "249396": { id: "oum_rabii", name: "Oum Rabii" }
+            "249094": { id: "oum_rabii", name: "Oum Rabii" }
         };
 
         const glovoStoreId = glovoOrder.store_id ? glovoOrder.store_id.toString() : "";
@@ -1189,7 +1217,8 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
 
         const newOrder = {
             userId: "glovo",
-            orderNumber: glovoOrder.order_code || glovoOrder.order_id.toString().slice(-4),
+            glovoOrderId: glovoOrder.order_id,
+            orderNumber: glovoOrder.pick_up_code || glovoOrder.order_code || glovoOrder.order_id.toString(),
             customerName: glovoOrder.customer?.name || "Client Glovo",
             phone: glovoOrder.customer?.phone_number || "GLOVO",
             address: glovoOrder.delivery_address?.label || "Commande Glovo",
@@ -1207,10 +1236,37 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
                 
                 if (p.attributes && Array.isArray(p.attributes)) {
                     p.attributes.forEach(attr => {
-                        if (attr.name.toLowerCase().includes('sans')) {
-                            selectedSans.push(attr.name.replace(/sans/i, '').trim());
+                        let lowerName = attr.name.toLowerCase();
+                        
+                        const translateGlovoOption = (text) => {
+                            let lower = text.toLowerCase();
+                            if (lower.includes('tomate')) return '🍅 مطيشة';
+                            if (lower.includes('oignon')) return '🧅 بصل';
+                            if (lower.includes('olive')) return '🫒 زيتون';
+                            if (lower.includes('laitue') || lower.includes('salade')) return '🥬 خس';
+                            if (lower.includes('carotte')) return '🥕 خيزو';
+                            if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) return '🍟 فريت';
+                            if (lower.includes('mayonnaise') || lower.includes('mayo')) return '🥚 مايونيز';
+                            if (lower.includes('harissa') || lower.includes('hrissa')) return '🌶️ هريسة';
+                            if (lower.includes('ketchup')) return '🍅 كيتشوب';
+                            if (lower.includes('sauce')) return '🥣 صوص';
+                            if (lower.includes('fromage')) return '🧀 الجبن';
+                            if (lower.includes('viande') || lower.includes('hachée')) return '🥩 اللحم المفروم';
+                            if (lower.includes('poulet')) return '🍗 الدجاج';
+                            if (lower.includes('oeuf') || lower.includes('œuf')) return '🍳 البيض';
+                            if (lower.includes('thon')) return '🐟 الطون';
+                            if (lower.includes('charcuterie')) return '🥓 الكاشير';
+                            if (lower.includes('saucisse')) return '🌭 الصوصيص';
+                            return text;
+                        };
+
+                        if (lowerName.includes('sans')) {
+                            const rawSans = attr.name.replace(/sans/i, '').trim();
+                            selectedSans.push(translateGlovoOption(rawSans));
                         } else {
-                            selectedExtras.push({ name: attr.name, price: (attr.price || 0) / 100 });
+                            let rawExtra = attr.name.replace(/extra/i, '').replace(/ajout/i, '').trim();
+                            if (!rawExtra) rawExtra = attr.name.trim();
+                            selectedExtras.push({ name: translateGlovoOption(rawExtra), price: (attr.price || 0) / 100 });
                         }
                     });
                 }
