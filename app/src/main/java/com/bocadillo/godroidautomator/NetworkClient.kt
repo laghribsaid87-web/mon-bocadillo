@@ -263,6 +263,116 @@ object NetworkClient {
         }
     }
 
+    suspend fun checkExtractionOrders(context: android.content.Context): List<ReadyOrder> {
+        return withContext(Dispatchers.IO) {
+            val branchId = getBranchId(context)
+            val orders = mutableListOf<ReadyOrder>()
+            try {
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data:runQuery"
+                val jsonStr = """
+                {
+                  "structuredQuery": {
+                    "from": [{"collectionId": "orders"}],
+                    "where": {
+                      "compositeFilter": {
+                        "op": "AND",
+                        "filters": [
+                          {
+                            "fieldFilter": {
+                              "field": {"fieldPath": "needsAutomatorExtraction"},
+                              "op": "EQUAL",
+                              "value": {"booleanValue": true}
+                            }
+                          },
+                          {
+                            "fieldFilter": {
+                              "field": {"fieldPath": "source"},
+                              "op": "EQUAL",
+                              "value": {"stringValue": "glovo"}
+                            }
+                          },
+                          {
+                            "fieldFilter": {
+                              "field": {"fieldPath": "nearestBranch.id"},
+                              "op": "EQUAL",
+                              "value": {"stringValue": "$branchId"}
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+                """.trimIndent()
+
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val body = jsonStr.toRequestBody(mediaType)
+                val request = Request.Builder().url(url).post(body).build()
+
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val responseStr = response.body?.string() ?: return@withContext emptyList()
+                    if (responseStr.trim() == "[]") return@withContext emptyList()
+
+                    val jsonArray = org.json.JSONArray(responseStr)
+                    for (i in 0 until jsonArray.length()) {
+                        val item = jsonArray.optJSONObject(i) ?: continue
+                        val document = item.optJSONObject("document") ?: continue
+                        val fields = document.optJSONObject("fields") ?: continue
+                        
+                        val isExtractionDone = fields.optJSONObject("isExtractionDone")?.optBoolean("booleanValue", false) ?: false
+                        if (!isExtractionDone) {
+                            val docName = document.optString("name")
+                            val docId = docName.substringAfterLast("/")
+                            val orderNumber = fields.optJSONObject("orderNumber")?.optString("stringValue", "") ?: ""
+                            orders.add(ReadyOrder(docId, orderNumber))
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in checkExtractionOrders", e)
+            }
+            return@withContext orders
+        }
+    }
+
+    suspend fun markOrderExtractionDone(documentId: String, pickupCode: String? = null) {
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/orders/$documentId"
+                
+                val fields = JSONObject()
+                fields.put("isExtractionDone", JSONObject().put("booleanValue", true))
+                if (pickupCode != null) {
+                    fields.put("pickupCode", JSONObject().put("stringValue", pickupCode))
+                }
+                
+                val jsonObject = JSONObject().put("fields", fields)
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val body = jsonObject.toString().toRequestBody(mediaType)
+                
+                var patchUrl = "$url?updateMask.fieldPaths=isExtractionDone"
+                if (pickupCode != null) {
+                    patchUrl += "&updateMask.fieldPaths=pickupCode"
+                }
+
+                val request = Request.Builder()
+                    .url(patchUrl)
+                    .method("PATCH", body)
+                    .build()
+
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    Journal.log("Extraction marquée comme terminée pour $documentId.")
+                } else {
+                    Log.e("NetworkClient", "Error updating extraction status: ${response.code} ${response.body?.string()}")
+                }
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in markOrderExtractionDone", e)
+            }
+        }
+    }
+
     suspend fun checkCancellationTrigger(context: android.content.Context): Boolean {
         return withContext(Dispatchers.IO) {
             try {

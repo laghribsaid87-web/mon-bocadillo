@@ -265,6 +265,17 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             }
                         }
 
+                        // 3.5 Check for Orders needing phone/pin extraction
+                        val extractionOrders = NetworkClient.checkExtractionOrders(applicationContext)
+                        for (order in extractionOrders) {
+                            if (!processedReadyOrders.contains(order.documentId)) {
+                                processedReadyOrders.add(order.documentId)
+                                sequenceMutex.withLock {
+                                    startNewOrderExtractionSequence(order.orderNumber, order.documentId)
+                                }
+                            }
+                        }
+
                         // 4. Check Visually for popups that block the screen
                         checkAndDismissPopups()
 
@@ -366,6 +377,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val isBannerPresent = (findBannerNode(root) != null)
             
             if (hasNewOrderCard(root) || isBannerPresent) {
+                val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
+                val disableAutoRead = prefs.getBoolean("disable_auto_read", false)
+                if (disableAutoRead) {
+                    return
+                }
+
                 Journal.log("Suite de commande: Carte ou Bannière détectée ! (Fallback)")
                 coroutineScope.launch {
                     sequenceMutex.withLock {
@@ -377,6 +394,203 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
         }
     }
+
+        private suspend fun startNewOrderExtractionSequence(orderNumber: String, documentId: String) {
+        isSequenceRunning = true
+        val labelAcceptee = getLabel("btn_acceptee", "Acceptée")
+        val labelModifier = getLabel("btn_modifier", "Modifier")
+        val labelContinuer = getLabel("btn_continuer", "Continuer")
+        val labelAnnuler = getLabel("btn_annuler", "Annuler")
+
+        try {
+            Journal.log("=== DEBUT SÉQUENCE EXTRACTION NUM/PIN ===")
+            Journal.log("Commande détectée: $orderNumber")
+            
+            wakeUpScreenAndUnlock()
+            delay(1000)
+
+            // 1. Launch goDroid
+            var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
+            val pm = packageManager
+            val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+            for (app in packages) {
+                val appName = pm.getApplicationLabel(app).toString()
+                if (appName.equals("goDroid", ignoreCase = true) || appName.equals("Glovo Partner", ignoreCase = true)) {
+                    targetPackage = app.packageName
+                    break
+                }
+            }
+
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(applicationContext, "Extraction Commande $orderNumber !", android.widget.Toast.LENGTH_LONG).show()
+            }
+
+            val currentPackage = rootInActiveWindow?.packageName?.toString()
+            if (currentPackage != targetPackage) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    Journal.log("Ouverture de l'app: $targetPackage")
+                    delay(1000)
+                }
+            }
+
+            delay(1500)
+
+            // 1.5 Open Menu (Drawer) and click "Aperçu des commandes"
+            Journal.log("Ouverture du menu")
+            val root = rootInActiveWindow
+            if (root != null) {
+                if (!clickByText("Ouvrir le tiroir de navigation")) {
+                    val drawerNodes = root.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
+                    if (drawerNodes.isNotEmpty()) {
+                        val toolbar = drawerNodes[0]
+                        if (toolbar.childCount > 0) {
+                            val firstChild = toolbar.getChild(0)
+                            if (firstChild != null && firstChild.isClickable) {
+                                firstChild.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            }
+                        }
+                    } else {
+                        clickByText("Menu")
+                    }
+                }
+            }
+            delay(500)
+            Journal.log("Clic sur 'Aperçu des commandes'")
+            clickByText("Aperçu des commandes")
+            delay(1000)
+
+            // 2. Click on "Acceptée" tab
+            Journal.log("Clic sur l'onglet '$labelAcceptee'")
+            clickByText(labelAcceptee)
+            delay(1000)
+
+            // 3. Find the order on the screen
+            val orderTextToFind = orderNumber.replace("#", "")
+            Journal.log("Recherche de la commande $orderTextToFind")
+            
+            var orderFound = false
+            for (i in 0..5) {
+                if (clickExactText(orderTextToFind)) {
+                    orderFound = true
+                    break
+                }
+                Journal.log("Commande non visible, défilement vers le bas ($i/5)...")
+                val rootForScroll = rootInActiveWindow
+                if (rootForScroll != null) {
+                    val scrollableNode = findScrollableNode(rootForScroll)
+                    if (scrollableNode != null) {
+                        scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    } else {
+                        performSwipeUp()
+                    }
+                }
+                delay(1500)
+            }
+
+            if (orderFound) {
+                delay(1000) // Wait for order details to load
+                
+                // --- PHONE EXTRACTION STEPS ---
+                Journal.log("Tentative de clic sur '$labelModifier'...")
+                if (clickByText(labelModifier)) {
+                    Journal.log("Clic sur '$labelModifier' réussi (Ancien Layout)")
+                    Journal.log("Attente Checkbox...")
+                    if (waitUntilIdAppears("com.deliveryhero.rps.restaurantandroidapp:id/checkbox", 3000)) {
+                        Journal.log("Clic sur Checkbox")
+                        clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
+                    } else {
+                        delay(500) // Fallback
+                    }
+                } else {
+                    Journal.log("Bouton '$labelModifier' introuvable. Essai du Nouveau Layout (Besoin d'aide)...")
+                    if (clickByText("Besoin d'aide avec cette commande") || clickByText("Besoin d'aide avec cette command")) {
+                        Journal.log("Clic sur 'Besoin d'aide...' réussi")
+                        delay(1000)
+                        val labelProduitNonDispo = "Produit non disponible"
+                        Journal.log("Attente de '$labelProduitNonDispo'...")
+                        if (waitUntilTextAppears(labelProduitNonDispo, 3000)) {
+                            Journal.log("Clic sur '$labelProduitNonDispo'")
+                            clickByText(labelProduitNonDispo)
+                            delay(1000)
+                            Journal.log("Attente Checkbox...")
+                            if (waitUntilIdAppears("com.deliveryhero.rps.restaurantandroidapp:id/checkbox", 3000)) {
+                                Journal.log("Clic sur Checkbox")
+                                clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
+                            } else {
+                                delay(500) // Fallback
+                            }
+                        } else {
+                            Journal.log("Option '$labelProduitNonDispo' introuvable.")
+                        }
+                    } else {
+                        Journal.log("Aucun des deux boutons n'a été trouvé.")
+                    }
+                }
+
+                Journal.log("Clic sur '$labelContinuer'")
+                clickByText(labelContinuer)
+
+                Journal.log("Attente de '$labelAnnuler'...")
+                waitUntilTextAppears(labelAnnuler, 4000)
+                delay(400)
+
+                Journal.log("Lecture du numéro de téléphone...")
+                val telephoneEcran = extractAllText(rootInActiveWindow)
+                Journal.log("Extraction num téléphone terminée.")
+
+                Journal.log("Envoi données réseau vers Firestore...")
+                NetworkClient.sendOrderData(this@AutomatorAccessibilityService, telephoneEcran, "{\"extractionOnly\":true,\"orderNumber\":\"$orderNumber\"}")
+
+                Journal.log("Clic sur '$labelAnnuler'")
+                clickByText(labelAnnuler)
+                delay(1000)
+
+                // --- PIN EXTRACTION STEPS ---
+                var extractedPin: String? = null
+                try {
+                    Journal.log("Recherche du code QR pour $orderTextToFind")
+                    val clickedQrButton = clickByText("code QR") || clickByText("Afficher")
+                    if (clickedQrButton) {
+                        Journal.log("Bouton 'code QR/Afficher' cliqué. Attente du popup...")
+                        delay(1000)
+                        val rootAfterQrClick = rootInActiveWindow
+                        extractedPin = extractPinFromPopup(rootAfterQrClick)
+                        Journal.log("PIN extrait: $extractedPin")
+
+                        clickByText("Fermer")
+                        delay(500)
+                    } else {
+                        Journal.log("Bouton 'code QR' ou 'Afficher' non trouvé sur la page de détails.")
+                    }
+                } catch (e: Exception) {
+                    Journal.log("Erreur lors de la recherche du QR code: ${e.message}")
+                }
+                
+                // BACK to list
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                delay(500)
+
+                // Envoi à Firestore (PIN)
+                NetworkClient.markOrderExtractionDone(documentId, extractedPin)
+            } else {
+                Journal.log("Commande non trouvée après défilement. Impossible d'extraire le PIN.")
+            }
+
+            Journal.log("=== FIN SÉQUENCE EXTRACTION ===")
+
+        } catch (e: Exception) {
+            Journal.log("Erreur lors de la séquence d'extraction: ${e.message}")
+            e.printStackTrace()
+        } finally {
+            returnToNewOrdersTab()
+            isSequenceRunning = false
+            triggerFallbackVisualCheck()
+        }
+    }
+
 
     private suspend fun startReadySequence(orderNumber: String, documentId: String) {
         isSequenceRunning = true
@@ -563,6 +777,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val packageName = event.packageName?.toString() ?: ""
             if (packageName.contains("deliveryhero", ignoreCase = true) || packageName.contains("glovo", ignoreCase = true)) {
                 
+                val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
+                val disableAutoRead = prefs.getBoolean("disable_auto_read", false)
+                if (disableAutoRead) return
+
                 val currentTime = System.currentTimeMillis()
                 if (currentTime - lastTriggerTime < 3000) return // Debounce 3 seconds
                 lastTriggerTime = currentTime
@@ -617,6 +835,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             val nodeNouvelle = findNodeWithTextRecursively(labelNouvelle, root)
             
             if ((nodeMins != null && isNodeClickable(nodeMins)) || (nodeNouvelle != null && isNodeClickable(nodeNouvelle))) {
+                val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
+                val disableAutoRead = prefs.getBoolean("disable_auto_read", false)
+                if (disableAutoRead) return
+                
                 Journal.log("Détection visuelle (Carré vert ou Nouvelle commande)")
                 lastTriggerTime = currentTime
                 coroutineScope.launch {
@@ -2287,3 +2509,4 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 }
+

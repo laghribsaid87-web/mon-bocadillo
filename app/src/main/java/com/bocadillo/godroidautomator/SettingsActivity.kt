@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -103,6 +104,14 @@ class SettingsActivity : AppCompatActivity() {
         }
         layout.addView(spinnerWebhook)
 
+        val cbDisableAuto = CheckBox(this).apply {
+            text = "Désactiver la lecture automatique (API officielle)"
+            textSize = 16f
+            setPadding(0, 32, 0, 32)
+            isChecked = prefs.getBoolean("disable_auto_read", false)
+        }
+        layout.addView(cbDisableAuto)
+
         val btnSave = Button(this).apply {
             text = "Sauvegarder"
             setPadding(0, 32, 0, 32)
@@ -112,6 +121,7 @@ class SettingsActivity : AppCompatActivity() {
                     editor.putString(key, et.text.toString().trim())
                 }
                 editor.putString("point_de_vente", spinnerWebhook.selectedItem.toString())
+                editor.putBoolean("disable_auto_read", cbDisableAuto.isChecked)
                 editor.apply()
                 Toast.makeText(this@SettingsActivity, "Paramètres sauvegardés !", Toast.LENGTH_SHORT).show()
                 finish()
