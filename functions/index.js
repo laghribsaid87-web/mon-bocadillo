@@ -624,14 +624,16 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
             source: "glovo",
             orderType: "a_emporter",
             paymentMethod: glovoOrder.payment_method === 'CASH' ? 'espece' : 'glovo',
-            status: "pending", 
+            status: "preparing",
+            needsAutomatorExtraction: true,
             total: glovoOrder.estimated_total_price / 100, 
             subtotal: glovoOrder.estimated_total_price / 100,
             deliveryFee: 0,
             glovoStoreId: glovoStoreId,
-            items: (glovoOrder.products || []).map(p => {
+            items: (glovoOrder.products || []).flatMap(p => {
                 let selectedSans = [];
                 let selectedExtras = [];
+                let standaloneItems = [];
                 
                 if (p.attributes && Array.isArray(p.attributes)) {
                     p.attributes.forEach(attr => {
@@ -665,12 +667,37 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                         } else {
                             let rawExtra = attr.name.replace(/extra/i, '').replace(/ajout/i, '').trim();
                             if (!rawExtra) rawExtra = attr.name.trim();
-                            selectedExtras.push({ name: translateGlovoOption(rawExtra), price: (attr.price || 0) / 100 });
+                            
+                            if (
+                                lowerName.includes('pepsi') || 
+                                lowerName.includes('mirinda') || 
+                                lowerName.includes('coca') || 
+                                lowerName.includes('7up') || 
+                                lowerName.includes('hawai') || 
+                                lowerName.includes('poms') || 
+                                lowerName.includes('boisson') ||
+                                lowerName.includes('eau') ||
+                                lowerName.includes('sprite') ||
+                                lowerName.includes('schweppes') ||
+                                lowerName.includes('fanta') ||
+                                lowerName.includes('ice tea')
+                            ) {
+                                standaloneItems.push({
+                                    id: 'glovo_drink_' + Math.random().toString(36).substr(2, 9),
+                                    name: translateGlovoOption(rawExtra),
+                                    qty: p.quantity || 1,
+                                    price: (attr.price || 0) / 100,
+                                    selectedSans: [],
+                                    selectedExtras: []
+                                });
+                            } else {
+                                selectedExtras.push({ name: translateGlovoOption(rawExtra), price: (attr.price || 0) / 100 });
+                            }
                         }
                     });
                 }
 
-                return {
+                let mainItem = {
                     id: p.id,
                     name: p.name,
                     qty: p.quantity,
@@ -678,6 +705,8 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                     selectedSans: selectedSans,
                     selectedExtras: selectedExtras
                 };
+
+                return [mainItem, ...standaloneItems];
             }),
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         };
@@ -697,12 +726,13 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
 // 11. Informer Glovo mli l-restaurant y-accepter awla y-wjed l-commande
 exports.syncStatusToGlovo = functions.firestore
     .document('artifacts/{appId}/public/data/orders/{orderId}')
-    .onUpdate(async (change, context) => {
-        const newData = change.after.data();
-        const oldData = change.before.data();
+    .onWrite(async (change, context) => {
+        const newData = change.after.exists ? change.after.data() : null;
+        const oldData = change.before.exists ? change.before.data() : null;
 
         // Vérifier wach l-commande dyal Glovo w wach l-Statut tbeddel
-        if (newData.source !== 'glovo' || newData.status === oldData.status) return null;
+        if (!newData || newData.source !== 'glovo') return null;
+        if (oldData && newData.status === oldData.status) return null;
 
         const glovoOrderId = context.params.orderId;
         let glovoStatus = "";
@@ -726,7 +756,7 @@ exports.syncStatusToGlovo = functions.firestore
 
         if (glovoStatus && glovoStoreId) {
             try {
-                const response = await fetch(`https://api.glovoapp.com/webhook/stores/${glovoStoreId}/orders/${glovoOrderId}/replace_status`, {
+                const response = await fetch(`https://api.glovoapp.com/webhook/stores/${glovoStoreId}/orders/${glovoOrderId}/status`, {
                     method: 'PUT',
                     headers: { 
                         'Authorization': `Basic ${Buffer.from(GLOVO_API_TOKEN).toString('base64')}`,
@@ -1125,16 +1155,35 @@ async function handleGoDroidOrder(snap, context, branchId) {
 
                 if (existingDocRef) {
                     if (cleanPhone && cleanPhone !== "GLOVO") {
-                        console.log(`Order ${orderNumber} already exists. Updating phone number to ${cleanPhone}`);
-                        await existingDocRef.update({
-                            client_phone: cleanPhone,
-                            client_name: customerName
-                        });
-                        await snap.ref.update({ processed: true, note: 'duplicate_phone_updated' });
+                        if (!config.glovoConfig?.disableAutomatorOrderCreation) {
+                            console.log(`Order ${orderNumber} already exists. Updating phone number to ${cleanPhone}`);
+                            await existingDocRef.update({
+                                phone: cleanPhone,
+                                customerName: customerName
+                            });
+                            await snap.ref.update({ processed: true, note: 'duplicate_phone_updated' });
+                        } else {
+                            console.log(`Order ${orderNumber} already exists. Automator order creation is disabled, so NOT updating phone on order.`);
+                            await snap.ref.update({ processed: true, note: 'duplicate_ignored_disabled' });
+                        }
                     } else {
                         console.log(`Order ${orderNumber} already exists today. Ignoring duplicate scrape.`);
                         await snap.ref.update({ processed: true, duplicate: true });
                     }
+                    
+                    // MUST SAVE CLIENT HERE TOO!
+                    if (cleanPhone && cleanPhone !== "Inconnu" && cleanPhone !== "GLOVO") {
+                        const clientRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('clients').doc(cleanPhone);
+                        await clientRef.set({
+                            phone: cleanPhone,
+                            name: customerName,
+                            source: "glovo",
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            blocked: false,
+                            isDriver: false
+                        }, { merge: true });
+                    }
+                    
                     return null;
                 }
             }
@@ -1154,7 +1203,11 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 nearestBranch: { id: branchId }
             };
 
-            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders').add(newOrder);
+            if (!config.glovoConfig?.disableAutomatorOrderCreation) {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders').add(newOrder);
+            } else {
+                console.log(`Automator order creation is disabled for order ${orderNumber}. Skipping creation.`);
+            }
             
             // Save Client Document so they appear in IDARA
             if (cleanPhone && cleanPhone !== "Inconnu" && cleanPhone !== "GLOVO") {
@@ -1226,13 +1279,15 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
             source: "glovo",
             orderType: "a_emporter",
             paymentMethod: glovoOrder.payment_method === 'CASH' ? 'espece' : 'glovo',
-            status: "pending", 
+            status: "preparing",
+            needsAutomatorExtraction: true,
             total: glovoOrder.estimated_total_price / 100, 
             subtotal: glovoOrder.estimated_total_price / 100,
             deliveryFee: 0,
-            items: (glovoOrder.products || []).map(p => {
+            items: (glovoOrder.products || []).flatMap(p => {
                 let selectedSans = [];
                 let selectedExtras = [];
+                let standaloneItems = [];
                 
                 if (p.attributes && Array.isArray(p.attributes)) {
                     p.attributes.forEach(attr => {
@@ -1266,12 +1321,37 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
                         } else {
                             let rawExtra = attr.name.replace(/extra/i, '').replace(/ajout/i, '').trim();
                             if (!rawExtra) rawExtra = attr.name.trim();
-                            selectedExtras.push({ name: translateGlovoOption(rawExtra), price: (attr.price || 0) / 100 });
+                            
+                            if (
+                                lowerName.includes('pepsi') || 
+                                lowerName.includes('mirinda') || 
+                                lowerName.includes('coca') || 
+                                lowerName.includes('7up') || 
+                                lowerName.includes('hawai') || 
+                                lowerName.includes('poms') || 
+                                lowerName.includes('boisson') ||
+                                lowerName.includes('eau') ||
+                                lowerName.includes('sprite') ||
+                                lowerName.includes('schweppes') ||
+                                lowerName.includes('fanta') ||
+                                lowerName.includes('ice tea')
+                            ) {
+                                standaloneItems.push({
+                                    id: 'glovo_drink_' + Math.random().toString(36).substr(2, 9),
+                                    name: translateGlovoOption(rawExtra),
+                                    qty: p.quantity || 1,
+                                    price: (attr.price || 0) / 100,
+                                    selectedSans: [],
+                                    selectedExtras: []
+                                });
+                            } else {
+                                selectedExtras.push({ name: translateGlovoOption(rawExtra), price: (attr.price || 0) / 100 });
+                            }
                         }
                     });
                 }
 
-                return {
+                let mainItem = {
                     id: p.id,
                     name: p.name,
                     qty: p.quantity,
@@ -1279,6 +1359,8 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
                     selectedSans: selectedSans,
                     selectedExtras: selectedExtras
                 };
+
+                return [mainItem, ...standaloneItems];
             }),
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         };
