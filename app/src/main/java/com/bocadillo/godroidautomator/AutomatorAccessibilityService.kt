@@ -535,7 +535,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
                 Journal.log("Attente de '$labelAnnuler'...")
                 waitUntilTextAppears(labelAnnuler, 4000)
-                delay(400)
+                delay(2000)
 
                 Journal.log("Lecture du numéro de téléphone...")
                 val telephoneEcran = extractAllText(rootInActiveWindow)
