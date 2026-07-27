@@ -1173,17 +1173,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
         wakeUpScreenAndUnlock()
         delay(500)
 
-        val labelMins = getLabel("btn_mins", "min")
-        val labelModifier = getLabel("btn_modifier", "Modifier")
-        val labelContinuer = getLabel("btn_continuer", "Continuer")
-        val labelAnnuler = getLabel("btn_annuler", "Annuler")
+        val labelNouvelle = getLabel("btn_nouvelle", "Nouvelle")
         val labelAccepter = getLabel("btn_accepter", "Accepter la commande")
         val labelCompris = getLabel("btn_compris", "Compris")
 
         try {
-            Journal.log("=== DEBUT DE L'AUTOMATISATION ===")
+            Journal.log("=== DEBUT DE L'AUTOMATISATION (Acceptation Rapide) ===")
 
-            // 1. Launch goDroid
             var targetPackage = "com.deliveryhero.rps.restaurantandroidapp"
             val pm = packageManager
             val packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
@@ -1195,305 +1191,55 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 }
             }
             
-            kotlinx.coroutines.withContext(Dispatchers.Main) {
-                // Toast supprimé pour ne pas cacher le texte lors de la capture d'écran OCR
-            }
-
             val currentPackage = rootInActiveWindow?.packageName?.toString()
             if (currentPackage != targetPackage) {
                 val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)
                 if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(launchIntent)
                     Journal.log("Ouverture de l'app: $targetPackage")
-                    delay(400)
-                } else {
-                    Journal.log("ERREUR: App goDroid introuvable !")
+                    delay(2000)
                 }
             }
 
-            // 2. Wait until "min", "nouvelle commande" or "Nouvelle" appears
-            val labelNouvelle = getLabel("btn_nouvelle_commande", "nouvelle commande")
-            val labelNouvelleTab = getLabel("btn_nouvelle", "Nouvelle")
-            Journal.log("Attente de '$labelMins', '$labelNouvelle' ou onglet '$labelNouvelleTab'...")
-            
-            var clickedBanner = false
-            var cardFound = false
-            for (i in 0..20) {
-                // Smart detection pour la nouvelle mise à jour (ex: "9 min" dans un carré vert) en PREMIER !
-                try {
-                    if (findAndClickNewOrderCard(rootInActiveWindow)) {
-                        cardFound = true
-                        break
-                    }
-                } catch (e: Exception) {
-                    Journal.log("Erreur dans findAndClickNewOrderCard: ${e.message}")
-                }
-
-                val bannerNode = findBannerNode(rootInActiveWindow)
-                if (!clickedBanner && bannerNode != null) {
-                    Journal.log("Clic sur la bannière 'nouvelle commande'")
-                    bannerNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    clickedBanner = true
-                    // On ne fait pas de break ici ! On continue d'attendre l'apparition du carré vert.
-                }
-                
-                if (findNodeWithTextRecursively(labelMins, rootInActiveWindow) != null) {
-                    Journal.log("Clic sur '$labelMins'")
-                    if (clickByText(labelMins)) {
-                        cardFound = true
-                        break
-                    }
-                }
-                
-                delay(200)
+            // 1.5 Open Menu (Drawer) and click "Aperçu des commandes"
+            val drawerNode = findDrawerButton(rootInActiveWindow)
+            if (drawerNode != null) {
+                drawerNode.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+                delay(1000)
             }
-            
-            // Si après 10 secondes on n'a toujours rien trouvé, on tente l'onglet "Nouvelle" en dernier recours
-            if (!cardFound) {
-                val root = rootInActiveWindow
-                if (root != null) {
-                    val nodes = mutableListOf<AccessibilityNodeInfo>()
-                    findAllNodesWithTextRecursively(labelNouvelleTab, root, nodes)
-                    val validTabNodes = nodes.filter { !(it.text?.toString() ?: "").contains("commande", ignoreCase = true) && !(it.contentDescription?.toString() ?: "").contains("commande", ignoreCase = true) }
-                    if (validTabNodes.isNotEmpty()) {
-                        Journal.log("Clic sur l'onglet '$labelNouvelleTab' (Dernier recours)")
-                        validTabNodes.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        delay(1000)
-                        try {
-                            if (!findAndClickNewOrderCard(rootInActiveWindow)) {
-                                if (waitUntilTextAppears(labelMins, 3000)) {
-                                    clickByText(labelMins)
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Journal.log("Erreur dans findAndClickNewOrderCard: ${e.message}")
-                        }
-                    }
-                }
-            }
-
-            // 3. Wait until "Modifier" appears (indicates order details loaded)
-            Journal.log("Attente de '$labelModifier'...")
-            val orderOpened = waitUntilTextAppears(labelModifier, 4000)
-            
-            if (!orderOpened) {
-                Journal.log("La commande ne s'est pas ouverte ! Deuxième essai...")
-                clickByText(labelMins)
-                if (!waitUntilTextAppears(labelModifier, 4000)) {
-                    Journal.log("ERREUR: Impossible d'ouvrir la commande. Annulation pour éviter les erreurs.")
-                    returnToNewOrdersTab()
-                    return // Stop sequence to avoid sending garbage data
-                }
-            }
-            
-            // Wait extra time for the transition animation and list to fully load
+            clickByText("Aperçu des commandes")
             delay(1000)
 
-            // 4. Read full details (Items, Price, Order Num)
-            Journal.log("Lecture détails de la commande...")
+            // 2. Click on "Nouvelle" tab
+            Journal.log("Clic sur l'onglet '$labelNouvelle'")
+            clickByText(labelNouvelle)
+            delay(1000)
             
-            val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
-            val numLeft = prefs.getInt("cropNumLeft", 0)
-            val numTop = prefs.getInt("cropNumTop", 0)
-            val numRight = prefs.getInt("cropNumRight", 0)
-            val numBottom = prefs.getInt("cropNumBottom", 0)
-            val rectNum = if (numRight > numLeft && numBottom > numTop) android.graphics.Rect(numLeft, numTop, numRight, numBottom) else null
-
-            val detLeft = prefs.getInt("cropDetLeft", 0)
-            val detTop = prefs.getInt("cropDetTop", 0)
-            val detRight = prefs.getInt("cropDetRight", 0)
-            val detBottom = prefs.getInt("cropDetBottom", 0)
-            val rectDet = if (detRight > detLeft && detBottom > detTop) android.graphics.Rect(detLeft, detTop, detRight, detBottom) else null
-
-            var contenuEcran = "{}"
-            var useOcr = false
-            
-            Journal.log("Utilisation de la méthode classique (Lecture de l'écran).")
-            
-            if (!useOcr) {
-                var accumulatedNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
-                collectTextNodes(rootInActiveWindow, accumulatedNodes, rectNum, rectDet)
-                
-                // SCROLL DOWN TO READ PAYMENT METHOD & LONG ORDERS
-                var scrollAttempts = 0
-                while (scrollAttempts < 3) {
-                    Journal.log("Petit défilement vers le bas pour lire la suite... (Tentative ${scrollAttempts + 1}/3)")
-                    performSystemScrollForward()
-                    delay(600) // Wait for scroll animation
-                    
-                    val newNodes = mutableListOf<Pair<android.graphics.Rect, String>>()
-                    collectTextNodes(rootInActiveWindow, newNodes, rectNum, rectDet)
-                    
-                    val accStrings = accumulatedNodes.map { it.second }
-                    val newStrings = newNodes.map { it.second }
-                    
-                    // 1. Find the sticky header (longest common prefix)
-                    var commonPrefixLen = 0
-                    val minLen = Math.min(accStrings.size, newStrings.size)
-                    for (i in 0 until minLen) {
-                        if (accStrings[i] == newStrings[i]) {
-                            commonPrefixLen++
-                        } else {
-                            break
-                        }
-                    }
-                    
-                    if (commonPrefixLen == newStrings.size) {
-                        Journal.log("Fin de la liste atteinte (aucun nouvel élément).")
-                        break
-                    }
-                    
-                    // 2. Find the floating footer (longest common suffix)
-                    var commonSuffixLen = 0
-                    for (i in 0 until (minLen - commonPrefixLen)) {
-                        if (accStrings[accStrings.size - 1 - i] == newStrings[newStrings.size - 1 - i]) {
-                            commonSuffixLen++
-                        } else {
-                            break
-                        }
-                    }
-                    
-                    // 3. Extract the core scrolling content
-                    val coreAccNodes = accumulatedNodes.subList(0, accumulatedNodes.size - commonSuffixLen)
-                    val coreAccStrings = coreAccNodes.map { it.second }
-                    
-                    val coreNewNodes = newNodes.subList(commonPrefixLen, newNodes.size - commonSuffixLen)
-                    val coreNewStrings = coreNewNodes.map { it.second }
-                    
-                    // 4. Find max overlap in the core content
-                    var maxOverlap = 0
-                    val minCoreLen = Math.min(coreAccStrings.size, coreNewStrings.size)
-                    for (i in 1..minCoreLen) {
-                        val suffix = coreAccStrings.subList(coreAccStrings.size - i, coreAccStrings.size)
-                        val prefix = coreNewStrings.subList(0, i)
-                        if (suffix == prefix) {
-                            maxOverlap = i
-                        }
-                    }
-                    
-                    // 5. Merge safely
-                    val footerNodes = accumulatedNodes.subList(accumulatedNodes.size - commonSuffixLen, accumulatedNodes.size)
-                    val newAccumulated = mutableListOf<Pair<android.graphics.Rect, String>>()
-                    newAccumulated.addAll(coreAccNodes)
-                    newAccumulated.addAll(coreNewNodes.subList(maxOverlap, coreNewNodes.size))
-                    newAccumulated.addAll(footerNodes)
-                    
-                    accumulatedNodes = newAccumulated
-                    
-                    scrollAttempts++
-                }
-                
-                contenuEcran = OrderParser.parseOrderScreen(accumulatedNodes)
-            }
-            
-            // Log prominently for debugging
-            try {
-                val jsonResult = org.json.JSONObject(contenuEcran)
-                val readId = jsonResult.optString("orderId", "N/A")
-                val readItems = jsonResult.optString("rawItemsText", "")
-                Journal.log("===========================")
-                Journal.log("✅ COMMANDE LUE : $readId")
-                Journal.log("---------------------------")
-                Journal.log(if (readItems.isNotEmpty()) readItems else "(Aucun détail trouvé)")
-                Journal.log("===========================")
-            } catch (e: Exception) {
-                Journal.log("JSON généré: ${contenuEcran.take(200)}...")
-            }
-
-            // NO FAST KDS PUSH: We wait until we have the phone number to send everything at once
-
-            delay(500)
-
-            // 5. Click "Modifier" or new layout "Besoin d'aide"
-            Journal.log("Tentative de clic sur '$labelModifier'...")
-            if (clickByText(labelModifier)) {
-                Journal.log("Clic sur '$labelModifier' réussi (Ancien Layout)")
-                
-                // 6. Wait for Checkbox
-                Journal.log("Attente Checkbox...")
-                if (waitUntilIdAppears("com.deliveryhero.rps.restaurantandroidapp:id/checkbox", 3000)) {
-                    Journal.log("Clic sur Checkbox")
-                    clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
-                } else {
-                    delay(500) // Fallback
-                }
-            } else {
-                Journal.log("Bouton '$labelModifier' introuvable. Essai du Nouveau Layout (Besoin d'aide)...")
-                if (clickByText("Besoin d'aide avec cette commande")) {
-                    Journal.log("Clic sur 'Besoin d'aide avec cette commande' réussi")
-                    delay(1000)
-                    
-                    val labelProduitNonDispo = "Produit non disponible"
-                    Journal.log("Attente de '$labelProduitNonDispo'...")
-                    if (waitUntilTextAppears(labelProduitNonDispo, 3000)) {
-                        Journal.log("Clic sur '$labelProduitNonDispo'")
-                        clickByText(labelProduitNonDispo)
-                        delay(1000)
-                        
-                        // Wait for Checkbox
-                        Journal.log("Attente Checkbox...")
-                        if (waitUntilIdAppears("com.deliveryhero.rps.restaurantandroidapp:id/checkbox", 3000)) {
-                            Journal.log("Clic sur Checkbox")
-                            clickById("com.deliveryhero.rps.restaurantandroidapp:id/checkbox")
-                        } else {
-                            delay(500) // Fallback
-                        }
-                    } else {
-                        Journal.log("Option '$labelProduitNonDispo' introuvable.")
-                    }
-                } else {
-                    Journal.log("Aucun des deux boutons (Modifier / Besoin d'aide) n'a été trouvé.")
-                }
-            }
-
-            // 7. Click "Continuer"
-            Journal.log("Clic sur '$labelContinuer'")
-            clickByText(labelContinuer)
-
-            // 8. Wait for QR Code / Phone screen ("Annuler" should appear)
-            Journal.log("Attente de '$labelAnnuler'...")
-            waitUntilTextAppears(labelAnnuler, 4000)
-            
-            // Attendre un peu que la page charge complètement le numéro et le nom
-            delay(400)
-
-            // 9. Read Phone number from this screen
-            Journal.log("Lecture du numéro de téléphone...")
-            val telephoneEcran = extractAllText(rootInActiveWindow)
-            Journal.log("Extraction num téléphone terminée.")
-
-            // 10. Send the complete order data to Firestore
-            Journal.log("Envoi données réseau vers Firestore...")
-            NetworkClient.sendOrderData(this@AutomatorAccessibilityService, telephoneEcran, contenuEcran)
-
-            // 11. Click "Annuler"
-            Journal.log("Clic sur '$labelAnnuler'")
-            clickByText(labelAnnuler)
-
-            // 12. Wait for "Accepter la commande"
+            // 3. For now, let's just try to find and click "Accepter la commande"
             Journal.log("Attente de '$labelAccepter'...")
-            waitUntilTextAppears(labelAccepter, 3000)
-            Journal.log("Clic sur '$labelAccepter'")
-            clickByText(labelAccepter)
+            var accepted = false
+            for (i in 0..3) {
+                if (clickByText(labelAccepter)) {
+                    accepted = true
+                    Journal.log("Clic sur '$labelAccepter' réussi!")
+                    break
+                }
+                delay(1000)
+            }
 
-            // 13. Wait briefly for "Compris" (Cash payment dialog)
             if (waitUntilTextAppears(labelCompris, 1500)) {
                 Journal.log("Alerte Espèces Glovo détectée, clic sur '$labelCompris'")
                 clickByText(labelCompris)
             }
             
-            delay(500)
-            
-            delay(500)
-            Journal.log("=== AUTOMATISATION TERMINEE ===")
+            Journal.log("=== AUTOMATISATION (Acceptation Rapide) TERMINEE ===")
         } catch (e: Exception) {
             Journal.log("ERREUR FATALE: ${e.message}")
-            Log.e("AutoService", "Error in sequence", e)
+            android.util.Log.e("AutoService", "Error in sequence", e)
         } finally {
             returnToNewOrdersTab()
             isSequenceRunning = false
-            triggerFallbackVisualCheck()
         }
     }
 
