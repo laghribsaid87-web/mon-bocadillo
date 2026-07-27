@@ -1203,11 +1203,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
 
             // 1.5 Open Menu (Drawer) and click "Aperçu des commandes"
-            val drawerNode = findDrawerButton(rootInActiveWindow)
-            if (drawerNode != null) {
-                drawerNode.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
-                delay(1000)
+            Journal.log("Ouverture du menu")
+            if (!clickByText("Ouvrir le tiroir de navigation")) {
+                clickByText("Menu")
             }
+            delay(1000)
             clickByText("Aperçu des commandes")
             delay(1000)
 
