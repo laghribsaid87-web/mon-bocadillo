@@ -557,7 +557,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         Journal.log("Bouton 'code QR/Afficher' cliqué. Attente du popup...")
                         delay(1000)
                         val rootAfterQrClick = rootInActiveWindow
-                        extractedPin = extractPinFromPopup(rootAfterQrClick)
+                        val popupText = extractAllText(rootAfterQrClick)
+                        val pinRegex = Regex("PIN\\s*:\\s*([a-zA-Z0-9]+)", RegexOption.IGNORE_CASE)
+                        val match = pinRegex.find(popupText)
+                        if (match != null) {
+                            extractedPin = match.groupValues[1]
+                        }
                         Journal.log("PIN extrait: $extractedPin")
 
                         clickByText("Fermer")
