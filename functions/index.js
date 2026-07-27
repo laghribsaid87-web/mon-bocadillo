@@ -752,8 +752,8 @@ exports.syncStatusToGlovo = functions.firestore
         const branchId = newData.nearestBranch?.id || "laymoune";
         const glovoStoreId = newData.glovoStoreId || storeIdMap[branchId];
 
-        // ⚠️ HAD L-TOKEN GHADI Y3TIH LIK L-ACCOUNT MANAGER DYAL GLOVO
-        const GLOVO_API_TOKEN = "76a633d6-08e1-423f-813d-008b77df13b5";
+        // ⚠️ HAD L-TOKEN M3TI MN 3ND L-ACCOUNT MANAGER DYAL GLOVO
+        const GLOVO_API_TOKEN = "85a63535-ae38-4c31-88dc-e41fbc29da0a";
 
         if (glovoStatus && glovoStoreId) {
             try {
