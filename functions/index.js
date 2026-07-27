@@ -735,7 +735,7 @@ exports.syncStatusToGlovo = functions.firestore
         if (oldData && newData.status === oldData.status) return null;
 
         const glovoOrderId = context.params.orderId;
-        const realGlovoOrderId = newData.orderNumber ? newData.orderNumber.replace('#', '') : glovoOrderId.replace('GLOVO-', '').replace('#', '');
+        const realGlovoOrderId = glovoOrderId.replace('GLOVO-', '').replace('#', '');
         let glovoStatus = "";
 
         // 1 = Mli la Caisse t-accepter -> "ACCEPTED"
