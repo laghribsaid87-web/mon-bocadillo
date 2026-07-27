@@ -735,6 +735,7 @@ exports.syncStatusToGlovo = functions.firestore
         if (oldData && newData.status === oldData.status) return null;
 
         const glovoOrderId = context.params.orderId;
+        const realGlovoOrderId = newData.orderNumber ? newData.orderNumber.replace('#', '') : glovoOrderId.replace('GLOVO-', '').replace('#', '');
         let glovoStatus = "";
 
         // 1 = Mli la Caisse t-accepter -> "ACCEPTED"
@@ -756,7 +757,7 @@ exports.syncStatusToGlovo = functions.firestore
 
         if (glovoStatus && glovoStoreId) {
             try {
-                const response = await fetch(`https://api.glovoapp.com/webhook/stores/${glovoStoreId}/orders/${glovoOrderId}/status`, {
+                const response = await fetch(`https://api.glovoapp.com/webhook/stores/${glovoStoreId}/orders/${realGlovoOrderId}/status`, {
                     method: 'PUT',
                     headers: { 
                         'Authorization': `Basic ${Buffer.from(GLOVO_API_TOKEN).toString('base64')}`,
@@ -764,6 +765,8 @@ exports.syncStatusToGlovo = functions.firestore
                     },
                     body: JSON.stringify({ status: glovoStatus })
                 });
+                const resText = await response.text();
+                console.log(`Glovo API Response for ${realGlovoOrderId}: ${response.status} - ${resText}`);
             } catch (error) {
                 console.error("Erreur de synchronisation avec Glovo:", error);
             }
