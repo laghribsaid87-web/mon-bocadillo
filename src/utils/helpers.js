@@ -327,7 +327,7 @@ export const getStep = (s) => { switch(s) { case 'pending': return 1; case 'prep
         } else if (/[\\u0600-\\u06FF]/.test(lower) && !lower.includes('بلا') && !lower.includes('sans')) {
             return "بلا " + text;
         }
-        return text.toUpperCase().replace('SANS ', 'بلا ').replace('SANS', 'بلا') if /[\\u0600-\\u06FF]/.test(lower) else text.toUpperCase();
+        return /[\\u0600-\\u06FF]/.test(lower) ? text.toUpperCase().replace('SANS ', 'بلا ').replace('SANS', 'بلا') : text.toUpperCase();
     }
     return text;
 };
