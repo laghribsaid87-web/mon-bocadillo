@@ -760,7 +760,7 @@ exports.syncStatusToGlovo = functions.firestore
                 const response = await fetch(`https://api.glovoapp.com/webhook/stores/${glovoStoreId}/orders/${realGlovoOrderId}/status`, {
                     method: 'PUT',
                     headers: { 
-                        'Authorization': `Basic ${Buffer.from(GLOVO_API_TOKEN).toString('base64')}`,
+                        'Authorization': GLOVO_API_TOKEN,
                         'Content-Type': 'application/json' 
                     },
                     body: JSON.stringify({ status: glovoStatus })
