@@ -670,7 +670,7 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                             
                             if (
                                 lowerName.includes('pepsi') || 
-                                lowerName.includes('mirinda') || lowerName.includes('meranda') || 
+                                lowerName.includes('mirinda') || 
                                 lowerName.includes('coca') || 
                                 lowerName.includes('7up') || 
                                 lowerName.includes('hawai') || 
@@ -1324,7 +1324,7 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
                             
                             if (
                                 lowerName.includes('pepsi') || 
-                                lowerName.includes('mirinda') || lowerName.includes('meranda') || 
+                                lowerName.includes('mirinda') || 
                                 lowerName.includes('coca') || 
                                 lowerName.includes('7up') || 
                                 lowerName.includes('hawai') || 
@@ -1414,4 +1414,3 @@ exports.glovoWebhookCustomerPickup = functions.https.onRequest(async (req, res) 
         res.status(500).send("Error");
     }
 });
-
