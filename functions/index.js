@@ -731,7 +731,7 @@ exports.syncStatusToGlovo = functions.firestore
         const oldData = change.before.exists ? change.before.data() : null;
 
         // Vérifier wach l-commande dyal Glovo w wach l-Statut tbeddel
-        if (!newData || newData.source !== 'glovo') return null;
+        if (!newData || (newData.source !== 'glovo' && newData.source !== 'glovo_automator')) return null;
         if (oldData && newData.status === oldData.status) return null;
 
         const glovoOrderId = context.params.orderId;
