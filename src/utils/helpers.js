@@ -263,4 +263,72 @@ export const openWhatsAppDirect = (phone, message) => {
     }
 };
 
-export const getStep = (s) => { switch(s) { case 'pending': return 1; case 'preparing': return 2; case 'ready': return 2; case 'out_for_delivery': return 3; case 'delivered': return 4; default: return 1; } };
+export const getStep = (s) => { switch(s) { case 'pending': return 1; case 'preparing': return 2; case 'ready': return 2; case 'out_for_delivery': return 3; case 'delivered': return 4; default: return 1; } };export const translateOptionKDS = (text, isExtra, enableArabic) => {
+    if (!text) return '';
+    let lower = text.toLowerCase();
+    
+    if (enableArabic) {
+        if (!isExtra) {
+            if (lower.includes('tomate')) return 'بلا مطيشة 🍅';
+            if (lower.includes('oignon')) return 'بلا بصلة 🧅';
+            if (lower.includes('olive')) return 'بلا زيتون 🟢';
+            if (lower.includes('laitue') || lower.includes('salade')) return 'بلا خس 🥗';
+            if (lower.includes('carotte')) return 'بلا خيزو 🥕';
+            if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) return 'بلا بطاطا 🥔';
+            if (lower.includes('mayonnaise') || lower.includes('mayo')) return 'بلا مايونيز 🥣';
+            if (lower.includes('harissa') || lower.includes('hrissa')) return 'بلا هريسة 🌶️';
+            if (lower.includes('ketchup')) return 'بلا كيتشوب 🍅';
+            if (lower.includes('sauce')) return 'بلا صوص 🥣';
+            if (lower.includes('fromage') || lower.includes('cheese')) return 'بلا فرماج 🧀';
+            
+            // If already translated somehow:
+            if (lower.includes('مطيشة')) return 'بلا مطيشة 🍅';
+            if (lower.includes('بصل')) return 'بلا بصلة 🧅';
+            if (lower.includes('زيتون')) return 'بلا زيتون 🟢';
+            if (lower.includes('خس')) return 'بلا خس 🥗';
+            if (lower.includes('خيزو')) return 'بلا خيزو 🥕';
+            if (lower.includes('بطاطا') || lower.includes('فريت')) return 'بلا بطاطا 🥔';
+            if (lower.includes('مايونيز')) return 'بلا مايونيز 🥣';
+            if (lower.includes('هريسة')) return 'بلا هريسة 🌶️';
+            if (lower.includes('كيتشوب')) return 'بلا كيتشوب 🍅';
+            if (lower.includes('صوص')) return 'بلا صوص 🥣';
+            if (lower.includes('فرماج') || lower.includes('جبن')) return 'بلا فرماج 🧀';
+
+            if (!lower.includes('بلا') && !lower.includes('sans')) {
+                return "بلا " + text;
+            }
+            return text.toUpperCase().replace('SANS ', 'بلا ').replace('SANS', 'بلا');
+        } else {
+            // Extra
+            let translated = text;
+            if (lower.includes('tomate')) translated = 'مطيشة 🍅';
+            else if (lower.includes('oignon')) translated = 'بصل 🧅';
+            else if (lower.includes('olive')) translated = 'زيتون 🫒';
+            else if (lower.includes('laitue') || lower.includes('salade')) translated = 'خس 🥬';
+            else if (lower.includes('carotte')) translated = 'خيزو 🥕';
+            else if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) translated = 'فريت 🍟';
+            else if (lower.includes('mayonnaise') || lower.includes('mayo')) translated = 'مايونيز 🥚';
+            else if (lower.includes('harissa') || lower.includes('hrissa')) translated = 'هريسة 🌶️';
+            else if (lower.includes('ketchup')) translated = 'كيتشوب 🍅';
+            else if (lower.includes('sauce')) translated = 'صوص 🥣';
+            else if (lower.includes('fromage') || lower.includes('cheese')) translated = 'الجبن 🧀';
+            else if (lower.includes('viande') || lower.includes('hachée')) translated = 'اللحم المفروم 🥩';
+            else if (lower.includes('poulet')) translated = 'الدجاج 🍗';
+            else if (lower.includes('oeuf') || lower.includes('œuf')) translated = 'البيض 🍳';
+            else if (lower.includes('thon')) translated = 'الطون 🐟';
+            return translated;
+        }
+    }
+    
+    // Fallback logic
+    if (!isExtra) {
+        if (!lower.includes('sans') && !/[\\u0600-\\u06FF]/.test(lower)) {
+            return "SANS " + text;
+        } else if (/[\\u0600-\\u06FF]/.test(lower) && !lower.includes('بلا') && !lower.includes('sans')) {
+            return "بلا " + text;
+        }
+        return text.toUpperCase().replace('SANS ', 'بلا ').replace('SANS', 'بلا') if /[\\u0600-\\u06FF]/.test(lower) else text.toUpperCase();
+    }
+    return text;
+};
+
