@@ -535,7 +535,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
                 Journal.log("Attente de chargement (popup)...")
                 waitUntilTextAppears(labelAnnuler, 4000)
-                delay(3500) // Augmenter le délai pour laisser le temps à l'API de charger le +212
+                delay(1500) // 1.5 seconde avant de lire
 
                 Journal.log("Lecture du numéro de téléphone...")
                 val telephoneEcran = extractAllText(rootInActiveWindow)
