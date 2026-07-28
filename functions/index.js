@@ -701,7 +701,7 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                             ) {
                                 standaloneItems.push({
                                     id: 'glovo_drink_' + Math.random().toString(36).substr(2, 9),
-                                    name: formatGlovoOption(attr.name, 'extra'),
+                                    name: formatGlovoOption(attr.name, 'none'),
                                     qty: p.quantity || 1,
                                     price: (attr.price || 0) / 100,
                                     selectedSans: [],
@@ -1374,7 +1374,7 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
                             ) {
                                 standaloneItems.push({
                                     id: 'glovo_drink_' + Math.random().toString(36).substr(2, 9),
-                                    name: formatGlovoOption(attr.name, 'extra'),
+                                    name: formatGlovoOption(attr.name, 'none'),
                                     qty: p.quantity || 1,
                                     price: (attr.price || 0) / 100,
                                     selectedSans: [],
