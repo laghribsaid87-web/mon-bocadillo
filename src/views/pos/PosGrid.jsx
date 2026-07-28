@@ -105,11 +105,7 @@ export default function PosGrid({
                     style={{ minHeight: `${posUI?.cardHeight || 180}px` }}
                 >
                     <div className={`w-full flex items-center justify-center rounded-2xl overflow-hidden relative transition-transform duration-300 group-hover:scale-105 ${cardImgBg}`} style={{ height: `${posUI?.imgHeight || 100}px` }}>
-                        {item.outOfStock && (
-                            <div className={`absolute inset-0 flex items-center justify-center z-20 ${isDark ? 'bg-black/70' : 'bg-white/70 backdrop-blur-sm'}`}>
-                                <span className={`font-black text-xs sm:text-sm px-4 py-1.5 rounded-full shadow-lg transform -rotate-12 border-2 tracking-widest ${isDark ? 'bg-red-600 text-white border-red-500' : 'bg-red-500 text-white border-white'}`}>RUPTURE</span>
-                            </div>
-                        )}
+
                         {typeof item.img === 'string' && (item.img.startsWith('http') || item.img.startsWith('data:image')) ? (
                             <img src={item.img} loading="lazy" className={`w-full h-full object-contain drop-shadow-sm ${isDark ? '' : 'mix-blend-multiply'}`} alt={item.name}/>
                         ) : (

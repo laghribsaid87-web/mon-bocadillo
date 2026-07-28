@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Utensils, Trash2, Image, Tag, AlignLeft, Settings2, Plus, Edit3, Copy, Check, X, Save, DollarSign, Layers, GripVertical, ChevronUp, ChevronDown, Upload, Download, Store } from 'lucide-react';
+import { Utensils, Trash2, Image, Tag, AlignLeft, Settings2, Plus, Edit3, Copy, Check, X, Save, DollarSign, Layers, GripVertical, ChevronUp, ChevronDown, Upload, Download, Store, PowerOff } from 'lucide-react';
 import { PREDEFINED_INGREDIENTS, PREDEFINED_EXTRAS, PREDEFINED_DRINKS } from '../../config/constants';
+import { functions } from '../../config/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 export default function AdminMenuEditor({
     editableMenu, setEditableMenu,
@@ -96,6 +98,35 @@ export default function AdminMenuEditor({
     const handleDuplicate = (item) => {
         const newItem = { ...item, id: 'new_'+Date.now(), name: item.name + ' (Copie)' };
         setEditableMenu([newItem, ...(editableMenu || [])]);
+    };
+
+    // 🔥 Toggle Glovo Out of Stock
+    const toggleGlovoStock = async (item) => {
+        const newOutOfStock = !item.outOfStock;
+        
+        // Update local state first for immediate UI feedback
+        const updatedMenu = (editableMenu || []).map(i => i.id === item.id ? { ...i, outOfStock: newOutOfStock } : i);
+        setEditableMenu(updatedMenu);
+        
+        try {
+            if (showNotify) showNotify(`Synchronisation Glovo en cours...`, "info");
+            const updateStock = httpsCallable(functions, 'updateGlovoProductStock');
+            const res = await updateStock({ 
+                productId: item.id, 
+                outOfStock: newOutOfStock 
+            });
+            
+            if (res.data?.success) {
+                if (showNotify) showNotify(`Produit ${newOutOfStock ? 'désactivé' : 'activé'} sur Glovo avec succès ! ✅`, "success");
+            } else {
+                throw new Error("Erreur Glovo API");
+            }
+        } catch (err) {
+            console.error(err);
+            if (showNotify) showNotify(`Erreur Glovo: Impossible de modifier le statut.`, "error");
+            // Revert on failure
+            setEditableMenu((editableMenu || []).map(i => i.id === item.id ? { ...i, outOfStock: item.outOfStock } : i));
+        }
     };
 
     // 🔥 Ingrédients et Choix Globaux (depuis Settings)
@@ -424,6 +455,7 @@ export default function AdminMenuEditor({
                                                         <button onClick={(e) => { e.stopPropagation(); moveItem(index, -1); }} disabled={index === 0 || selectedCategory !== 'ALL'} className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30 transition-colors" title="Monter"><ChevronUp size={14}/></button>
                                                         <button onClick={(e) => { e.stopPropagation(); moveItem(index, 1); }} disabled={index === filteredMenu.length - 1 || selectedCategory !== 'ALL'} className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30 transition-colors" title="Descendre"><ChevronDown size={14}/></button>
                                                     </div>
+                                                    <button onClick={(e) => { e.stopPropagation(); toggleGlovoStock(item); }} className={`p-2 rounded-lg transition-colors ${item.outOfStock ? 'text-red-600 bg-red-50 hover:bg-red-100' : 'text-gray-400 hover:text-orange-600 hover:bg-orange-50'}`} title={item.outOfStock ? "Activer sur Glovo (En stock)" : "Désactiver sur Glovo (Rupture)"}><PowerOff size={16}/></button>
                                                     <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier"><Edit3 size={16}/></button>
                                                     <button onClick={(e) => { e.stopPropagation(); handleDuplicate(item); }} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" title="Dupliquer"><Copy size={16}/></button>
                                                     <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer"><Trash2 size={16}/></button>

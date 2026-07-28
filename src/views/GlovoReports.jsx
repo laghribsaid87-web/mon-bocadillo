@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, limit, where } from 'firebase/firestore';
-import { RefreshCw, Bike, AlertTriangle, ArrowLeft, Calendar } from 'lucide-react';
+import { RefreshCw, Bike, AlertTriangle, ArrowLeft, Calendar, UploadCloud } from 'lucide-react';
 import { db, appId } from '../config/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export default function GlovoReports({ brand }) {
     const [reports, setReports] = useState([]);
@@ -71,6 +72,26 @@ export default function GlovoReports({ brand }) {
                         </h1>
                         <p className="text-gray-500 font-medium mt-1">Historique des vérifications de commandes annulées (GoDroid Automator)</p>
                     </div>
+                    
+                    <button 
+                        onClick={async () => {
+                            if (!window.confirm("Voulez-vous vraiment envoyer le menu actuel vers la boutique de test Glovo ?")) return;
+                            try {
+                                const functions = getFunctions();
+                                const pushMenu = httpsCallable(functions, 'pushMenuToGlovo');
+                                alert("Synchronisation en cours...");
+                                const res = await pushMenu({ appId, storeId: "962002" });
+                                alert("Succès: " + res.data.message);
+                            } catch (e) {
+                                console.error(e);
+                                alert("Erreur lors de la synchronisation: " + e.message);
+                            }
+                        }}
+                        className="ml-auto flex items-center gap-2 bg-[#FFC244] text-gray-900 font-bold px-4 py-3 rounded-2xl shadow-sm hover:bg-[#ffb01f] transition-all"
+                    >
+                        <UploadCloud size={20} />
+                        <span className="hidden sm:inline">Sync Menu Glovo</span>
+                    </button>
                 </div>
 
                 {/* FILTRES DE DATES */}

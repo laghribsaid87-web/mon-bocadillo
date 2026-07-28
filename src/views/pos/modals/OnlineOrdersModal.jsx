@@ -126,7 +126,7 @@ export default function OnlineOrdersModal({
                                                 showNotify("Commande marquée prête! ✅", "success");
                                             }} className="flex-1 bg-orange-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-orange-600 transition-colors shadow-sm flex items-center justify-center gap-2">
                                                 <ChefHat size={16}/> 
-                                                {o.source === 'glovo' && (o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? 'Prête (💶 À ENCAISSER CASH)' : 'Marquer Prête'}
+                                                {(o.source === 'glovo' || o.source === 'glovo_api') && (o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? 'Prête (💶 À ENCAISSER CASH)' : 'Marquer Prête'}
                                             </button>
                                         )}
 

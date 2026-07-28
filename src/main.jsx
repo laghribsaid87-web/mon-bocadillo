@@ -75,7 +75,7 @@ if (import.meta.env.VITE_APP_TYPE === 'DRIVER') {
   }
 } else {
   // Mode Web classique avec routage par URL
-  if (path.startsWith('/idara') || path.startsWith('/pos') || path.startsWith('/kds') || path.startsWith('/glovo-reports') || hash.includes('/idara') || hash.includes('/kds') || hash.includes('/pos') || hash.includes('/glovo-reports')) {
+  if (path.startsWith('/idara') || path.startsWith('/pos') || path.startsWith('/kds') || path.startsWith('/glovo-reports') || path.startsWith('/glovo-menu') || hash.includes('/idara') || hash.includes('/kds') || hash.includes('/pos') || hash.includes('/glovo-reports') || hash.includes('/glovo-menu')) {
     RootComponent = AdminApp;
   } else if (path.startsWith('/livreur') || hash.includes('/livreur')) {
     RootComponent = DriverApp;
@@ -100,7 +100,7 @@ if (import.meta.env.VITE_APP_TYPE === 'DRIVER') {
       } else if (pwaMode === 'admin' && !hash.includes('/idara') && !path.includes('/idara')) {
           window.history.replaceState(null, '', '#/idara');
       }
-    } else if (path.startsWith('/glovo-reports') || hash.includes('/glovo-reports')) {
+    } else if (path.startsWith('/glovo-reports') || hash.includes('/glovo-reports') || path.startsWith('/glovo-menu') || hash.includes('/glovo-menu')) {
       RootComponent = AdminApp;
     } else if (pwaMode === 'tv') {
       RootComponent = App;

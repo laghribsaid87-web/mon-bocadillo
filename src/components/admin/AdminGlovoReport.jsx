@@ -43,7 +43,7 @@ export default function AdminGlovoReport(props) {
                                 const snap = await getDocs(q);
                                 let allOrders = snap.docs.map(d => ({id: d.id, ...d.data()}));
                                 
-                                let filtered = allOrders.filter(o => o.source === 'glovo' && o.status !== 'rejected');
+                                let filtered = allOrders.filter(o => (o.source === 'glovo' || o.source === 'glovo_api') && o.status !== 'rejected');
                                 
                                 if (glovoBranch !== 'ALL') {
                                     filtered = filtered.filter(o => o.nearestBranch?.id === glovoBranch);

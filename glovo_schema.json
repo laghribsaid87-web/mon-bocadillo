@@ -1,0 +1,693 @@
+{
+  "definitions": {
+    "valid-xml-string": {
+      "$id": "#valid-xml-string",
+      "type": "string",
+      "pattern": "^[\u0009\u000a\u000d\u0020-\uD7FF\uE000-\uFFFD]*$"
+    },
+    "short-string": {
+      "$id": "#short-string",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "$comment": "Match not blank:",
+      "pattern": ".*\\S.*"
+    },
+    "no-line-breaks": {
+      "$id": "#no-line-breaks",
+      "not": {
+        "type": "string",
+        "pattern": "(\r|\n)"
+      }
+    },
+    "id-field": {
+      "$id": "#id-field",
+      "allOf": [
+        {
+          "$ref": "#valid-xml-string"
+        },
+        {
+          "$ref": "#no-line-breaks"
+        },
+        {
+          "$ref": "#short-string"
+        }
+      ]
+    },
+    "short-valid-xml-string": {
+      "$id": "#short-valid-xml-string",
+      "allOf": [
+        {
+          "$ref": "#valid-xml-string"
+        },
+        {
+          "$ref": "#short-string"
+        }
+      ]
+    },
+    "boolean-string": {
+      "$id": "#boolean-string",
+      "type": ["string", "boolean"],
+      "pattern": "^(true|false)$"
+    },
+    "day-of-week": {
+      "$id": "#day-of-week-string",
+      "type": ["string"],
+      "pattern": "^(SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY)$"
+    },
+    "hour": {
+      "$id": "#hour-string",
+      "type": ["string"],
+      "pattern": "^([0-1][0-9]|2[0-3]):([0-5][0-9])$"
+    },
+    "integer-string": {
+      "$id": "#integer-string",
+      "type": ["string", "integer"],
+      "pattern": "^[0-9]\\d*$"
+    },
+    "positive-integer-string": {
+      "$id": "#positive-integer-string",
+      "type": ["string", "integer"],
+      "pattern": "^[0-9]\\d*$",
+      "minimum": 1
+    },
+    "double-string": {
+      "$id": "#double-string",
+      "type": ["string", "number"],
+      "pattern": "^\\d+(\\.\\d{1,2})?$",
+      "multipleOf" : 0.01
+    },
+    "image_url": {
+      "$id": "#image_url",
+      "type": [
+        "string",
+        "null"
+      ],
+      "examples": [
+        "https://i.imgur.com/Mcgmjaz.png",
+        null
+      ],
+      "pattern": "^https://[^\\s/$.?#].[^\\s]*$",
+      "maxLength": 511
+    },
+    "extra_image_url": {
+      "$id": "#extra_image_url",
+      "type": "string",
+      "examples": [
+        "https://i.imgur.com/Mcgmjaz.png"
+      ],
+      "pattern": "^https://[^\\s/$.?#].[^\\s]*$",
+      "maxLength": 511
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://example.com/root.json",
+  "title": "Glovo Menu JSON schema",
+  "type": "object",
+  "required": [
+    "attributes",
+    "attribute_groups",
+    "products",
+    "collections"
+  ],
+  "properties": {
+    "attributes": {
+      "$id": "#/properties/attributes",
+      "type": "array",
+      "title": "Product attributes",
+      "items": {
+        "$id": "#/properties/attributes/items",
+        "type": "object",
+        "title": "Product attribute",
+        "required": [
+          "id",
+          "name",
+          "selected_by_default",
+          "price_impact"
+        ],
+        "properties": {
+          "id": {
+            "$id": "#/properties/attributes/items/properties/id",
+            "$ref": "#id-field",
+            "title": "Attribute Id",
+            "examples": [
+              "side_1"
+            ]
+          },
+          "name": {
+            "$id": "#/properties/attributes/items/properties/name",
+            "$ref": "#short-valid-xml-string",
+            "title": "Attribute name",
+            "examples": [
+              "French fries (small)"
+            ]
+          },
+          "selected_by_default": {
+            "$id": "#/properties/attributes/items/properties/selected_by_default",
+            "$ref": "#boolean-string",
+            "title": "Attribute is selected by default",
+            "examples": [
+              true
+            ]
+          },
+          "price_impact": {
+            "$id": "#/properties/attributes/items/properties/price_impact",
+            "$ref": "#double-string",
+            "title": "Attribute price impact",
+            "examples": [
+              2.5
+            ]
+          },
+          "available": {
+            "$id": "#/properties/attributes/items/properties/available",
+            "type": "boolean",
+            "title": "Attribute availability",
+            "examples": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "attribute_groups": {
+      "$id": "#/properties/attribute_groups",
+      "type": "array",
+      "title": "Attribute groups",
+      "items": {
+        "$id": "#/properties/attribute_groups/items",
+        "type": "object",
+        "title": "Attribute group",
+        "required": [
+          "id",
+          "name",
+          "min",
+          "max",
+          "collapse",
+          "multiple_selection",
+          "attributes"
+        ],
+        "properties": {
+          "id": {
+            "$id": "#/properties/attribute_groups/items/properties/id",
+            "$ref": "#id-field",
+            "title": "Attribute group Id",
+            "examples": [
+              "sides_1"
+            ]
+          },
+          "name": {
+            "$id": "#/properties/attribute_groups/items/properties/name",
+            "$ref": "#short-valid-xml-string",
+            "title": "Attribute group name",
+            "examples": [
+              "Choose a side"
+            ]
+          },
+          "min": {
+            "$id": "#/properties/attribute_groups/items/properties/min",
+            "$ref": "#integer-string",
+            "title": "Attribute group min",
+            "examples": [
+              0
+            ]
+          },
+          "max": {
+            "$id": "#/properties/attribute_groups/items/properties/max",
+            "$ref": "#positive-integer-string",
+            "title": "Attribute group max",
+            "examples": [
+              1
+            ]
+          },
+          "collapse": {
+            "$id": "#/properties/attribute_groups/items/properties/collapse",
+            "$ref": "#boolean-string",
+            "title": "Attribute group collapse",
+            "examples": [
+              true
+            ]
+          },
+          "multiple_selection": {
+            "$id": "#/properties/attribute_groups/items/properties/multiple_selection",
+            "$ref": "#boolean-string",
+            "title": "Attribute group allow multiple selection",
+            "examples": [
+              false
+            ]
+          },
+          "attributes": {
+            "$id": "#/properties/attribute_groups/items/properties/attributes",
+            "type": "array",
+            "title": "Attribute ids",
+            "minItems": 1,
+            "items": {
+              "$id": "#/properties/attribute_groups/items/properties/attributes/items",
+              "$ref": "#id-field",
+              "title": "Attribute id",
+              "examples": [
+                "side_1",
+                "side_2",
+                "side_3",
+                "side_4"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "products": {
+      "$id": "#/properties/products",
+      "type": "array",
+      "title": "Products",
+      "minItems": 1,
+      "items": {
+        "$id": "#/properties/products/items",
+        "type": "object",
+        "title": "Product",
+        "required": [
+          "id",
+          "name",
+          "price",
+          "image_url",
+          "description",
+          "attributes_groups"
+        ],
+        "properties": {
+          "id": {
+            "$id": "#/properties/products/items/properties/id",
+            "$ref": "#id-field",
+            "title": "Product Id",
+            "examples": [
+              "burger_1"
+            ]
+          },
+          "name": {
+            "$id": "#/properties/products/items/properties/name",
+            "$ref": "#short-valid-xml-string",
+            "title": "Product name",
+            "examples": [
+              "Burger + side + drink"
+            ]
+          },
+          "price": {
+            "allOf": [
+              {
+                "$id": "#/properties/products/items/properties/price",
+                "$ref": "#double-string",
+                "title": "Product price",
+                "examples": [
+                  7.5
+                ]
+              },
+              {
+                "if": {
+                  "type": "string"
+                },
+                "then": {
+                  "not": {
+                    "pattern": "^0+(\\.0{1,2})?$"
+                  }
+                }
+              },
+              {
+                "if": {
+                  "type": ["number", "integer"]
+                },
+                "then": {
+                  "exclusiveMinimum": 0
+                }
+              }
+            ]
+          },
+          "image_url": {
+            "$id": "#/properties/products/items/properties/image_url",
+            "$ref": "#image_url",
+            "title": "Product image url"
+          },
+          "extra_image_urls": {
+            "$id": "#/properties/products/items/properties/extra_image_urls",
+            "title": "Product extra image urls",
+            "type": "array",
+            "items": {
+              "$ref": "#extra_image_url"
+            }
+          },
+          "description": {
+            "oneOf": [
+              {
+                "$id": "#/properties/products/items/properties/description",
+                "$ref": "#valid-xml-string",
+                "maxLength": 2000,
+                "title": "Product description",
+                "examples": [
+                  "Combination of delicious burger, a side and a drink"
+                ]
+              },
+              {
+                "type": "null",
+                "examples": [
+                  null
+                ]
+              }
+            ]
+          },
+          "attributes_groups": {
+            "$id": "#/properties/products/items/properties/attributes_groups",
+            "type": "array",
+            "title": "Product attribute group ids",
+            "minItems": 0,
+            "items": {
+              "$id": "#/properties/products/items/properties/attributes_groups/items",
+              "$ref": "#id-field",
+              "title": "Attribute group id",
+              "examples": [
+                "sides_1",
+                "drinks_1",
+                "burger_types_1"
+              ]
+            }
+          },
+          "available": {
+            "$id": "#/properties/products/items/properties/available",
+            "type": "boolean",
+            "title": "Product availability",
+            "examples": [
+              true
+            ]
+          },
+          "restrictions": {
+            "$id": "#/properties/products/items/properties/restrictions",
+            "type": "object",
+            "title": "Product with restrictions e.g. alcohol or tobacco",
+            "properties": {
+              "is_alcoholic": {
+                "$id": "#/properties/products/items/properties/restrictions/is_alcoholic",
+                "type": "boolean",
+                "title": "Represent if the product contains alcohol",
+                "examples": [
+                  true
+                ]
+              },
+              "is_tobacco": {
+                "$id": "#/properties/products/items/properties/restrictions/is_tobacco",
+                "type": "boolean",
+                "title": "Represent if the product is a tobacco product",
+                "examples": [
+                  true
+                ]
+              }
+            },
+            "anyOf": [
+              {
+                "required": ["is_alcoholic"]
+              },
+              {
+                "required": ["is_tobacco"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "collections": {
+      "$id": "#/properties/collections",
+      "type": "array",
+      "title": "Collections",
+      "items": {
+        "$id": "#/properties/collections/items",
+        "type": "object",
+        "title": "Collection",
+        "required": [
+          "name",
+          "position",
+          "sections"
+        ],
+        "properties": {
+          "name": {
+            "$id": "#/properties/collections/items/properties/name",
+            "$ref": "#short-valid-xml-string",
+            "title": "Collection name",
+            "examples": [
+              "Menus"
+            ]
+          },
+          "position": {
+            "$id": "#/properties/collections/items/properties/position",
+            "$ref": "#integer-string",
+            "title": "Collection position",
+            "examples": [
+              0
+            ]
+          },
+          "image_url": {
+            "$id": "#/properties/collections/items/properties/image_url",
+            "$ref": "#image_url",
+            "title": "Collections image URL"
+          },
+          "sections": {
+            "$id": "#/properties/collections/items/properties/sections",
+            "type": "array",
+            "title": "Collection sections",
+            "minItems": 1,
+            "items": {
+              "$id": "#/properties/collections/items/properties/sections/items",
+              "type": "object",
+              "title": "Collection section",
+              "required": [
+                "name",
+                "position",
+                "products"
+              ],
+              "properties": {
+                "name": {
+                  "$id": "#/properties/collections/items/properties/sections/items/properties/name",
+                  "$ref": "#short-valid-xml-string",
+                  "title": "Collection section name",
+                  "examples": [
+                    "Burger menus"
+                  ]
+                },
+                "position": {
+                  "$id": "#/properties/collections/items/properties/sections/items/properties/position",
+                  "$ref": "#integer-string",
+                  "title": "Collection section position",
+                  "examples": [
+                    1
+                  ]
+                },
+                "products": {
+                  "$id": "#/properties/collections/items/properties/sections/items/properties/products",
+                  "type": "array",
+                  "title": "Collection section product ids",
+                  "minItems": 1,
+                  "items": {
+                    "$id": "#/properties/collections/items/properties/sections/items/properties/products/items",
+                    "$ref": "#id-field",
+                    "title": "Product id",
+                    "examples": [
+                      "burger_1"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "schedule": {
+            "$id": "#/properties/collections/items/properties/schedule",
+            "type": "object",
+            "title": "Collection Schedule",
+            "required": [
+              "availabilities"
+            ],
+            "properties": {
+              "name": {
+                "$id": "#/properties/collections/items/properties/schedule/properties/name",
+                "$ref": "#short-valid-xml-string",
+                "title": "Schedule name",
+                "examples": [
+                  "Breakfast schedule"
+                ]
+              },
+              "id": {
+                "$id": "#/properties/collections/items/properties/schedule/properties/id",
+                "$ref": "#short-valid-xml-string",
+                "title": "Schedule id",
+                "examples": [
+                  "schedule-1"
+                ]
+              },
+              "availabilities": {
+                "$id": "#/properties/collections/items/properties/schedule/properties/availabilities",
+                "type": "array",
+                "title": "Schedule Availabilities",
+                "minItems": 1,
+                "items": {
+                  "$id": "#/properties/collections/items/properties/schedule/properties/availabilities/items",
+                  "type": "object",
+                  "title": "Schedule Availability",
+                  "required": [
+                    "day",
+                    "time_slots"
+                  ],
+                  "properties": {
+                    "day": {
+                      "$id": "#/properties/collections/items/properties/schedule/properties/availabilities/items/properties/day",
+                      "$ref": "#day-of-week-string",
+                      "title": "Day of the week",
+                      "examples": [
+                        "monday",
+                        "friday"
+                      ]
+                    },
+                    "time_slots": {
+                      "$id": "#/properties/collections/items/properties/schedule/properties/availabilities/items/properties/time_slots",
+                      "type": "array",
+                      "title": "Schedule time slots",
+                      "minItems": 1,
+                      "items": {
+                        "$id": "#/properties/collections/items/properties/schedule/properties/availabilities/items/properties/time_slots/items",
+                        "type": "object",
+                        "title": "Schedule time slot",
+                        "required": [
+                          "start",
+                          "end"
+                        ],
+                        "properties": {
+                          "start": {
+                            "type": "string",
+                            "$ref": "#hour-string",
+                            "$id": "#/properties/collections/items/properties/schedule/properties/availabilities/items/properties/time_slots/items/properties/start",
+                            "examples": [
+                              "05:15",
+                              "10:00",
+                              "23:59"
+                            ]
+                          },
+                          "end": {
+                            "type": "string",
+                            "$ref": "#hour-string",
+                            "$id": "#/properties/collections/items/properties/schedule/properties/availabilities/items/properties/time_slots/items/properties/end",
+                            "examples": [
+                              "05:15",
+                              "10:00",
+                              "23:59"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "supercollections": {
+      "$id": "#/properties/supercollections",
+      "type": "array",
+      "title": "Supercollections",
+      "minItems": 0,
+      "items": {
+        "$id": "#/properties/supercollections/items",
+        "type": "object",
+        "title": "Supercollection",
+        "required": [
+          "name",
+          "position",
+          "image_url",
+          "collections"
+        ],
+        "properties": {
+          "name": {
+            "$id": "#/properties/supercollections/items/properties/name",
+            "$ref": "#short-valid-xml-string",
+            "title": "Supercollection name",
+            "examples": [
+              "Lunch Menu"
+            ]
+          },
+          "position": {
+            "$id": "#/properties/supercollections/items/properties/position",
+            "$ref": "#integer-string",
+            "title": "Supercollection position",
+            "examples": [
+              1
+            ]
+          },
+          "image_url": {
+            "$id": "#/properties/supercollections/items/properties/image_url",
+            "title": "Supercollection image URL",
+            "$ref": "#image_url"
+          },
+          "collections": {
+            "$id": "#/properties/supercollections/items/properties/collections",
+            "type": "array",
+            "title": "Supercollection collections",
+            "minItems": 1,
+            "items": {
+              "$id": "#/properties/supercollections/items/properties/collections/items",
+              "$ref": "#id-field",
+              "title": "Collection id",
+              "examples": [
+                "Menus",
+                "Pizzas"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "packs": {
+      "$id": "#/properties/packs",
+      "type": "array",
+      "title": "Packs",
+      "minItems": 1,
+      "items": {
+        "$id": "#/properties/packs/items",
+        "type": "object",
+        "title": "Pack",
+        "required": [
+          "product_id",
+          "items"
+        ],
+        "properties": {
+          "product_id": {
+            "$id": "#/properties/packs/items/properties/product_id",
+            "$ref": "#id-field",
+            "title": "ID of the product representing this pack"
+          },
+          "items": {
+            "$id": "#/properties/packs/items/properties/items",
+            "type": "array",
+            "title": "Pack Items",
+            "minItems": 1,
+            "items": {
+              "$id": "#/properties/packs/items/properties/items/items",
+              "type": "object",
+              "title": "Pack",
+              "required": [
+                "id",
+                "quantity"
+              ],
+              "properties": {
+                "id": {
+                  "$id": "#/properties/packs/items/properties/items/items/properties/id",
+                  "$ref": "#id-field",
+                  "title": "ID of the product referenced by this item"
+                },
+                "quantity": {
+                  "$id": "#/properties/packs/items/properties/items/items/properties/quantity",
+                  "title": "Quantity of the product referenced by this item",
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

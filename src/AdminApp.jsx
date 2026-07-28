@@ -12,6 +12,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 const AdminDashboard = lazy(() => import('./views/AdminDashboard'));
 const KitchenDashboard = lazy(() => import('./components/admin/KitchenDashboard'));
 const GlovoReports = lazy(() => import('./views/GlovoReports'));
+const GlovoMenuConfig = lazy(() => import('./views/GlovoMenuConfig'));
 
 function AdminAppInner() {
   const [user, setUser] = useState(null);
@@ -570,6 +571,18 @@ function AdminAppInner() {
     return (
       <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500"><div className="w-12 h-12 border-4 border-gray-200 border-t-[#FFC244] rounded-full animate-spin"></div></div>}>
           <GlovoReports brand={brand} />
+      </Suspense>
+    );
+  }
+
+  // 🔥 Chargement de l'écran Glovo Menu Config
+  if (window.location.pathname.startsWith('/glovo-menu') || window.location.hash.includes('/glovo-menu')) {
+    if (!profile?.isAdmin && !profile?.isManager) {
+        return <div className="min-h-screen flex items-center justify-center p-4">Accès Refusé.</div>;
+    }
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500"><div className="w-12 h-12 border-4 border-gray-200 border-t-[#FFC244] rounded-full animate-spin"></div></div>}>
+          <GlovoMenuConfig brand={brand} settings={settings} saveSettings={saveSettings} />
       </Suspense>
     );
   }

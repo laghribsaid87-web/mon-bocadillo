@@ -2,9 +2,10 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getMessaging, isSupported } from 'firebase/messaging';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBcQDTGG0vsKRtK6B233Wuc4YM1_Gta-7Y",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "mon-bocadillo-menu.firebaseapp.com",
   projectId: "mon-bocadillo-menu",
   storageBucket: "mon-bocadillo-menu.firebasestorage.app",
@@ -15,8 +16,9 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const functions = getFunctions(app);
 
-export const VAPID_KEY = "BO5lAnealXpHrw_wOovDsCbCOT8nWrtGMkDAoUPDYyDr6ONv3asreY_XHq6KDMLHUYeaUY9CjbTkREJRdpZ5UYg";
+export const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 export let messaging = null;
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {

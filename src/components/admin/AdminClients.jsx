@@ -38,7 +38,7 @@ export default function AdminClients({
         // Extraire les clients Glovo depuis les commandes s'ils ne sont pas dans clientsList
         const glovoClientsMap = new Map();
         (safeOrders || []).forEach(o => {
-            if (o.source === 'glovo' && o.phone && o.phone !== 'Inconnu' && o.phone !== 'GLOVO') {
+            if ((o.source === 'glovo' || o.source === 'glovo_api') && o.phone && o.phone !== 'Inconnu' && o.phone !== 'GLOVO') {
                 if (!glovoClientsMap.has(o.phone)) {
                     glovoClientsMap.set(o.phone, {
                         id: 'glovo-' + o.phone,
