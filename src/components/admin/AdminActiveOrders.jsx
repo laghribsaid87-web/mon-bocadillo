@@ -38,7 +38,7 @@ export default function AdminActiveOrders({
     // Dictionnaire de thèmes (Couleurs Claires pour l'Admin) selon la source
     const getSourceTheme = (o, index, brandColor) => {
         const source = o.source;
-        const isGlovoEspece = source === 'glovo' && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash');
+        const isGlovoEspece = (source === 'glovo' || source === 'glovo_api') && (o.paymentMethod === 'espece' || o.paymentMethod === 'cash');
         
         if (isGlovoEspece) return {
             cardClass: `border-2 ${index === 0 ? 'border-green-400 ring-4 ring-green-100 ring-offset-4 scale-[1.02]' : 'border-green-100'}`,
@@ -50,7 +50,7 @@ export default function AdminActiveOrders({
             label: 'GLOVO (ESPECE 💵 $)'
         };
         
-        if (source === 'glovo') return {
+        if ((source === 'glovo' || source === 'glovo_api')) return {
             cardClass: `border-2 ${index === 0 ? 'border-yellow-400 ring-4 ring-yellow-100 ring-offset-4 scale-[1.02]' : 'border-yellow-100'}`,
             cardStyle: {},
             topClass: 'bg-yellow-400',
@@ -215,7 +215,7 @@ export default function AdminActiveOrders({
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <LiveTimer startTime={o.createdAt?.seconds ? o.createdAt.seconds * 1000 : Date.now()} />
+                                    <LiveTimer startTime={o.createdAt?.seconds ? o.createdAt.seconds * 1000 : Date.now()} targetTime={o.estimatedPickupTime ? new Date(o.estimatedPickupTime.replace(' ', 'T')).getTime() : null} />
                                 <button onClick={(e) => { e.stopPropagation(); readOrder(o); }} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 border border-blue-200 shadow-sm transition-colors active:scale-95" title="Lire la commande (Haut-parleur)">
                                     <Volume2 size={16}/>
                                 </button>
@@ -285,7 +285,7 @@ export default function AdminActiveOrders({
                                         {o.orderNote && (
                                             <div className="mt-2 pt-2 border-t border-orange-200/50 border-dashed">
                                                 <p className="text-[9px] font-bold text-red-600 uppercase mb-1 tracking-widest">📝 Note :</p>
-                                                <p className="text-xs font-medium text-gray-800 bg-white/80 p-2 rounded-lg border border-red-100 shadow-sm">"{o.orderNote}"</p>
+                                                <p className="text-xs font-medium text-gray-800 bg-yellow-300 p-2 rounded-lg border-2 border-yellow-400 shadow-sm text-black font-black">"{o.orderNote}"</p>
                                             </div>
                                         )}
                                     </div>

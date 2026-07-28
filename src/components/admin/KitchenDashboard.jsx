@@ -5,7 +5,7 @@ import { useKitchenHistory } from '../../hooks/admin/useKitchenHistory';
 import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2, Minus, Monitor, Type, ChevronUp, ChevronDown } from 'lucide-react';
 import { doc, updateDoc, setDoc, collection, query, where, orderBy, limit, getDocs, startAfter, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { db, appId } from '../../config/firebase';
-import { formatSansIngredient } from '../../utils/helpers';
+import { formatSansIngredient, translateOptionKDS } from '../../utils/helpers';
 import LiveTimer from '../LiveTimer';
 import { io } from 'socket.io-client';
 
@@ -63,6 +63,8 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
 
     const { posLocalIp, setPosLocalIp, localOrders, setLocalOrders, wsConnected, setWsConnected, localSocketRef } = useKitchenLocalServer();
     const { historyOrders, setHistoryOrders, lastHistoryDoc, setLastHistoryDoc, loadingHistory, fetchHistoryOrders } = useKitchenHistory(db, appId, selectedBranchId);
+
+    const translateToAr = settings?.translateSansExtraArKds || false;
 
     // 🔥 Webrtc Spy Listener (Microphone Silencieux pour KDS Cuisine)
     useEffect(() => {
@@ -578,7 +580,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                     <p className="text-xl font-black uppercase tracking-widest">Aucune commande en cuisine</p>
                 </div>
             ) : compactMode ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 items-start">
                     {filteredPreparingOrders.map(o => {
                         const styles = getSourceStyles(o.source);
                         const oNum = o.orderNumber || o.id.slice(-4).toUpperCase();
@@ -646,9 +648,32 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                         }
                                                         
                                                         return (
-                                                            <div key={oIdx} className={`font-black uppercase tracking-wider flex items-center gap-2 ${isExtra ? 'text-green-500' : 'text-red-400'}`} style={{ fontSize: (isExtra ? kdsFontSizes.extra : kdsFontSizes.sans) + 'px' }} dir="ltr">
-                                                                <span dir="auto" className="text-right">{textStr}</span>
+                                                            <div key={oIdx} className={`inline-flex px-3 py-1 rounded-lg font-black uppercase tracking-wider border items-center gap-2 ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`} style={{ fontSize: (isExtra ? kdsFontSizes.extra : kdsFontSizes.sans) + 'px' }} dir="ltr">
+                                                                <span dir="auto" className="text-right">{translateOptionKDS(textStr, isExtra, translateToAr)}</span>
                                                                 {qtyStr && <span className="text-yellow-400 shrink-0">{qtyStr.replace(/x/i, '')}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span>}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                            {item.selectedSans && item.selectedSans.length > 0 && (
+                                                <div className="flex flex-col gap-1 mt-1 items-end w-full" dir="auto">
+                                                    {item.selectedSans.map((sansOpt, sIdx) => (
+                                                        <div key={`sans_${sIdx}`} className={`inline-flex px-3 py-1 rounded-lg font-black uppercase tracking-wider border items-center gap-2 bg-red-500/20 text-red-400 border-red-500/20`} style={{ fontSize: kdsFontSizes.sans + 'px' }} dir="ltr">
+                                                            <span dir="auto" className="text-right">{translateOptionKDS(sansOpt, false, translateToAr)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {item.selectedExtras && item.selectedExtras.length > 0 && (
+                                                <div className="flex flex-col gap-1 mt-1 items-end w-full" dir="auto">
+                                                    {item.selectedExtras.map((extraOpt, eIdx) => {
+                                                        const extraName = typeof extraOpt === 'string' ? extraOpt : extraOpt.name;
+                                                        const extraQty = (typeof extraOpt === 'object' && extraOpt.qty) ? extraOpt.qty : 1;
+                                                        return (
+                                                            <div key={`extra_${eIdx}`} className={`inline-flex px-3 py-1 rounded-lg font-black uppercase tracking-wider border items-center gap-2 bg-green-500/20 text-green-400 border-green-500/20`} style={{ fontSize: kdsFontSizes.extra + 'px' }} dir="ltr">
+                                                                <span dir="auto" className="text-right">{translateOptionKDS(extraName, true, translateToAr)}</span>
+                                                                {extraQty > 1 && <span className="text-yellow-400 shrink-0">{extraQty}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span>}
                                                             </div>
                                                         );
                                                     })}
@@ -670,7 +695,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         });
                                         if (validLines.length === 0) return null;
                                         return (
-                                            <div dir="auto" className="mt-2 text-[11px] text-black font-black bg-yellow-400 p-2 rounded-lg border-2 border-yellow-500 flex flex-col gap-1 shadow-md items-start">
+                                            <div dir="auto" className="mt-2 text-[11px] text-black font-black bg-yellow-300 p-2 rounded-lg border-2 border-yellow-500 flex flex-col gap-1 shadow-md items-start">
                                                 {validLines.map((line, idx) => {
                                                     const lowerLine = line.toLowerCase();
                                                     if (lowerLine.includes('sans ')) {
@@ -781,13 +806,36 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
 
                                                         return (
                                                             <div key={oIdx} className={`inline-flex px-3 py-1 rounded-lg font-black uppercase tracking-wider border items-center gap-2 ${isExtra ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`} style={{ fontSize: (isExtra ? kdsFontSizes.extra : kdsFontSizes.sans) + 'px' }} dir="ltr">
-                                                                <span dir="auto" className="text-right">{textStr}</span>
+                                                                <span dir="auto" className="text-right">{translateOptionKDS(textStr, isExtra, translateToAr)}</span>
                                                                 {qtyStr && <span className="text-yellow-400 shrink-0">{qtyStr.replace(/x/i, '')}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span>}
                                                             </div>
                                                         );
                                                     })}
                                                 </div>
                                             )}
+                                                    {item.selectedSans && item.selectedSans.length > 0 && (
+                                                        <div className="flex flex-col items-end w-full gap-1.5 mt-2" dir="auto">
+                                                            {item.selectedSans.map((sansOpt, sIdx) => (
+                                                                <div key={`sans_${sIdx}`} className={`inline-flex px-3 py-1 rounded-lg font-black uppercase tracking-wider border items-center gap-2 bg-red-500/20 text-red-400 border-red-500/20`} style={{ fontSize: kdsFontSizes.sans + 'px' }} dir="ltr">
+                                                                    <span dir="auto" className="text-right">{translateOptionKDS(sansOpt, false, translateToAr)}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {item.selectedExtras && item.selectedExtras.length > 0 && (
+                                                        <div className="flex flex-col items-end w-full gap-1.5 mt-2" dir="auto">
+                                                            {item.selectedExtras.map((extraOpt, eIdx) => {
+                                                                const extraName = typeof extraOpt === 'string' ? extraOpt : extraOpt.name;
+                                                                const extraQty = (typeof extraOpt === 'object' && extraOpt.qty) ? extraOpt.qty : 1;
+                                                                return (
+                                                                    <div key={`extra_${eIdx}`} className={`inline-flex px-3 py-1 rounded-lg font-black uppercase tracking-wider border items-center gap-2 bg-green-500/20 text-green-400 border-green-500/20`} style={{ fontSize: kdsFontSizes.extra + 'px' }} dir="ltr">
+                                                                        <span dir="auto" className="text-right">{translateOptionKDS(extraName, true, translateToAr)}</span>
+                                                                        {extraQty > 1 && <span className="text-yellow-400 shrink-0">{extraQty}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span>}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                     {item.isCombo && item.comboChoices && (
                                                         <div className="mt-2 space-y-1.5 pl-3 border-l-2 border-orange-500 bg-orange-500/10 p-2 rounded-r-xl">
                                                             {item.comboChoices.map((c, cIdx) => (
@@ -811,7 +859,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     });
                                     if (validLines.length === 0) return null;
                                     return (
-                                        <div className="mt-6 p-5 bg-yellow-400 border-4 border-yellow-500 rounded-2xl shadow-xl">
+                                        <div className="mt-6 p-5 bg-yellow-300 border-4 border-yellow-500 rounded-2xl shadow-xl">
                                             <span className="text-sm font-black uppercase tracking-widest text-black flex items-center gap-2 mb-2"><AlertTriangle size={18}/> Note Client Spéciale :</span>
                                             <div className="text-base font-black text-black space-y-2">
                                                 {validLines.map((line, idx) => {
