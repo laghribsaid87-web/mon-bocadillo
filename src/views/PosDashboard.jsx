@@ -149,6 +149,12 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     const triggerGlovoVerification = async (isAuto = false) => {
         if (isVerifyingGlovo) return;
+        
+        if (settings?.glovoConfig?.disableAutomatorOrderCreation) {
+            console.log("Automator is disabled. Skipping cancel verification.");
+            return;
+        }
+
         setIsVerifyingGlovo(true);
         try {
             const triggerId = Date.now().toString() + Math.floor(Math.random() * 1000);
