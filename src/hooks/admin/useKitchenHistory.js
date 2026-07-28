@@ -11,7 +11,6 @@ export function useKitchenHistory(db, appId, selectedBranchId) {
         try {
             let q = query(
                 collection(db, 'artifacts', appId, 'public', 'data', 'orders'),
-                where('status', 'in', ['ready', 'delivered']),
                 orderBy('updatedAt', 'desc')
             );
             
@@ -26,7 +25,7 @@ export function useKitchenHistory(db, appId, selectedBranchId) {
             }
             
             const snap = await getDocs(q);
-            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(o => o.status === 'ready' || o.status === 'delivered');
             
             if (!isLoadMore) {
                 setHistoryOrders(data);

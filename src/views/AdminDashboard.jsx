@@ -510,7 +510,6 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
             }
 
             let constraints = [
-                where('status', 'in', ['delivered', 'rejected']),
                 orderBy('createdAt', 'desc')
             ];
 
@@ -556,7 +555,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                     setLastHistoryDoc(snap.docs[snap.docs.length - 1]);
                     setHasMoreHistory(snap.docs.length === 10);
                 }
-                const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.status === 'delivered' || o.status === 'rejected');
                 
                 if (isLoadMore) {
                     setLazyHistory(prev => {
