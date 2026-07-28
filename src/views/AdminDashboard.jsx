@@ -907,7 +907,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
 
     const renderNavItem = ({ id, icon, label, badge, hidden }) => {
         if (hidden) return null; const active = tab === id;
-        return ( <button key={id} onClick={() => { if (id === \'history\' || id === \'analytics\') {
+        return ( <button key={id} onClick={() => { if (id === 'history' || id === 'analytics') {
                 if (!validateManagerPin(settings, brand)) return;
             }
             setTab(id); setIsSidebarOpen(false); }} className={`w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border ${active ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-lg scale-[1.02]' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent'}`}> <div className="flex items-center gap-3">{icon}<span>{label}</span></div> {badge > 0 && <span className={`px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${active ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-slate-300'}`}>{badge}</span>} </button> )
