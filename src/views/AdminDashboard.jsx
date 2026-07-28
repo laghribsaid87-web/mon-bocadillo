@@ -4,7 +4,8 @@ import {
     X, Menu, Check, CheckCircle, Minus, Clock, Printer, AlertTriangle, ChevronRight, Search, Mic, MicOff,
     Download, Ban, Trash2, User, Edit3, Settings, Zap, ImageIcon, Type, AlignLeft, 
     MessageCircle, Utensils, MousePointer2, Plus, ShoppingBag, Home, MapPin, Navigation, ChefHat, Monitor,
-    TrendingUp, DollarSign, Award, BarChart3, Database, Activity, Calculator, FileText, BookOpen
+import { validateManagerPin } from '../utils/helpers';
+    TrendingUp, DollarSign, Award, BarChart3, Database, Activity, Calculator, FileText, BookOpen, UploadCloud
 } from 'lucide-react';
 import { doc, setDoc, addDoc, collection, serverTimestamp, getDoc, deleteDoc, updateDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -419,7 +420,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                 if (o.status === 'rejected' || o.status === 'delivered') return;
                 
                 // 🔥 NOUVEAU: Ignorer les commandes Glovo pour l'assignation
-                if (o.source === 'glovo') return;
+                if ((o.source === 'glovo' || o.source === 'glovo_api')) return;
                 
                 if (o.driverId && !o.driverAccepted) {
                     const elapsed = currentTime - (o.assignedAtLocal || 0);
@@ -906,7 +907,10 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
 
     const renderNavItem = ({ id, icon, label, badge, hidden }) => {
         if (hidden) return null; const active = tab === id;
-        return ( <button key={id} onClick={() => { setTab(id); setIsSidebarOpen(false); }} className={`w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border ${active ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-lg scale-[1.02]' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent'}`}> <div className="flex items-center gap-3">{icon}<span>{label}</span></div> {badge > 0 && <span className={`px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${active ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-slate-300'}`}>{badge}</span>} </button> )
+        return ( <button key={id} onClick={() => { if (id === \'history\' || id === \'analytics\') {
+                if (!validateManagerPin(settings, brand)) return;
+            }
+            setTab(id); setIsSidebarOpen(false); }} className={`w-full flex items-center justify-between p-3.5 mb-2 rounded-xl transition-all font-medium text-xs md:text-sm tracking-wider border ${active ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-lg scale-[1.02]' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-transparent'}`}> <div className="flex items-center gap-3">{icon}<span>{label}</span></div> {badge > 0 && <span className={`px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${active ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-slate-300'}`}>{badge}</span>} </button> )
     };
 
     const btnRadiusMock = brand.buttonStyle === 'square' ? 'rounded-md' : (brand.buttonStyle === 'rounded' ? 'rounded-xl' : 'rounded-full');
@@ -1096,8 +1100,8 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                             <div>
                                                 <div className="flex items-center gap-3 mb-1">
                                                     <span className="font-black text-gray-900 text-lg">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</span>
-                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${o.source === 'pos' ? 'bg-blue-100 text-blue-700' : o.source === 'telephone' ? 'bg-purple-100 text-purple-700' : o.source === 'glovo' ? ((o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-yellow-100 text-yellow-800') : 'bg-emerald-100 text-emerald-700'}`}>
-                                                        {o.source === 'pos' ? 'Caisse (POS)' : o.source === 'telephone' ? 'Téléphone' : o.source === 'glovo' ? ((o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Glovo (ESPECE 💵 $)' : 'Glovo') : 'App Client'}
+                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${o.source === 'pos' ? 'bg-blue-100 text-blue-700' : o.source === 'telephone' ? 'bg-purple-100 text-purple-700' : (o.source === 'glovo' || o.source === 'glovo_api') ? ((o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-yellow-100 text-yellow-800') : 'bg-emerald-100 text-emerald-700'}`}>
+                                                        {o.source === 'pos' ? 'Caisse (POS)' : o.source === 'telephone' ? 'Téléphone' : (o.source === 'glovo' || o.source === 'glovo_api') ? ((o.paymentMethod === 'espece' || o.paymentMethod === 'cash') ? 'Glovo (ESPECE 💵 $)' : 'Glovo') : 'App Client'}
                                                     </span>
                                                     {o.source === 'pos' && o.orderType && (
                                                         <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${o.orderType === 'sur_place' ? 'bg-indigo-100 text-indigo-700' : 'bg-pink-100 text-pink-700'}`}>
@@ -1959,21 +1963,32 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                 const snap = await getDocs(q);
                                 let allOrders = snap.docs.map(d => ({id: d.id, ...d.data()}));
                                 
-                                let filtered = allOrders.filter(o => o.source === 'glovo' && o.status !== 'rejected');
-                                
-                                if (glovoBranch !== 'ALL') {
-                                    filtered = filtered.filter(o => o.nearestBranch?.id === glovoBranch);
-                                }
-                                setGlovoData(filtered);
+                                let filtered = allOrders.filter(o => (o.source === 'glovo' || o.source === 'glovo_api') && o.status !== 'rejected' && o.status !== 'cancelled');
+let cancelledApiOrders = allOrders.filter(o => (o.source === 'glovo' || o.source === 'glovo_api') && o.status === 'cancelled');
 
-                                // Fetch cancellations
+if (glovoBranch !== 'ALL') {
+    filtered = filtered.filter(o => o.nearestBranch?.id === glovoBranch);
+    cancelledApiOrders = cancelledApiOrders.filter(o => o.nearestBranch?.id === glovoBranch);
+}
+setGlovoData(filtered);
+
+// Fetch cancellations
                                 const qCancel = query(
                                     collection(db, 'artifacts', appId, 'public', 'data', 'glovo_cancellations'),
                                     where('createdAt', '>=', start),
                                     where('createdAt', '<=', end)
                                 );
                                 const snapCancel = await getDocs(qCancel);
-                                setGlovoCancellations(snapCancel.docs.map(d => ({id: d.id, ...d.data()})));
+let oldCancellations = snapCancel.docs.map(d => ({id: d.id, ...d.data()}));
+
+const formattedApiCancellations = cancelledApiOrders.map(o => ({
+    id: o.id,
+    orderNumber: o.id.slice(-4),
+    createdAt: o.createdAt,
+    reasonText: `⚠️ COMMANDE ANNULÉE (API) \nMontant Perdu : ${o.total || 0} DH \nPaiement : ${o.paymentMethod || 'Inconnu'} \nAgence : ${o.nearestBranch?.name || 'Inconnue'}`
+}));
+
+setGlovoCancellations([...oldCancellations, ...formattedApiCancellations]);
 
                                 showNotify(`Données Glovo chargées : ${filtered.length} commandes ✅`, "success");
                             } catch(e) {
@@ -1990,7 +2005,30 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                         <div className="p-2.5 bg-yellow-50 text-yellow-600 rounded-lg"><Calculator size={24} strokeWidth={2}/></div>
                                         <div><h2 className="text-xl font-semibold text-gray-900">Rapport Comptable Glovo</h2><p className="text-xs text-gray-500">Calculez vos factures de la quinzaine</p></div>
                                     </div>
-                                    <button onClick={() => {
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <button onClick={async () => {
+                                            if (!window.confirm("Voulez-vous vraiment envoyer le menu actuel vers la boutique de test Glovo ?")) return;
+                                            try {
+                                                const { getFunctions, httpsCallable } = await import('firebase/functions');
+                                                const functions = getFunctions();
+                                                const pushMenu = httpsCallable(functions, 'pushMenuToGlovo');
+                                                if(showNotify) showNotify("Synchronisation en cours...", "info");
+                                                const res = await pushMenu({ appId, storeId: "962002" });
+                                                if(showNotify) showNotify("Succès: " + res.data.message, "success");
+                                            } catch (e) {
+                                                console.error(e);
+                                                if(showNotify) showNotify("Erreur lors de la synchronisation: " + e.message, "error");
+                                            }
+                                        }} className="bg-[#FFC244] hover:bg-[#ffb01f] text-gray-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2">
+                                            <UploadCloud size={18}/> Sync Menu Glovo
+                                        </button>
+                                        <button onClick={() => {
+                                            const route = '/glovo-menu';
+                                            window.location.href = navigator.userAgent.toLowerCase().includes('electron') ? '#' + route : route;
+                                        }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2">
+                                            <Settings size={18}/> Configurer Options Glovo
+                                        </button>
+                                        <button onClick={() => {
                                         const menuToExport = settings?.menuItems || DEFAULT_MENU_ITEMS;
                                         const rows = menuToExport.map(item => `"${item.name}","${item.id}"`);
                                         const csv = "data:text/csv;charset=utf-8,\uFEFFNom du Produit (Glovo),ID POS (Mon Bocadillo)\n" + rows.join("\n");
@@ -2004,6 +2042,7 @@ export default function AdminDashboard({ role, managerBranchId, orders, updateSt
                                     }} className="bg-gray-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2">
                                         <Download size={18}/> Exporter Menu (Mapping)
                                     </button>
+                                    </div>
                                 </div>
 
                                 <div className="flex flex-col md:flex-row gap-3 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-200 items-end">

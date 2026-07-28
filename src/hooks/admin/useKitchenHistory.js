@@ -10,7 +10,7 @@ export function useKitchenHistory(db, appId, selectedBranchId) {
         setLoadingHistory(true);
         try {
             let q = query(
-                collection(db, 'apps', appId, 'orders'),
+                collection(db, 'artifacts', appId, 'public', 'data', 'orders'),
                 where('status', 'in', ['ready', 'delivered']),
                 orderBy('updatedAt', 'desc')
             );

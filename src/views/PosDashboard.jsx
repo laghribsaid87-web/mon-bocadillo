@@ -4,6 +4,9 @@ import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, ar
 import { generateOrderNumber, printTicket, formatSansIngredient, buildMessage, openWhatsAppDirect } from '../utils/helpers';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PREDEFINED_DRINKS, DEFAULT_BRAND } from '../config/constants';
+import { validateManagerPin } from '../utils/helpers';
+import { functions } from '../config/firebase';
+import { httpsCallable } from 'firebase/functions';
 import AchatInventaire from './AchatInventaire';
 import { io } from 'socket.io-client';
 
@@ -26,6 +29,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const [showUnpaidModal, setShowUnpaidModal] = useState(false);
     const [showReadyPosModal, setShowReadyPosModal] = useState(false); // Jdid: Modal Commandes Prêtes
     const [showGlovoModal, setShowGlovoModal] = useState(false); // Modal Commandes Glovo
+    const [showGlovoCancellationsModal, setShowGlovoCancellationsModal] = useState(false); // Modal Annulations Glovo
     const [showConfirmToutDonner, setShowConfirmToutDonner] = useState(false); // Jdid: Modal Custom Confirmation
     const [glovoConfirmPaymentOrder, setGlovoConfirmPaymentOrder] = useState(null); // Modal Confirmation Paiement Glovo
     const [confirmDialog, setConfirmDialog] = useState(null);
@@ -201,7 +205,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     const dragItemRef = useRef(null);
     const dropItemRef = useRef(null);
     
-    const defaultHeaderButtons = ['commandes_web', 'non_payes', 'problemes', 'suivi', 'pretes', 'glovo_ready', 'glovo_verify', 'tv', 'standard', 'kds'];
+    const defaultHeaderButtons = ['commandes_web', 'non_payes', 'problemes', 'suivi', 'pretes', 'glovo_ready', 'glovo_cancellations', 'glovo_verify', 'tv', 'standard', 'kds'];
     
     // 🔥 Ordre des boutons (Drag & Drop Flex)
     const [headerBtnsOrder, setHeaderBtnsOrder] = useState(settings?.headerBtnsOrder || []);
@@ -527,8 +531,8 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     const allowedButtons = defaultHeaderButtons.filter(btnId => {
         if (currentBranch && currentBranch.posButtons) {
-            // 🔥 Toujours afficher le bouton "Non Payés" même s'il n'est pas dans la configuration (Éditeur Visuel)
-            if (btnId === 'non_payes') return true;
+            // 🔥 Toujours afficher les boutons importants même s'ils ne sont pas dans la configuration (Éditeur Visuel)
+            if (btnId === 'non_payes' || btnId === 'glovo_cancellations') return true;
             return currentBranch.posButtons.includes(btnId);
         }
         if (!hasAccess || isAdmin) return true;
@@ -562,12 +566,19 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
     };
 
     // 🔥 Problem Orders (Commandes avec problème)
+    const cancelledGlovoOrders = useMemo(() => {
+        return (orders || []).filter(o => {
+            if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
+            return o.status === 'cancelled' && (o.source === 'glovo' || o.source === 'glovo_api');
+        }).sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    }, [orders, activeBranchId]);
+
     const [showProblemModal, setShowProblemModal] = useState(false);
     const prevProblemCount = useRef(0);
     const problemOrders = useMemo(() => {
         return (orders || []).filter(o => {
             if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
-            if (o.source === 'glovo') return false;
+            if ((o.source === 'glovo' || o.source === 'glovo_api') || o.source === 'glovo_api') return false;
             
             const isUnreachable = o.clientUnreachable;
             const hasAdminMsg = !!o.adminMessage;
@@ -766,13 +777,42 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
     // 🔥 Les Commandes li Jayin mn l-App Client
     const onlineOrders = (orders || []).filter(o => {
-        if (o.source === 'pos' || o.source === 'glovo') return false;
+        if (o.source === 'pos' || (o.source === 'glovo' || o.source === 'glovo_api') || o.source === 'glovo_api') return false;
         if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
         return ['pending', 'preparing', 'ready', 'out_for_delivery'].includes(o.status);
     });
 
-    const readyGlovoOrders = (orders || []).filter(o => o.source === 'glovo' && (activeBranchId === 'ALL' || o.nearestBranch?.id === activeBranchId) && o.status === 'ready');
+    const readyGlovoOrders = (orders || []).filter(o => ((o.source === 'glovo' || o.source === 'glovo_api') || o.source === 'glovo_api') && (activeBranchId === 'ALL' || o.nearestBranch?.id === activeBranchId) && o.status === 'ready');
     const pendingOnline = onlineOrders.filter(o => o.status === 'pending');
+
+    // 🔥 Fonction pour supprimer un article d'une commande Glovo depuis la caisse
+    const removeGlovoItem = async (orderId, itemIndex) => {
+        const order = (orders || []).find(o => o.id === orderId);
+        if (!order || order.source !== 'glovo_api') return;
+        if (!window.confirm("Voulez-vous vraiment signaler ce produit en RUPTURE (Glovo) ? Il sera annulé de la commande et le client sera remboursé.")) return;
+
+        const itemToRemove = order.items[itemIndex];
+        const purchasedId = itemToRemove.purchased_product_id || itemToRemove.id || itemToRemove.name;
+
+        try {
+            if (showNotify) showNotify("Modification de la commande Glovo en cours...", "info");
+            const modifyGlovo = httpsCallable(functions, 'modifyGlovoOrder');
+            const res = await modifyGlovo({
+                storeId: appId,
+                orderId: order.orderNumber || order.id.slice(-4).toUpperCase(),
+                removed_purchases: [{ purchased_product_id: purchasedId }]
+            });
+            
+            if (res.data?.success) {
+                if (showNotify) showNotify("Produit supprimé de la commande Glovo avec succès ! ✅", "success");
+            } else {
+                throw new Error("Erreur Glovo");
+            }
+        } catch (err) {
+            console.error("Glovo modify order error:", err);
+            if (showNotify) showNotify("Erreur: Impossible d'annuler le produit sur Glovo.", "error");
+        }
+    };
     const readyPosOrders = (orders || []).filter(o => o.source === 'pos' && (activeBranchId === 'ALL' || o.nearestBranch?.id === activeBranchId) && o.status === 'ready');
 
     // 🔥 Sonnette (En boucle) mli katzad commande web jdida f l-Caisse
@@ -818,7 +858,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             if (activeBranchId !== 'ALL' && o.nearestBranch?.id !== activeBranchId) return false;
             
             if (o.source === 'pos') {
-                if (o.status === 'rejected' || o.paymentStatus === 'en_attente') return false; 
+                if (o.status === 'rejected' || o.status === 'cancelled' || o.paymentStatus === 'en_attente') return false; 
             } else {
                 if (o.status !== 'delivered') return false; 
             }
@@ -840,7 +880,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
             const t = Number(o.total) || 0;
             if (o.source === 'pos') cPos += t;
             else if (o.source === 'telephone') cTel += t;
-            else if (o.source === 'glovo') {
+            else if ((o.source === 'glovo' || o.source === 'glovo_api') || o.source === 'glovo_api') {
                 if (o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') cGlovoEspece += t;
                 else cGlovoEnLigne += t;
             }
@@ -848,7 +888,7 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
 
             (o.items || []).forEach(i => { 
                 const baseName = (i.name || '').split(' (Sans ')[0]; 
-                const sourcePrefix = o.source === 'glovo' ? 'Vente GLOVO : ' : 'Vente CAISSE : ';
+                const sourcePrefix = ((o.source === 'glovo' || o.source === 'glovo_api') || o.source === 'glovo_api') ? 'Vente GLOVO : ' : 'Vente CAISSE : ';
                 const finalName = sourcePrefix + baseName;
                 itemsMap[finalName] = (itemsMap[finalName] || 0) + i.qty; 
             });
@@ -1138,12 +1178,16 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         let finalPrice = selectedVariationForOptions ? Number(selectedVariationForOptions.price || 0) : Number(selectedItemForOptions.price || 0);
         if (selectedVariationForOptions) note += ` (${selectedVariationForOptions.name})`;
         if (selectedChoiceForOptions) note += ` (${selectedChoiceForOptions})`;
+        let allOptions = [];
+        if (selectedItemForOptions.selectedSans?.length > 0) {
+            allOptions.push(...selectedItemForOptions.selectedSans);
+        }
         if (selectedItemForOptions.selectedExtras?.length > 0) {
-            note += ` (Avec ${selectedItemForOptions.selectedExtras.map(e => e.name).join(', ')})`;
+            allOptions.push(...selectedItemForOptions.selectedExtras.map(e => `"Extra" ${e.name}`));
             finalPrice += selectedItemForOptions.selectedExtras.reduce((s, e) => s + Number(e.price), 0);
         }
-        if (selectedItemForOptions.selectedSans.length > 0) {
-            note += ` (Sans ${selectedItemForOptions.selectedSans.join(', ')})`;
+        if (allOptions.length > 0) {
+            note += ` (Sans ${allOptions.join(', ')})`;
         }
         const itemToAdd = { 
             ...selectedItemForOptions, 
@@ -1669,6 +1713,15 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                         {readyGlovoOrders.length > 0 && <span className="absolute -top-2 -right-2 bg-black text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{readyGlovoOrders.length}</span>}
                     </button>
                 );
+            case 'glovo_cancellations':
+                return (
+                    <button key={btnId} {...dragProps} onClick={() => setShowGlovoCancellationsModal(true)} className={`${baseClass} relative ${cancelledGlovoOrders.length > 0 ? 'bg-red-600 border-red-700 text-white hover:bg-red-700 animate-pulse' : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'}`} style={{ width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
+                        <AlertTriangle size={18} /> <span className="hidden sm:inline text-center leading-tight">❌ Annulations Glovo</span>
+                        {cancelledGlovoOrders.length > 0 && (
+                            <span className="absolute -top-2 -right-2 bg-yellow-400 text-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md">{cancelledGlovoOrders.length}</span>
+                        )}
+                    </button>
+                );
             case 'glovo_verify':
                 return (
                     <button key={btnId} {...dragProps} onClick={triggerGlovoVerification} disabled={isVerifyingGlovo} className={`${baseClass} relative ${glovoCancellationsToday > 0 ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100' : 'bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100'} disabled:opacity-50 disabled:cursor-not-allowed`} style={{ width: `${posUI.actionBtnWidth}px`, height: `${posUI.actionBtnHeight}px` }}>
@@ -1919,11 +1972,7 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                             style={{ minHeight: `${posUI.cardHeight}px` }}
                         >
                             <div className={`w-full flex items-center justify-center rounded-2xl overflow-hidden relative transition-transform duration-300 group-hover:scale-105 ${cardImgBg}`} style={{ height: `${posUI.imgHeight}px` }}>
-                                {item.outOfStock && (
-                                    <div className={`absolute inset-0 flex items-center justify-center z-20 ${isDark ? 'bg-black/70' : 'bg-white/70 backdrop-blur-sm'}`}>
-                                        <span className={`font-black text-xs sm:text-sm px-4 py-1.5 rounded-full shadow-lg transform -rotate-12 border-2 tracking-widest ${isDark ? 'bg-red-600 text-white border-red-500' : 'bg-red-500 text-white border-white'}`}>RUPTURE</span>
-                                    </div>
-                                )}
+
                                 {typeof item.img === 'string' && (item.img.startsWith('http') || item.img.startsWith('data:image')) ? (
                                     <img src={item.img} loading="lazy" className={`w-full h-full object-contain drop-shadow-sm ${isDark ? '' : 'mix-blend-multiply'}`} alt={item.name}/>
                                 ) : (
@@ -2062,7 +2111,7 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                             <button onClick={openDrawer} className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><Unlock size={16} className="text-green-500"/><span>Tiroir</span></button>
                         )}
                         {!settings?.hidePosHistory && (!hasAccess || hasAccess('pos_history')) && (
-                            <button onClick={() => setShowHistoryModal(true)} className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><History size={16}/><span>Historique</span></button>
+                            <button onClick={() => if (validateManagerPin(settings, brand)) { setShowHistoryModal(true); }} className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><History size={16}/><span>Historique</span></button>
                         )}
                         {!settings?.hidePosReports && (!hasAccess || hasAccess('pos_reports')) && (
                             <button onClick={() => setShowXZModal(true)} className="flex-1 py-2 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><ClipboardList size={16}/><span>Rapports</span></button>
@@ -2431,6 +2480,46 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                         <button onClick={() => handlePayUnpaidTicket(o)} className="mt-2 w-full bg-green-500 text-white py-3 rounded-xl font-black text-sm hover:bg-green-600 transition-colors shadow-md flex items-center justify-center gap-2">
                                             <Banknote size={18}/> Payer le tichet
                                         </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL ANNULATIONS GLOVO */}
+            {showGlovoCancellationsModal && (
+                <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowGlovoCancellationsModal(false)}>
+                    <div className="bg-white rounded-3xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-red-50">
+                            <h2 className="text-lg font-black text-red-800 flex items-center gap-2"><AlertTriangle size={20}/> Annulations Glovo</h2>
+                            <button onClick={() => setShowGlovoCancellationsModal(false)} className="p-2 bg-white rounded-full hover:bg-gray-100"><X size={20}/></button>
+                        </div>
+                        <div className="p-4 flex-1 overflow-y-auto max-h-[60dvh] bg-gray-50 space-y-3">
+                            {cancelledGlovoOrders.length === 0 ? (
+                                <div className="text-center text-gray-400 py-6 font-bold">Aucune annulation Glovo aujourd'hui.</div>
+                            ) : (
+                                cancelledGlovoOrders.map(o => (
+                                    <div key={o.id} className="bg-white p-4 rounded-2xl border border-red-200 shadow-sm flex flex-col gap-2">
+                                        <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                                            <div>
+                                                <p className="font-black text-gray-900 text-lg">#{o.orderNumber || o.id.slice(-4).toUpperCase()}</p>
+                                                <p className="text-[10px] font-bold text-gray-500 mt-0.5">Annulée à: {o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000).toLocaleTimeString() : ''}</p>
+                                            </div>
+                                            <span className="font-black text-red-600 text-xl">{o.total} DH</span>
+                                        </div>
+                                        <div className="text-sm font-black text-gray-700">
+                                            Client: {o.customerName || 'Inconnu'}
+                                        </div>
+                                        <div className="text-xs font-bold text-gray-600 bg-gray-50 p-2 rounded-xl border border-gray-100 mt-1 space-y-1">
+                                            {(o.items||[]).map((i, idx) => (
+                                                <div key={idx} className="flex gap-2">
+                                                    <span className="text-yellow-600 font-black">{i.qty}x</span> 
+                                                    <span>{(i.name || '').split(' (Sans')[0]}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 ))
                             )}
@@ -3040,7 +3129,10 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                         </div>
                                         <div className="text-xs font-bold text-gray-600 bg-gray-50 p-3 rounded-xl border border-gray-100">
                                             {(o.items||[]).map((i, idx) => (
-                                                <div key={idx}>{i.qty}x {(i.name || '').split(' (Sans')[0]}</div>
+                                                <div key={idx} className="flex justify-between items-center group">
+                                                    <span>{i.qty}x {(i.name || '').split(' (Sans')[0]}</span>
+
+                                                </div>
                                             ))}
                                             {o.orderNote && <div className="mt-2 pt-2 border-t border-gray-200 text-[10px] text-red-500">📝 Note: {o.orderNote}</div>}
                                         </div>
@@ -3102,7 +3194,7 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                                         showNotify("Commande marquée prête! ✅", "success");
                                                     }} className="flex-1 bg-orange-500 text-white py-2.5 rounded-xl font-black text-xs hover:bg-orange-600 transition-colors shadow-sm flex items-center justify-center gap-2">
                                                         <ChefHat size={16}/> 
-                                                        {o.source === 'glovo' && (o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? 'Prête (💶 À ENCAISSER CASH)' : 'Marquer Prête'}
+                                                        {((o.source === 'glovo' || o.source === 'glovo_api') || o.source === 'glovo_api') && (o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') ? 'Prête (💶 À ENCAISSER CASH)' : 'Marquer Prête'}
                                                     </button>
                                                 )}
 

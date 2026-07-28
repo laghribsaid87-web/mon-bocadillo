@@ -4,6 +4,7 @@ import { useKitchenLocalServer } from '../../hooks/admin/useKitchenLocalServer';
 import { useKitchenHistory } from '../../hooks/admin/useKitchenHistory';
 import { Clock, CheckCircle, ChefHat, AlertTriangle, CheckSquare, BellRing, Printer, ArrowLeft, History, X, RotateCcw, Timer, ClipboardList, Thermometer, Flame, PackageX, Layers, AlignJustify, Volume2, Minus, Monitor, Type, ChevronUp, ChevronDown } from 'lucide-react';
 import { doc, updateDoc, setDoc, collection, query, where, orderBy, limit, getDocs, startAfter, onSnapshot, arrayUnion } from 'firebase/firestore';
+import { validateManagerPin } from '../../utils/helpers';
 import { db, appId } from '../../config/firebase';
 import { formatSansIngredient, translateOptionKDS } from '../../utils/helpers';
 import LiveTimer from '../LiveTimer';
@@ -553,7 +554,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                     </button>
                     <button 
                         onClick={() => {
-                            setShowHistory(true);
+                            if (validateManagerPin(settings, brand)) { setShowHistory(true); };
                             if (historyOrders.length === 0) fetchHistoryOrders(false);
                         }} 
                         className="shrink-0 flex-1 md:flex-none bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-neutral-800 transition-all shadow-sm active:scale-95 whitespace-nowrap"
