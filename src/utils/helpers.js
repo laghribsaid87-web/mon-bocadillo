@@ -294,9 +294,7 @@ export const getStep = (s) => { switch(s) { case 'pending': return 1; case 'prep
             if (lower.includes('صوص')) return 'بلا صوص 🥣';
             if (lower.includes('فرماج') || lower.includes('جبن')) return 'بلا فرماج 🧀';
 
-            if (!lower.includes('بلا') && !lower.includes('sans')) {
-                return "بلا " + text;
-            }
+
             return text.toUpperCase().replace('SANS ', 'بلا ').replace('SANS', 'بلا');
         } else {
             // Extra
@@ -322,11 +320,6 @@ export const getStep = (s) => { switch(s) { case 'pending': return 1; case 'prep
     
     // Fallback logic
     if (!isExtra) {
-        if (!lower.includes('sans') && !/[\\u0600-\\u06FF]/.test(lower)) {
-            return "SANS " + text;
-        } else if (/[\\u0600-\\u06FF]/.test(lower) && !lower.includes('بلا') && !lower.includes('sans')) {
-            return "بلا " + text;
-        }
         return /[\\u0600-\\u06FF]/.test(lower) ? text.toUpperCase().replace('SANS ', 'بلا ').replace('SANS', 'بلا') : text.toUpperCase();
     }
     return text;
