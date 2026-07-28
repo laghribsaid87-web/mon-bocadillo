@@ -639,44 +639,48 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                     p.attributes.forEach(attr => {
                         let lowerName = attr.name.toLowerCase();
                         
-                        const formatGlovoOption = (text, type) => {
-                            let lower = text.toLowerCase();
+                        const formatGlovoOption = (originalName, type) => {
+                            let lower = originalName.toLowerCase();
                             
                             // Define dictionaries
                             let emoji = '';
-                            let arName = text;
-                            let frName = text.charAt(0).toUpperCase() + text.slice(1);
+                            let arName = originalName;
                             
-                            if (lower.includes('tomate')) { emoji = '🍅'; arName = 'مطيشة'; frName = 'Tomate'; }
-                            else if (lower.includes('oignon')) { emoji = '🧅'; arName = 'بصلة'; frName = 'Oignon'; }
-                            else if (lower.includes('olive')) { emoji = '🫒'; arName = 'زيتون'; frName = 'Olive'; }
-                            else if (lower.includes('laitue') || lower.includes('salade')) { emoji = '🥬'; arName = 'خس'; frName = 'Salade'; }
-                            else if (lower.includes('carotte')) { emoji = '🥕'; arName = 'خيزو'; frName = 'Carotte'; }
-                            else if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) { emoji = '🍟'; arName = 'فريت'; frName = 'Frites'; }
-                            else if (lower.includes('mayonnaise') || lower.includes('mayo')) { emoji = '🥚'; arName = 'مايونيز'; frName = 'Mayonnaise'; }
-                            else if (lower.includes('harissa') || lower.includes('hrissa')) { emoji = '🌶️'; arName = 'هريسة'; frName = 'Harissa'; }
-                            else if (lower.includes('ketchup')) { emoji = '🍅'; arName = 'كيتشوب'; frName = 'Ketchup'; }
-                            else if (lower.includes('sauce')) { emoji = '🥣'; arName = 'صوص'; frName = 'Sauce'; }
-                            else if (lower.includes('fromage')) { emoji = '🧀'; arName = 'فروماج'; frName = 'Fromage'; }
-                            else if (lower.includes('viande') || lower.includes('hachée')) { emoji = '🥩'; arName = 'لحم مفروم'; frName = 'Viande Hachée'; }
-                            else if (lower.includes('poulet')) { emoji = '🍗'; arName = 'دجاج'; frName = 'Poulet'; }
-                            else if (lower.includes('oeuf') || lower.includes('œuf')) { emoji = '🍳'; arName = 'بيض'; frName = 'Oeuf'; }
-                            else if (lower.includes('thon')) { emoji = '🐟'; arName = 'طون'; frName = 'Thon'; }
-                            else if (lower.includes('charcuterie')) { emoji = '🥓'; arName = 'كاشير'; frName = 'Charcuterie'; }
-                            else if (lower.includes('saucisse')) { emoji = '🌭'; arName = 'صوصيص'; frName = 'Saucisse'; }
+                            if (lower.includes('tomate')) { emoji = '🍅'; arName = 'مطيشة'; }
+                            else if (lower.includes('oignon')) { emoji = '🧅'; arName = 'بصلة'; }
+                            else if (lower.includes('olive')) { emoji = '🫒'; arName = 'زيتون'; }
+                            else if (lower.includes('laitue') || lower.includes('salade')) { emoji = '🥬'; arName = 'خس'; }
+                            else if (lower.includes('carotte')) { emoji = '🥕'; arName = 'خيزو'; }
+                            else if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) { emoji = '🍟'; arName = 'فريت'; }
+                            else if (lower.includes('mayonnaise') || lower.includes('mayo')) { emoji = '🥚'; arName = 'مايونيز'; }
+                            else if (lower.includes('harissa') || lower.includes('hrissa')) { emoji = '🌶️'; arName = 'هريسة'; }
+                            else if (lower.includes('ketchup')) { emoji = '🍅'; arName = 'كيتشوب'; }
+                            else if (lower.includes('sauce')) { emoji = '🥣'; arName = 'صوص'; }
+                            else if (lower.includes('fromage')) { emoji = '🧀'; arName = 'فروماج'; }
+                            else if (lower.includes('viande') || lower.includes('hachée')) { emoji = '🥩'; arName = 'لحم مفروم'; }
+                            else if (lower.includes('poulet')) { emoji = '🍗'; arName = 'دجاج'; }
+                            else if (lower.includes('oeuf') || lower.includes('œuf')) { emoji = '🍳'; arName = 'بيض'; }
+                            else if (lower.includes('thon')) { emoji = '🐟'; arName = 'طون'; }
+                            else if (lower.includes('charcuterie')) { emoji = '🥓'; arName = 'كاشير'; }
+                            else if (lower.includes('saucisse')) { emoji = '🌭'; arName = 'صوصيص'; }
                             
+                            if (!enableArabicKDS) {
+                                // If French (original), just keep the exact original name and append emoji
+                                return `${originalName.trim()} ${emoji}`.trim();
+                            }
+
+                            // If Arabic, use the specific translated format
                             if (type === 'sans') {
-                                return enableArabicKDS ? `${emoji} بلا ${arName}`.trim() : `Sans ${frName} ${emoji}`.trim();
+                                return `${emoji} بلا ${arName}`.trim();
                             } else if (type === 'extra') {
-                                return enableArabicKDS ? `${emoji} إكسترا ${arName}`.trim() : `Extra ${frName} ${emoji}`.trim();
+                                return `${emoji} إكسترا ${arName}`.trim();
                             } else {
-                                return enableArabicKDS ? `${arName} ${emoji}`.trim() : `${frName} ${emoji}`.trim();
+                                return `${arName} ${emoji}`.trim();
                             }
                         };
 
                         if (lowerName.includes('sans')) {
-                            const rawSans = attr.name.replace(/sans/i, '').trim();
-                            selectedSans.push(formatGlovoOption(rawSans, 'sans'));
+                            selectedSans.push(formatGlovoOption(attr.name, 'sans'));
                         } else {
                             let rawExtra = attr.name.replace(/extra/i, '').replace(/ajout/i, '').trim();
                             if (!rawExtra) rawExtra = attr.name.trim();
@@ -697,14 +701,14 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
                             ) {
                                 standaloneItems.push({
                                     id: 'glovo_drink_' + Math.random().toString(36).substr(2, 9),
-                                    name: formatGlovoOption(rawExtra, 'extra'),
+                                    name: formatGlovoOption(attr.name, 'extra'),
                                     qty: p.quantity || 1,
                                     price: (attr.price || 0) / 100,
                                     selectedSans: [],
                                     selectedExtras: []
                                 });
                             } else {
-                                selectedExtras.push({ name: formatGlovoOption(rawExtra, 'extra'), price: (attr.price || 0) / 100 });
+                                selectedExtras.push({ name: formatGlovoOption(attr.name, 'extra'), price: (attr.price || 0) / 100 });
                             }
                         }
                     });
@@ -760,7 +764,7 @@ exports.syncStatusToGlovo = functions.firestore
         // N3rfo l-Store ID dyal l-Agence li daret l-Action
         const storeIdMap = {
             "laymoune": "370282",
-            "oum_rabii": "249396"
+            "oum_rabii": "249094"
         };
         const branchId = newData.nearestBranch?.id || "laymoune";
         const glovoStoreId = newData.glovoStoreId || storeIdMap[branchId];
@@ -1313,44 +1317,48 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
                     p.attributes.forEach(attr => {
                         let lowerName = attr.name.toLowerCase();
                         
-                        const formatGlovoOption = (text, type) => {
-                            let lower = text.toLowerCase();
+                        const formatGlovoOption = (originalName, type) => {
+                            let lower = originalName.toLowerCase();
                             
                             // Define dictionaries
                             let emoji = '';
-                            let arName = text;
-                            let frName = text.charAt(0).toUpperCase() + text.slice(1);
+                            let arName = originalName;
                             
-                            if (lower.includes('tomate')) { emoji = '🍅'; arName = 'مطيشة'; frName = 'Tomate'; }
-                            else if (lower.includes('oignon')) { emoji = '🧅'; arName = 'بصلة'; frName = 'Oignon'; }
-                            else if (lower.includes('olive')) { emoji = '🫒'; arName = 'زيتون'; frName = 'Olive'; }
-                            else if (lower.includes('laitue') || lower.includes('salade')) { emoji = '🥬'; arName = 'خس'; frName = 'Salade'; }
-                            else if (lower.includes('carotte')) { emoji = '🥕'; arName = 'خيزو'; frName = 'Carotte'; }
-                            else if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) { emoji = '🍟'; arName = 'فريت'; frName = 'Frites'; }
-                            else if (lower.includes('mayonnaise') || lower.includes('mayo')) { emoji = '🥚'; arName = 'مايونيز'; frName = 'Mayonnaise'; }
-                            else if (lower.includes('harissa') || lower.includes('hrissa')) { emoji = '🌶️'; arName = 'هريسة'; frName = 'Harissa'; }
-                            else if (lower.includes('ketchup')) { emoji = '🍅'; arName = 'كيتشوب'; frName = 'Ketchup'; }
-                            else if (lower.includes('sauce')) { emoji = '🥣'; arName = 'صوص'; frName = 'Sauce'; }
-                            else if (lower.includes('fromage')) { emoji = '🧀'; arName = 'فروماج'; frName = 'Fromage'; }
-                            else if (lower.includes('viande') || lower.includes('hachée')) { emoji = '🥩'; arName = 'لحم مفروم'; frName = 'Viande Hachée'; }
-                            else if (lower.includes('poulet')) { emoji = '🍗'; arName = 'دجاج'; frName = 'Poulet'; }
-                            else if (lower.includes('oeuf') || lower.includes('œuf')) { emoji = '🍳'; arName = 'بيض'; frName = 'Oeuf'; }
-                            else if (lower.includes('thon')) { emoji = '🐟'; arName = 'طون'; frName = 'Thon'; }
-                            else if (lower.includes('charcuterie')) { emoji = '🥓'; arName = 'كاشير'; frName = 'Charcuterie'; }
-                            else if (lower.includes('saucisse')) { emoji = '🌭'; arName = 'صوصيص'; frName = 'Saucisse'; }
+                            if (lower.includes('tomate')) { emoji = '🍅'; arName = 'مطيشة'; }
+                            else if (lower.includes('oignon')) { emoji = '🧅'; arName = 'بصلة'; }
+                            else if (lower.includes('olive')) { emoji = '🫒'; arName = 'زيتون'; }
+                            else if (lower.includes('laitue') || lower.includes('salade')) { emoji = '🥬'; arName = 'خس'; }
+                            else if (lower.includes('carotte')) { emoji = '🥕'; arName = 'خيزو'; }
+                            else if (lower.includes('purée') || lower.includes('pomme') || lower.includes('frite')) { emoji = '🍟'; arName = 'فريت'; }
+                            else if (lower.includes('mayonnaise') || lower.includes('mayo')) { emoji = '🥚'; arName = 'مايونيز'; }
+                            else if (lower.includes('harissa') || lower.includes('hrissa')) { emoji = '🌶️'; arName = 'هريسة'; }
+                            else if (lower.includes('ketchup')) { emoji = '🍅'; arName = 'كيتشوب'; }
+                            else if (lower.includes('sauce')) { emoji = '🥣'; arName = 'صوص'; }
+                            else if (lower.includes('fromage')) { emoji = '🧀'; arName = 'فروماج'; }
+                            else if (lower.includes('viande') || lower.includes('hachée')) { emoji = '🥩'; arName = 'لحم مفروم'; }
+                            else if (lower.includes('poulet')) { emoji = '🍗'; arName = 'دجاج'; }
+                            else if (lower.includes('oeuf') || lower.includes('œuf')) { emoji = '🍳'; arName = 'بيض'; }
+                            else if (lower.includes('thon')) { emoji = '🐟'; arName = 'طون'; }
+                            else if (lower.includes('charcuterie')) { emoji = '🥓'; arName = 'كاشير'; }
+                            else if (lower.includes('saucisse')) { emoji = '🌭'; arName = 'صوصيص'; }
                             
+                            if (!enableArabicKDS) {
+                                // If French (original), just keep the exact original name and append emoji
+                                return `${originalName.trim()} ${emoji}`.trim();
+                            }
+
+                            // If Arabic, use the specific translated format
                             if (type === 'sans') {
-                                return enableArabicKDS ? `${emoji} بلا ${arName}`.trim() : `Sans ${frName} ${emoji}`.trim();
+                                return `${emoji} بلا ${arName}`.trim();
                             } else if (type === 'extra') {
-                                return enableArabicKDS ? `${emoji} إكسترا ${arName}`.trim() : `Extra ${frName} ${emoji}`.trim();
+                                return `${emoji} إكسترا ${arName}`.trim();
                             } else {
-                                return enableArabicKDS ? `${arName} ${emoji}`.trim() : `${frName} ${emoji}`.trim();
+                                return `${arName} ${emoji}`.trim();
                             }
                         };
 
                         if (lowerName.includes('sans')) {
-                            const rawSans = attr.name.replace(/sans/i, '').trim();
-                            selectedSans.push(formatGlovoOption(rawSans, 'sans'));
+                            selectedSans.push(formatGlovoOption(attr.name, 'sans'));
                         } else {
                             let rawExtra = attr.name.replace(/extra/i, '').replace(/ajout/i, '').trim();
                             if (!rawExtra) rawExtra = attr.name.trim();
@@ -1371,14 +1379,14 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
                             ) {
                                 standaloneItems.push({
                                     id: 'glovo_drink_' + Math.random().toString(36).substr(2, 9),
-                                    name: formatGlovoOption(rawExtra, 'extra'),
+                                    name: formatGlovoOption(attr.name, 'extra'),
                                     qty: p.quantity || 1,
                                     price: (attr.price || 0) / 100,
                                     selectedSans: [],
                                     selectedExtras: []
                                 });
                             } else {
-                                selectedExtras.push({ name: formatGlovoOption(rawExtra, 'extra'), price: (attr.price || 0) / 100 });
+                                selectedExtras.push({ name: formatGlovoOption(attr.name, 'extra'), price: (attr.price || 0) / 100 });
                             }
                         }
                     });
