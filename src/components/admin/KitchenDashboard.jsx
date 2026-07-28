@@ -1128,13 +1128,15 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         if (selectedBranchId === 'oum_rabii') ruptureDoc = 'glovo_rupture_OumRabii';
                                         if (selectedBranchId === 'zoubire') ruptureDoc = 'glovo_rupture_Zoubire';
 
-                                        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', ruptureDoc), {
-                                            glovoName: getGlovoName(item.name),
-                                            status: 'pending_robot',
-                                            action: isRupture ? 'rupture' : 'disponible',
-                                            isHandled: false,
-                                            timestamp: Date.now()
-                                        }).catch(e=>console.log(e));
+                                        if (!settings.glovoConfig?.disableAutomatorOrderCreation) {
+                                            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', ruptureDoc), {
+                                                glovoName: getGlovoName(item.name),
+                                                status: 'pending_robot',
+                                                action: isRupture ? 'rupture' : 'disponible',
+                                                isHandled: false,
+                                                timestamp: Date.now()
+                                            }).catch(e=>console.log(e));
+                                        }
                                     }, 1500);
                                 }} className={`p-4 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${item.outOfStock ? 'bg-red-500/10 border-red-500/30' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-500 shadow-sm'}`}>
                                     <span className="text-3xl mb-1">{item.img?.startsWith('http') || item.img?.startsWith('data:image') ? <img src={item.img} className="w-10 h-10 rounded-md object-cover"/> : item.img}</span>

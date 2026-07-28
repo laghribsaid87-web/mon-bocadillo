@@ -1175,17 +1175,12 @@ async function handleGoDroidOrder(snap, context, branchId) {
 
                 if (existingDocRef) {
                     if (cleanPhone && cleanPhone !== "GLOVO") {
-                        if (!config.glovoConfig?.disableAutomatorOrderCreation) {
-                            console.log(`Order ${orderNumber} already exists. Updating phone number to ${cleanPhone}`);
-                            await existingDocRef.update({
-                                phone: cleanPhone,
-                                customerName: customerName
-                            });
-                            await snap.ref.update({ processed: true, note: 'duplicate_phone_updated' });
-                        } else {
-                            console.log(`Order ${orderNumber} already exists. Automator order creation is disabled, so NOT updating phone on order.`);
-                            await snap.ref.update({ processed: true, note: 'duplicate_ignored_disabled' });
-                        }
+                        console.log(`Order ${orderNumber} already exists. Updating phone/PIN to ${cleanPhone}`);
+                        await existingDocRef.update({
+                            phone: cleanPhone,
+                            customerName: customerName
+                        });
+                        await snap.ref.update({ processed: true, note: 'duplicate_phone_updated' });
                     } else {
                         console.log(`Order ${orderNumber} already exists today. Ignoring duplicate scrape.`);
                         await snap.ref.update({ processed: true, duplicate: true });
