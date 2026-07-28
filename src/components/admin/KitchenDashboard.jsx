@@ -288,7 +288,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                 const text = `${prefix}. ` + (order.filteredItems || order.items || []).map(i => {
                     const itemName = (i.name || '').split(' (Sans')[0];
                     const sansParts = (i.name || '').split(' (Sans ');
-                    const sans = sansParts.length > 1 ? ' ' + sansParts[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt)).join(', ') : '';
+                    const sans = sansParts.length > 1 ? ' ' + sansParts[1].replace(')', '').split(', ').map(opt => translateOptionKDS(opt, false, translateToAr)).join(', ') : '';
                     return `${i.qty} ${itemName} ${sans}`;
                 }).join(', ');
                 
@@ -523,7 +523,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     return `${prefix}. ` + (order.filteredItems || order.items || []).map(i => {
                                         const itemName = (i.name || '').split(' (Sans')[0];
                                         const sansParts = (i.name || '').split(' (Sans ');
-                                        const sans = sansParts.length > 1 ? ' ' + sansParts[1].replace(')', '').split(', ').map(opt => formatSansIngredient(opt)).join(', ') : '';
+                                        const sans = sansParts.length > 1 ? ' ' + sansParts[1].replace(')', '').split(', ').map(opt => translateOptionKDS(opt, false, translateToAr)).join(', ') : '';
                                         return `${i.qty} ${itemName} ${sans}`;
                                     }).join(', ');
                                 }).join('. Ensuite, ');
@@ -684,7 +684,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                             {item.isCombo && item.comboChoices && item.comboChoices.map((c, cIdx) => (
                                                 <div key={cIdx} className="text-[9px] text-gray-300 block mt-0.5 pl-2 border-l border-orange-500/50">
                                                     <span className="text-orange-400">🔹 {c.name}</span>
-                                                    {c.removables?.length > 0 && <span className="text-red-400 ml-1">(- SANS: {c.removables.join(', ')})</span>}
+                                                    {c.removables?.length > 0 && <span className="text-red-400 ml-1">(- {c.removables.map(r => translateOptionKDS(r, false, translateToAr)).join(', ')})</span>}
                                                     {c.selectedOption && <span className="text-blue-400 ml-1">({c.selectedOption})</span>}
                                                 </div>
                                             ))}
@@ -843,7 +843,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                             {item.comboChoices.map((c, cIdx) => (
                                                                 <div key={cIdx} className="text-sm font-bold text-gray-200 flex flex-wrap items-center gap-1">
                                                                     <span className="text-orange-400 mr-1">🔹 {c.name}</span>
-                                                                    {c.removables?.length > 0 && <span className="text-red-400 text-[11px] bg-red-500/20 px-2 py-0.5 rounded-md border border-red-500/20">- {c.removables.map(r => formatSansIngredient(r)).join(', ')}</span>}
+                                                                    {c.removables?.length > 0 && <span className="text-red-400 text-[11px] bg-red-500/20 px-2 py-0.5 rounded-md border border-red-500/20">- {c.removables.map(r => translateOptionKDS(r, false, translateToAr)).join(', ')}</span>}
                                                                     {c.selectedOption && <span className="text-blue-300 text-[11px] bg-blue-500/20 px-2 py-0.5 rounded-md border border-blue-500/20">({c.selectedOption})</span>}
                                                                 </div>
                                                             ))}
@@ -940,7 +940,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 {(o.items || []).map(i => {
                                                     let text = `${i.qty}x ${(i.name || '').split(' (Sans')[0]}`;
                                                     if (i.isCombo && i.comboChoices) {
-                                                        text += ' [' + i.comboChoices.map(c => c.name + (c.removables?.length ? ' (SANS: '+c.removables.join(', ')+')' : '') + (c.selectedOption ? ' '+c.selectedOption : '')).join(' + ') + ']';
+                                                        text += ' [' + i.comboChoices.map(c => c.name + (c.removables?.length ? ' (- '+c.removables.map(r => translateOptionKDS(r, false, translateToAr)).join(', ')+')' : '') + (c.selectedOption ? ' '+c.selectedOption : '')).join(' + ') + ']';
                                                     }
                                                     return text;
                                                 }).join(', ')}
@@ -1035,7 +1035,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 const options = sansParts.length > 1 ? ' (Sans ' + sansParts[1] : '';
                                                         let comboOpts = '';
                                                         if (i.isCombo && i.comboChoices) {
-                                                            comboOpts = ' [' + i.comboChoices.map(c => c.name + (c.removables?.length ? ' ' + c.removables.map(r => formatSansIngredient(r)).join(', ') : '') + (c.selectedOption ? ' '+c.selectedOption : '')).join(' + ') + ']';
+                                                            comboOpts = ' [' + i.comboChoices.map(c => c.name + (c.removables?.length ? ' (- ' + c.removables.map(r => translateOptionKDS(r, false, translateToAr)).join(', ') + ')' : '') + (c.selectedOption ? ' '+c.selectedOption : '')).join(' + ') + ']';
                                                         }
                                                         const key = baseName + options + comboOpts;
                                                         if (!acc[key]) acc[key] = { qty: 0 };
@@ -1071,7 +1071,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                         const options = sansParts.length > 1 ? ' (Sans ' + sansParts[1] : '';
                                                 let comboOpts = '';
                                                 if (i.isCombo && i.comboChoices) {
-                                                    comboOpts = ' [' + i.comboChoices.map(c => c.name + (c.removables?.length ? ' ' + c.removables.map(r => formatSansIngredient(r)).join(', ') : '') + (c.selectedOption ? ' '+c.selectedOption : '')).join(' + ') + ']';
+                                                    comboOpts = ' [' + i.comboChoices.map(c => c.name + (c.removables?.length ? ' (- ' + c.removables.map(r => translateOptionKDS(r, false, translateToAr)).join(', ') + ')' : '') + (c.selectedOption ? ' '+c.selectedOption : '')).join(' + ') + ']';
                                                 }
                                                 const key = baseName + options + comboOpts;
                                                 
