@@ -146,7 +146,7 @@ export default function PosCart({
                         <button onClick={openDrawer} className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><Unlock size={16} className="text-green-500"/><span>Tiroir</span></button>
                     )}
                     {!settings?.hidePosHistory && (!hasAccess || hasAccess('pos_history')) && (
-                        <button onClick={() => if (validateManagerPin(settings, brand)) { setShowHistoryModal(true); }} className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><History size={16}/><span>Historique</span></button>
+                        <button onClick={() => { if (validateManagerPin(settings, brand)) { setShowHistoryModal(true); } }} className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><History size={16}/><span>Historique</span></button>
                     )}
                     {!settings?.hidePosReports && (!hasAccess || hasAccess('pos_reports')) && (
                         <button onClick={() => setShowXZModal(true)} className="flex-1 py-2 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-700 rounded-lg flex flex-col items-center justify-center gap-1 font-bold text-[9px] transition-colors"><ClipboardList size={16}/><span>Rapports</span></button>
