@@ -437,10 +437,19 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Ouverture du tiroir de navigation")
             val root = rootInActiveWindow
             if (root != null) {
-                val foundBurger = clickHamburgerMenu(root)
-                if (!foundBurger) {
-                    Journal.log("Bouton menu non trouvé, essai par swipe...")
-                    performSwipeRight()
+                if (!clickByText("Ouvrir le tiroir de navigation")) {
+                    val drawerNodes = root.findAccessibilityNodeInfosByViewId("com.deliveryhero.rps.restaurantandroidapp:id/toolbar")
+                    if (drawerNodes.isNotEmpty()) {
+                        val toolbar = drawerNodes[0]
+                        if (toolbar.childCount > 0) {
+                            val firstChild = toolbar.getChild(0)
+                            if (firstChild != null && firstChild.isClickable) {
+                                firstChild.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            }
+                        }
+                    } else {
+                        clickByText("Menu")
+                    }
                 }
             }
             delay(500)

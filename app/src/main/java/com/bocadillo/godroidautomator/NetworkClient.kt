@@ -488,6 +488,7 @@ object NetworkClient {
                 if (response.isSuccessful) {
                     Journal.log("Affichage QR Code marqué comme fait pour ${'$'}documentId.")
                 }
+                Unit
             } catch (e: Exception) {
                 Log.e("NetworkClient", "Exception in markQrDisplayed", e)
             }
