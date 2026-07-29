@@ -280,6 +280,20 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             }
                         }
 
+                        // 3.6 Check for Orders needing QR Display
+                        val autoQrDisplay = prefs.getBoolean("auto_qr_display", false)
+                        if (autoQrDisplay) {
+                            val qrOrders = NetworkClient.checkQrDisplayOrders(applicationContext)
+                            for (order in qrOrders) {
+                                if (!processedReadyOrders.contains(order.documentId)) {
+                                    processedReadyOrders.add(order.documentId)
+                                    sequenceMutex.withLock {
+                                        startQrDisplaySequence(order.orderNumber, order.documentId)
+                                    }
+                                }
+                            }
+                        }
+
                         // 4. Check Visually for popups that block the screen
                         checkAndDismissPopups()
 
@@ -401,7 +415,89 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
-        private suspend fun startNewOrderExtractionSequence(orderNumber: String, documentId: String) {
+    private suspend fun startQrDisplaySequence(orderNumber: String, documentId: String) {
+        Journal.log("=== SÉQUENCE AFFICHAGE QR ($orderNumber) ===")
+        isSequenceRunning = true
+
+        try {
+            val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
+            val labelAcceptee = prefs.getString("btn_acceptee", "Acceptée") ?: "Acceptée"
+
+            wakeUpScreenAndUnlock()
+            delay(1000)
+
+            Journal.log("Ouverture de Glovo...")
+            val intent = packageManager.getLaunchIntentForPackage("com.glovoapp.partner")
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+            }
+            delay(1500)
+
+            Journal.log("Ouverture du tiroir de navigation")
+            val root = rootInActiveWindow
+            if (root != null) {
+                val foundBurger = clickHamburgerMenu(root)
+                if (!foundBurger) {
+                    Journal.log("Bouton menu non trouvé, essai par swipe...")
+                    performSwipeRight()
+                }
+            }
+            delay(500)
+            Journal.log("Clic sur 'Aperçu des commandes'")
+            clickByText("Aperçu des commandes")
+            delay(1000)
+
+            Journal.log("Clic sur l'onglet '${'$'}labelAcceptee'")
+            clickByText(labelAcceptee)
+            delay(1000)
+
+            val orderTextToFind = orderNumber.replace("#", "")
+            Journal.log("Recherche de la commande $orderTextToFind")
+            
+            var orderFound = false
+            for (i in 0..5) {
+                if (clickExactText(orderTextToFind)) {
+                    orderFound = true
+                    break
+                }
+                Journal.log("Commande non visible, défilement vers le bas ($i/5)...")
+                val rootForScroll = rootInActiveWindow
+                if (rootForScroll != null) {
+                    val scrollableNode = findScrollableNode(rootForScroll)
+                    if (scrollableNode != null) {
+                        scrollableNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    } else {
+                        performSwipeUp()
+                    }
+                }
+                delay(1500)
+            }
+
+            if (orderFound) {
+                delay(500)
+                Journal.log("Recherche du code QR pour $orderTextToFind")
+                val clickedQrButton = clickButtonInSameContainer(orderTextToFind, "code QR") || clickButtonInSameContainer(orderTextToFind, "Afficher")
+                
+                if (clickedQrButton) {
+                    Journal.log("Popup QR ouvert. Fin de la séquence (Pas de retour).")
+                } else {
+                    Journal.log("Bouton QR introuvable pour $orderTextToFind")
+                }
+                
+                NetworkClient.markQrDisplayed(documentId)
+                Journal.log("=== SÉQUENCE QR TERMINÉE ===")
+            } else {
+                Journal.log("Commande $orderTextToFind introuvable même après défilement.")
+            }
+        } catch (e: Exception) {
+            Journal.log("Erreur dans startQrDisplaySequence: ${'$'}{e.message}")
+        } finally {
+            isSequenceRunning = false
+        }
+    }
+
+    private suspend fun startNewOrderExtractionSequence(orderNumber: String, documentId: String) {
         isSequenceRunning = true
         val labelAcceptee = getLabel("btn_acceptee", "Acceptée")
         val labelModifier = getLabel("btn_modifier", "Modifier")

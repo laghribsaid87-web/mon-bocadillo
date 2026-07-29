@@ -392,6 +392,108 @@ object NetworkClient {
         }
     }
 
+    suspend fun checkQrDisplayOrders(context: android.content.Context): List<ReadyOrder> {
+        return withContext(Dispatchers.IO) {
+            val branchId = getBranchId(context)
+            val orders = mutableListOf<ReadyOrder>()
+            try {
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data:runQuery"
+                val jsonStr = """
+                {
+                  "structuredQuery": {
+                    "from": [{"collectionId": "orders"}],
+                    "where": {
+                      "compositeFilter": {
+                        "op": "AND",
+                        "filters": [
+                          {
+                            "fieldFilter": {
+                              "field": {"fieldPath": "needsQrDisplay"},
+                              "op": "EQUAL",
+                              "value": {"booleanValue": true}
+                            }
+                          },
+                          {
+                            "fieldFilter": {
+                              "field": {"fieldPath": "source"},
+                              "op": "EQUAL",
+                              "value": {"stringValue": "glovo"}
+                            }
+                          },
+                          {
+                            "fieldFilter": {
+                              "field": {"fieldPath": "nearestBranch.id"},
+                              "op": "EQUAL",
+                              "value": {"stringValue": "${'$'}branchId"}
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+                """.trimIndent()
+
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val body = jsonStr.toRequestBody(mediaType)
+                val request = Request.Builder().url(url).post(body).build()
+
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val responseStr = response.body?.string() ?: return@withContext emptyList()
+                    if (responseStr.trim() == "[]") return@withContext emptyList()
+
+                    val jsonArray = org.json.JSONArray(responseStr)
+                    for (i in 0 until jsonArray.length()) {
+                        val item = jsonArray.optJSONObject(i) ?: continue
+                        val document = item.optJSONObject("document") ?: continue
+                        val fields = document.optJSONObject("fields") ?: continue
+                        
+                        val isQrDisplayed = fields.optJSONObject("isQrDisplayed")?.optBoolean("booleanValue", false) ?: false
+                        if (!isQrDisplayed) {
+                            val docName = document.optString("name")
+                            val docId = docName.substringAfterLast("/")
+                            val orderNumber = fields.optJSONObject("orderNumber")?.optString("stringValue", "") ?: ""
+                            orders.add(ReadyOrder(docId, orderNumber))
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in checkQrDisplayOrders", e)
+            }
+            return@withContext orders
+        }
+    }
+
+    suspend fun markQrDisplayed(documentId: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/orders/${'$'}documentId"
+                
+                val fields = JSONObject()
+                fields.put("isQrDisplayed", JSONObject().put("booleanValue", true))
+                
+                val jsonObject = JSONObject().put("fields", fields)
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val body = jsonObject.toString().toRequestBody(mediaType)
+                
+                val patchUrl = "${'$'}url?updateMask.fieldPaths=isQrDisplayed"
+
+                val request = Request.Builder()
+                    .url(patchUrl)
+                    .method("PATCH", body)
+                    .build()
+
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    Journal.log("Affichage QR Code marqué comme fait pour ${'$'}documentId.")
+                }
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in markQrDisplayed", e)
+            }
+        }
+    }
+
     suspend fun checkCancellationTrigger(context: android.content.Context): Boolean {
         return withContext(Dispatchers.IO) {
             try {

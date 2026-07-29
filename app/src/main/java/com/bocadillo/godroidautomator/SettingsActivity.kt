@@ -120,6 +120,14 @@ class SettingsActivity : AppCompatActivity() {
         }
         layout.addView(cbExtractionOnly)
 
+        val cbAutoQrDisplay = CheckBox(this).apply {
+            text = "Ouvrir Auto Code QR (Après Remis)"
+            textSize = 16f
+            setPadding(0, 32, 0, 32)
+            isChecked = prefs.getBoolean("auto_qr_display", false)
+        }
+        layout.addView(cbAutoQrDisplay)
+
 
         val btnSave = Button(this).apply {
             text = "Sauvegarder"
@@ -132,6 +140,7 @@ class SettingsActivity : AppCompatActivity() {
                 editor.putString("point_de_vente", spinnerWebhook.selectedItem.toString())
                 editor.putBoolean("disable_auto_read", cbDisableAuto.isChecked)
                 editor.putBoolean("extraction_only_mode", cbExtractionOnly.isChecked)
+                editor.putBoolean("auto_qr_display", cbAutoQrDisplay.isChecked)
                 editor.apply()
                 Toast.makeText(this@SettingsActivity, "Paramètres sauvegardés !", Toast.LENGTH_SHORT).show()
                 finish()
