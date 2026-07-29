@@ -1145,14 +1145,16 @@ async function handleGoDroidOrder(snap, context, branchId) {
             const total = parsed.total || 0;
             const paymentMethod = parsed.paymentMethod && parsed.paymentMethod.toUpperCase() === 'CASH' ? 'espece' : 'glovo';
             
-            const orderNumber = parsed.orderId.replace('#', '') || 'GLOVO';
+            const orderIdValue = parsed.orderId || parsed.orderNumber || '';
+            const orderNumber = orderIdValue.replace('#', '') || 'GLOVO';
 
             let phone = 'GLOVO';
             let customerName = 'Client Glovo';
             
             const rawPhoneText = (rawData.phone_text && rawData.phone_text.stringValue) ? rawData.phone_text.stringValue : (rawData.phone_text || '');
             if (rawPhoneText) {
-                let phoneLines = String(rawPhoneText).split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                const textStr = String(rawPhoneText);
+                let phoneLines = textStr.split('\n').map(l => l.trim()).filter(l => l.length > 0);
                 let phoneIndex = phoneLines.findIndex(l => l.replace(/[\s\-]/g, '').match(/^(\+?\d{9,15})$/));
                 
                 if (phoneIndex !== -1) {
@@ -1161,10 +1163,20 @@ async function handleGoDroidOrder(snap, context, branchId) {
                         customerName = phoneLines[phoneIndex - 1];
                     }
                 } else {
-                    const cleanText = String(rawPhoneText).replace(/[\s\-]/g, '');
-                    let phoneMatch = cleanText.match(/(\+?\d{9,15})/);
-                    if (phoneMatch) {
-                        phone = phoneMatch[1].trim();
+                    // Try to match Name + Phone in the merged string
+                    const namePhoneMatch = textStr.match(/([A-Za-zÀ-ÿ\s]+)\s+(\+?\d{9,15})/);
+                    if (namePhoneMatch) {
+                        const possibleName = namePhoneMatch[1].trim().split(/\s+/).slice(-2).join(' ');
+                        if (possibleName.length > 2 && !possibleName.toLowerCase().includes('commande')) {
+                            customerName = possibleName;
+                        }
+                        phone = namePhoneMatch[2].trim();
+                    } else {
+                        const cleanText = textStr.replace(/[\s\-]/g, '');
+                        let phoneMatch = cleanText.match(/(\+?\d{9,15})/);
+                        if (phoneMatch) {
+                            phone = phoneMatch[1].trim();
+                        }
                     }
                 }
             }
@@ -1225,7 +1237,7 @@ async function handleGoDroidOrder(snap, context, branchId) {
                 source: 'glovo',
                 status: 'preparing',
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                orderNumber: parsed.orderId.replace('#', '') || 'GLOVO',
+                orderNumber: orderIdValue.replace('#', '') || 'GLOVO',
                 total: total,
                 paymentMethod: paymentMethod,
                 parsedGlovo: true,
