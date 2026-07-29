@@ -236,8 +236,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 try {
                     delay(5000) // Poll every 5 seconds
                     if (!sequenceMutex.isLocked && !isSequenceRunning) {
+                        val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
+                        val extractionOnly = prefs.getBoolean("extraction_only_mode", false)
                         
-                        // 1. Check for Manual Trigger from POS to verify Cancellations
+                        if (!extractionOnly) {
+                            // 1. Check for Manual Trigger from POS to verify Cancellations
                         val shouldVerifyCancellations = NetworkClient.checkCancellationTrigger(applicationContext)
                         if (shouldVerifyCancellations) {
                             sequenceMutex.withLock {
@@ -264,6 +267,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 }
                             }
                         }
+                        } // End if (!extractionOnly)
 
                         // 3.5 Check for Orders needing phone/pin extraction
                         val extractionOrders = NetworkClient.checkExtractionOrders(applicationContext)
@@ -280,7 +284,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         checkAndDismissPopups()
 
                         // 5. Check Visually for "mins" on screen (Fallback for missed notifications)
-                        triggerFallbackVisualCheck()
+                        if (!extractionOnly) {
+                            triggerFallbackVisualCheck()
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e("AutoService", "Polling error", e)
@@ -539,7 +545,16 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
                 Journal.log("Lecture du numéro de téléphone...")
                 val telephoneEcran = extractAllText(rootInActiveWindow)
-                Journal.log("Extraction num téléphone terminée.")
+                val cleanTextLog = telephoneEcran.replace(Regex("\\s+"), " ").take(200)
+                Journal.log("Extraction num terminée. Texte (200 chars): $cleanTextLog")
+                
+                val phoneRegex = Regex("(?:0|\\+212)\\s?[567](?:\\s?\\d){8}")
+                val match = phoneRegex.find(telephoneEcran)
+                if (match != null) {
+                    Journal.log("✅ TÉLÉPHONE DÉTECTÉ: ${match.value}")
+                } else {
+                    Journal.log("❌ AUCUN TÉLÉPHONE DÉTECTÉ DANS LE TEXTE")
+                }
 
                 Journal.log("Envoi données réseau vers Firestore...")
                 NetworkClient.sendOrderData(this@AutomatorAccessibilityService, telephoneEcran, "{\"extractionOnly\":true,\"orderNumber\":\"$orderNumber\"}")
@@ -784,7 +799,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                 
                 val prefs = getSharedPreferences("AutomatorPrefs", Context.MODE_PRIVATE)
                 val disableAutoRead = prefs.getBoolean("disable_auto_read", false)
-                if (disableAutoRead) return
+                val extractionOnly = prefs.getBoolean("extraction_only_mode", false)
+                if (disableAutoRead || extractionOnly) return
 
                 val currentTime = System.currentTimeMillis()
                 if (currentTime - lastTriggerTime < 3000) return // Debounce 3 seconds

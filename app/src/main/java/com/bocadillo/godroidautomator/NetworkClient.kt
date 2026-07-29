@@ -322,6 +322,25 @@ object NetworkClient {
                         
                         val isExtractionDone = fields.optJSONObject("isExtractionDone")?.optBoolean("booleanValue", false) ?: false
                         if (!isExtractionDone) {
+                            
+                            // Délais de 1 minute (60 secondes) avant d'extraire
+                            val createTimeStr = document.optString("createTime", "")
+                            var isOldEnough = true
+                            if (createTimeStr.isNotEmpty()) {
+                                try {
+                                    val instant = java.time.Instant.parse(createTimeStr)
+                                    val now = java.time.Instant.now()
+                                    val duration = java.time.Duration.between(instant, now)
+                                    if (duration.seconds < 60) {
+                                        isOldEnough = false
+                                    }
+                                } catch (e: Exception) {}
+                            }
+                            
+                            if (!isOldEnough) {
+                                continue // On passe à la commande suivante, on réessaiera au prochain tour de boucle
+                            }
+
                             val docName = document.optString("name")
                             val docId = docName.substringAfterLast("/")
                             val orderNumber = fields.optJSONObject("orderNumber")?.optString("stringValue", "") ?: ""

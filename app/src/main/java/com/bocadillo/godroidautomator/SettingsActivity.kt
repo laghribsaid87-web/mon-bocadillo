@@ -112,6 +112,15 @@ class SettingsActivity : AppCompatActivity() {
         }
         layout.addView(cbDisableAuto)
 
+        val cbExtractionOnly = CheckBox(this).apply {
+            text = "Mode Extraction Uniquement (Tél + PIN)"
+            textSize = 16f
+            setPadding(0, 32, 0, 32)
+            isChecked = prefs.getBoolean("extraction_only_mode", false)
+        }
+        layout.addView(cbExtractionOnly)
+
+
         val btnSave = Button(this).apply {
             text = "Sauvegarder"
             setPadding(0, 32, 0, 32)
@@ -122,6 +131,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 editor.putString("point_de_vente", spinnerWebhook.selectedItem.toString())
                 editor.putBoolean("disable_auto_read", cbDisableAuto.isChecked)
+                editor.putBoolean("extraction_only_mode", cbExtractionOnly.isChecked)
                 editor.apply()
                 Toast.makeText(this@SettingsActivity, "Paramètres sauvegardés !", Toast.LENGTH_SHORT).show()
                 finish()
