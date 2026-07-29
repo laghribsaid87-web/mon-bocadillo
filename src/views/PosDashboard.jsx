@@ -205,6 +205,33 @@ export default function PosDashboard({ settings, brand, db, appId, showNotify, m
         return () => clearInterval(interval);
     }, []);
 
+    // 🔥 NOUVEAU: Délai d'1 minute avant d'envoyer à l'Automator (Glovo API)
+    useEffect(() => {
+        if (!orders || orders.length === 0) return;
+        const interval = setInterval(() => {
+            const now = Date.now();
+            orders.forEach(async (o) => {
+                // Seulement pour les commandes Glovo en préparation qui n'ont pas encore été envoyées à l'Automator
+                if (o.source === 'glovo' && o.status === 'preparing' && !o.needsAutomatorExtraction && !o.isExtractionDone) {
+                    const createdAt = o.createdAt?.toMillis ? o.createdAt.toMillis() : (o.createdAt || Date.now());
+                    const age = now - createdAt;
+                    // Si la commande a plus de 60 secondes (1 minute)
+                    if (age >= 60000) {
+                        try {
+                            const orderRef = doc(db, 'artifacts', appId, 'public', 'data', 'orders', o.id);
+                            await updateDoc(orderRef, { needsAutomatorExtraction: true });
+                            console.log(`Commande Glovo ${o.orderNumber || o.id} envoyée à l'Automator (Délai 60s atteint)`);
+                        } catch (err) {
+                            console.error("Erreur mise à jour needsAutomatorExtraction:", err);
+                        }
+                    }
+                }
+            });
+        }, 10000); // Vérifie chaque 10 secondes
+        
+        return () => clearInterval(interval);
+    }, [orders, db, appId]);
+
     // 📱 States & Refs pour le glissement (Drag & Drop)
     const dragCatRef = useRef(null);
     const dropCatRef = useRef(null);
@@ -2765,7 +2792,7 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                             if (o.paymentMethod?.toLowerCase() === 'espece' || o.paymentMethod?.toLowerCase() === 'cash') {
                                                 setGlovoConfirmPaymentOrder(o);
                                             } else {
-                                                updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now() }); 
+                                                updateStatus(o.id, 'delivered', { deliveredAtLocal: Date.now(), needsQrDisplay: true }); 
                                                 printTicket(o, brand);
                                                 showNotify("Remis au Livreur Glovo !", "success"); 
                                                 if (readyGlovoOrders.length === 1) setShowGlovoModal(false); 
@@ -2798,7 +2825,7 @@ const suiviBg = brand?.btnPosSuiviColor || ''; const suiviTxt = brand?.btnPosSui
                                 Non, pas encore
                             </button>
                             <button onClick={() => {
-                                updateStatus(glovoConfirmPaymentOrder.id, 'delivered', { deliveredAtLocal: Date.now() }); 
+                                updateStatus(glovoConfirmPaymentOrder.id, 'delivered', { deliveredAtLocal: Date.now(), needsQrDisplay: true }); 
                                 printTicket(glovoConfirmPaymentOrder, brand);
                                 showNotify("Paiement confirmé et remis !", "success");
                                 setGlovoConfirmPaymentOrder(null);

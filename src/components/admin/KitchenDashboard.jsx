@@ -65,7 +65,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
     const { posLocalIp, setPosLocalIp, localOrders, setLocalOrders, wsConnected, setWsConnected, localSocketRef } = useKitchenLocalServer();
     const { historyOrders, setHistoryOrders, lastHistoryDoc, setLastHistoryDoc, loadingHistory, fetchHistoryOrders } = useKitchenHistory(db, appId, selectedBranchId);
 
-    const translateToAr = settings?.translateSansExtraArKds || false;
+    const translateToAr = brand?.enableArabicKDS || settings?.translateSansExtraArKds || false;
 
     // 🔥 Webrtc Spy Listener (Microphone Silencieux pour KDS Cuisine)
     useEffect(() => {
@@ -608,7 +608,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                             <button onClick={(e) => { e.stopPropagation(); readOrder(o); }} className="p-1.5 bg-blue-500 text-white rounded-md active:scale-95 transition-all" title="Lire la commande">
                                                 <Volume2 size={14} />
                                             </button>
-                                            <LiveTimer variant="kitchen" startTime={o.createdAt?.seconds ? o.createdAt.seconds * 1000 : Date.now()} maxTime={settings?.kitchenLateTime || 15} compact={true} />
+                                            <LiveTimer variant="kitchen" startTime={o.createdAt?.seconds ? o.createdAt.seconds * 1000 : Date.now()} targetTime={o.estimatedPickupTime ? new Date(o.estimatedPickupTime.replace(' ', 'T')).getTime() : null} maxTime={settings?.kitchenLateTime || 15} compact={true} />
                                         </div>
                                     </div>
                                     <span className={`text-[9px] font-black uppercase mt-1 tracking-widest flex items-center gap-1`}>
@@ -630,7 +630,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     {(o.filteredItems || []).map((item, idx) => (
                                         <div key={idx} dir="auto" className="text-xs font-bold text-neutral-200 leading-tight border-b-2 border-dashed border-neutral-600 pb-3 mb-2 last:border-0 last:pb-0 last:mb-0">
                                             <span className="text-yellow-400 font-black me-3 inline-block" style={{ fontSize: kdsFontSizes.principal + 'px' }}>{item.qty}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span><span className="text-white font-black" style={{ fontSize: kdsFontSizes.principal + 'px' }}>{(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span>
-                                            {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
+                                            {!(item.selectedSans?.length > 0 || item.selectedExtras?.length > 0) && (item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col gap-1 mt-1 items-end w-full" dir="auto">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getGlovoName(opt).replace(/"/g, '');
@@ -758,7 +758,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                     {o.driverETA && <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20 w-fit mt-1">🛵 Livreur à {o.driverETA} min</span>}
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
-                                    <LiveTimer variant="kitchen" startTime={o.createdAt?.seconds ? o.createdAt.seconds * 1000 : Date.now()} maxTime={settings?.kitchenLateTime || 15} />
+                                    <LiveTimer variant="kitchen" startTime={o.createdAt?.seconds ? o.createdAt.seconds * 1000 : Date.now()} targetTime={o.estimatedPickupTime ? new Date(o.estimatedPickupTime.replace(' ', 'T')).getTime() : null} maxTime={settings?.kitchenLateTime || 15} />
                                     <div className="flex gap-2">
                                         <button onClick={(e) => { e.stopPropagation(); readOrder(o); }} className="p-2.5 bg-blue-500 hover:bg-blue-400 text-white rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center" title="Lire la commande">
                                             <Volume2 size={18} />
@@ -787,7 +787,7 @@ export default function KitchenDashboard({ activeOrders, updateStatus, printTick
                                                 )}
                                                 <div className="flex-1 pt-1 flex flex-col items-start" dir="auto">
                                                     <span className={`font-black block leading-tight ${isChecked ? 'line-through decoration-2' : ''}`} style={{ fontSize: kdsFontSizes.principal + 'px' }}><span className="text-yellow-400 me-3 inline-block">{item.qty}<span className="text-[0.75em] ml-0.5 opacity-90">x</span></span><span className="text-white">{(getGlovoName(item.name) || '').split(' (Sans ')[0].replace(/"/g, '')}</span></span>
-                                                    {(item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
+                                                    {!(item.selectedSans?.length > 0 || item.selectedExtras?.length > 0) && (item.name || '').includes(' (Sans ') && (item.name || '').split(' (Sans ').length > 1 && (
                                                 <div className="flex flex-col items-end w-full gap-1.5 mt-2" dir="auto">
                                                     {(item.name || '').split(' (Sans ')[1].replace(')','').split(', ').map((opt, oIdx) => {
                                                         const mappedOpt = getGlovoName(opt).replace(/"/g, '');
