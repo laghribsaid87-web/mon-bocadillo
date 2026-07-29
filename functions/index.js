@@ -613,6 +613,21 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
         const glovoStoreId = glovoOrder.store_id ? glovoOrder.store_id.toString() : "";
         const assignedBranch = GLOVO_STORES_MAP[glovoStoreId] || { id: "laymoune", name: "Laymoune" };
 
+        let combinedNotes = [];
+        if (glovoOrder.allergy_notes) combinedNotes.push(glovoOrder.allergy_notes);
+        if (glovoOrder.customer?.notes) combinedNotes.push(glovoOrder.customer.notes);
+        if (glovoOrder.notes) combinedNotes.push(glovoOrder.notes);
+
+        if (glovoOrder.products && Array.isArray(glovoOrder.products)) {
+            glovoOrder.products.forEach(p => {
+                if (p.notes) {
+                    combinedNotes.push(`🍔 ${p.name || ''}: ${p.notes}`);
+                }
+            });
+        }
+
+        const finalOrderNote = combinedNotes.filter(n => n.trim() !== '').join('\n');
+
         const newOrder = {
             userId: "glovo",
             glovoOrderId: glovoOrder.order_id,
@@ -630,6 +645,9 @@ exports.glovoWebhook = functions.https.onRequest(async (req, res) => {
             subtotal: glovoOrder.estimated_total_price / 100,
             deliveryFee: 0,
             glovoStoreId: glovoStoreId,
+            orderNote: finalOrderNote,
+            estimatedPickupTime: glovoOrder.estimated_pickup_time || glovoOrder.estimated_delivery_time || null,
+
             items: (glovoOrder.products || []).flatMap(p => {
                 let selectedSans = [];
                 let selectedExtras = [];
@@ -1299,7 +1317,7 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
             orderType: "a_emporter",
             paymentMethod: glovoOrder.payment_method === 'CASH' ? 'espece' : 'glovo',
             status: "preparing",
-            needsAutomatorExtraction: true,
+            // needsAutomatorExtraction est désormais géré par le KDS (délai d'une minute)
             total: glovoOrder.estimated_total_price / 100, 
             subtotal: glovoOrder.estimated_total_price / 100,
             deliveryFee: 0,
