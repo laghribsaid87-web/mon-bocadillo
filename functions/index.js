@@ -1305,6 +1305,21 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
         const brand = brandSnap.exists ? brandSnap.data() : {};
         const enableArabicKDS = brand.enableArabicKDS === true;
 
+        let combinedNotes = [];
+        if (glovoOrder.allergy_notes) combinedNotes.push(glovoOrder.allergy_notes);
+        if (glovoOrder.customer?.notes) combinedNotes.push(glovoOrder.customer.notes);
+        if (glovoOrder.notes) combinedNotes.push(glovoOrder.notes);
+
+        if (glovoOrder.products && Array.isArray(glovoOrder.products)) {
+            glovoOrder.products.forEach(p => {
+                if (p.notes) {
+                    combinedNotes.push(`🍔 ${p.name || ''}: ${p.notes}`);
+                }
+            });
+        }
+
+        const finalOrderNote = combinedNotes.filter(n => n.trim() !== '').join('\n');
+
         const newOrder = {
             userId: "glovo",
             glovoOrderId: glovoOrder.order_id,
@@ -1317,10 +1332,14 @@ exports.glovoWebhookOrderDispatch = functions.https.onRequest(async (req, res) =
             orderType: "a_emporter",
             paymentMethod: glovoOrder.payment_method === 'CASH' ? 'espece' : 'glovo',
             status: "preparing",
-            // needsAutomatorExtraction est désormais géré par le KDS (délai d'une minute)
+            needsAutomatorExtraction: true,
             total: glovoOrder.estimated_total_price / 100, 
             subtotal: glovoOrder.estimated_total_price / 100,
             deliveryFee: 0,
+            glovoStoreId: glovoStoreId,
+            orderNote: finalOrderNote,
+            estimatedPickupTime: glovoOrder.estimated_pickup_time || glovoOrder.estimated_delivery_time || null,
+
             items: (glovoOrder.products || []).flatMap(p => {
                 let selectedSans = [];
                 let selectedExtras = [];
