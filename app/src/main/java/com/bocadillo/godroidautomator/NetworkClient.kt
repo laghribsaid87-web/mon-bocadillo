@@ -424,7 +424,7 @@ object NetworkClient {
                             "fieldFilter": {
                               "field": {"fieldPath": "nearestBranch.id"},
                               "op": "EQUAL",
-                              "value": {"stringValue": "${'$'}branchId"}
+                              "value": {"stringValue": "$branchId"}
                             }
                           }
                         ]
@@ -468,7 +468,7 @@ object NetworkClient {
     suspend fun markQrDisplayed(documentId: String) {
         withContext(Dispatchers.IO) {
             try {
-                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/orders/${'$'}documentId"
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/orders/$documentId"
                 
                 val fields = JSONObject()
                 fields.put("isQrDisplayed", JSONObject().put("booleanValue", true))
@@ -477,7 +477,7 @@ object NetworkClient {
                 val mediaType = "application/json; charset=utf-8".toMediaType()
                 val body = jsonObject.toString().toRequestBody(mediaType)
                 
-                val patchUrl = "${'$'}url?updateMask.fieldPaths=isQrDisplayed"
+                val patchUrl = "$url?updateMask.fieldPaths=isQrDisplayed"
 
                 val request = Request.Builder()
                     .url(patchUrl)
@@ -486,9 +486,10 @@ object NetworkClient {
 
                 val response = client.newCall(request).execute()
                 if (response.isSuccessful) {
-                    Journal.log("Affichage QR Code marqué comme fait pour ${'$'}documentId.")
+                    Journal.log("Affichage QR Code marqué comme fait pour $documentId.")
+                } else {
+                    Log.e("NetworkClient", "Error updating QR display status: ${response.code} ${response.body?.string()}")
                 }
-                Unit
             } catch (e: Exception) {
                 Log.e("NetworkClient", "Exception in markQrDisplayed", e)
             }
