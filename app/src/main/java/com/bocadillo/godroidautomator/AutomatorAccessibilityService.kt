@@ -2409,7 +2409,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
         } finally {
             Journal.log("--- FIN SÉQUENCE INDRIVE ---")
             isSequenceRunning = false
-            goBackToDesktop()
         }
     }
 }
