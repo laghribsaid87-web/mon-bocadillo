@@ -2380,5 +2380,37 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
         }
     }
+
+    private suspend fun startIndriveSequence(address: String, price: String, phone: String) {
+        Journal.log("--- DÉBUT SÉQUENCE INDRIVE ---")
+        isSequenceRunning = true
+        try {
+            Journal.log("Adresse: $address | Prix: $price | Tél: $phone")
+            
+            // 1. Ouvrir l'application inDrive
+            Journal.log("Ouverture de InDrive...")
+            val launchIntent = packageManager.getLaunchIntentForPackage("sinet.startup.inDriver")
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+            } else {
+                Journal.log("InDrive n'est pas installé sur cet appareil.")
+            }
+            delay(5000) // Attendre que l'application s'ouvre
+
+            // 2. Logique à implémenter après le SCAN_UI_TREE
+            Journal.log("Veuillez lancer le SCAN_UI_TREE pour capturer les boutons InDrive !")
+
+            // Marquer comme traité dans Firestore
+            NetworkClient.markIndriveTriggerHandled(applicationContext)
+            
+        } catch (e: Exception) {
+            Journal.log("Erreur dans startIndriveSequence: ${e.message}")
+        } finally {
+            Journal.log("--- FIN SÉQUENCE INDRIVE ---")
+            isSequenceRunning = false
+            goBackToDesktop()
+        }
+    }
 }
 

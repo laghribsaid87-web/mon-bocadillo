@@ -545,6 +545,60 @@ object NetworkClient {
         }
     }
 
+    data class IndriveRequest(val address: String, val price: String, val phone: String)
+
+    suspend fun checkIndriveTrigger(context: android.content.Context): IndriveRequest? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val suffix = getBranchSuffix(context)
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/indrive_trigger$suffix"
+                val request = Request.Builder().url(url).get().build()
+                val response = client.newCall(request).execute()
+                
+                if (response.isSuccessful) {
+                    val responseStr = response.body?.string() ?: return@withContext null
+                    val json = JSONObject(responseStr)
+                    val fields = json.optJSONObject("fields") ?: return@withContext null
+                    
+                    val action = fields.optJSONObject("action")?.optString("stringValue", "")
+                    val isHandled = fields.optJSONObject("isHandled")?.optBoolean("booleanValue", true) ?: true
+                    
+                    if (action == "REQUEST_INDRIVE" && !isHandled) {
+                        val address = fields.optJSONObject("address")?.optString("stringValue", "") ?: ""
+                        val price = fields.optJSONObject("price")?.optString("stringValue", "") ?: ""
+                        val phone = fields.optJSONObject("phone")?.optString("stringValue", "") ?: ""
+                        return@withContext IndriveRequest(address, price, phone)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in checkIndriveTrigger", e)
+            }
+            return@withContext null
+        }
+    }
+
+    suspend fun markIndriveTriggerHandled(context: android.content.Context) {
+        withContext(Dispatchers.IO) {
+            try {
+                val suffix = getBranchSuffix(context)
+                val url = "https://firestore.googleapis.com/v1/projects/mon-bocadillo-menu/databases/(default)/documents/artifacts/mon-bocadillo-menu/public/data/settings/indrive_trigger$suffix?updateMask.fieldPaths=isHandled"
+                val jsonStr = """
+                {
+                  "fields": {
+                    "isHandled": { "booleanValue": true }
+                  }
+                }
+                """.trimIndent()
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val body = jsonStr.toRequestBody(mediaType)
+                val request = Request.Builder().url(url).method("PATCH", body).build()
+                client.newCall(request).execute()
+            } catch (e: Exception) {
+                Log.e("NetworkClient", "Exception in markIndriveTriggerHandled", e)
+            }
+        }
+    }
+
     suspend fun sendCancelledOrderCount(count: Int) {
         withContext(Dispatchers.IO) {
             try {
