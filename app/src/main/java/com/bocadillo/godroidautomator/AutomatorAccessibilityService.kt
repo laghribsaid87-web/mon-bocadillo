@@ -2419,8 +2419,38 @@ class AutomatorAccessibilityService : AccessibilityService() {
             }
             delay(5000) // Attendre que l'application s'ouvre
 
-            // 2. Logique à implémenter après le SCAN_UI_TREE
-            Journal.log("Veuillez lancer le SCAN_UI_TREE pour capturer les boutons InDrive !")
+            Journal.log("Recherche du bouton 'Où et pour combien ?'...")
+            val root = rootInActiveWindow
+            if (root != null) {
+                var btnList = root.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/where_to_button")
+                if (btnList.isNullOrEmpty()) {
+                    btnList = root.findAccessibilityNodeInfosByText("Où et pour combien ?")
+                }
+                
+                if (!btnList.isNullOrEmpty()) {
+                    val target = btnList[0]
+                    Journal.log("Bouton trouvé. Clic en cours...")
+                    if (target.isClickable) {
+                        target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    } else {
+                        target.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    }
+                    
+                    delay(3000) // Attendre l'écran suivant
+                    
+                    Journal.log("--- SCAN AUTOMATIQUE DU NOUVEL ÉCRAN INDRIVE ---")
+                    try {
+                        dumpNodeTree(rootInActiveWindow, 0)
+                    } catch (e: Exception) {
+                        Journal.log("Erreur scan auto: ${e.message}")
+                    }
+                    Journal.log("--- FIN DU SCAN AUTOMATIQUE ---")
+                } else {
+                    Journal.log("❌ Bouton introuvable.")
+                }
+            } else {
+                Journal.log("❌ Impossible d'accéder à l'écran actif.")
+            }
 
             // Marquer comme traité dans Firestore
             NetworkClient.markIndriveTriggerHandled(applicationContext)
