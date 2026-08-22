@@ -71,6 +71,26 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     }
                     Journal.log("--- FIN DU SCAN MANUEL ---")
                 }
+            } else if (intent?.action == "com.bocadillo.godroidautomator.SCAN_UI_TREE_INDRIVE") {
+                Journal.log("Broadcast reçu: SCAN_UI_TREE_INDRIVE (Ouverture d'InDrive et Scan dans 4s)")
+                coroutineScope.launch {
+                    val launchIntent = packageManager.getLaunchIntentForPackage("sinet.startup.inDriver")
+                    if (launchIntent != null) {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(launchIntent)
+                    } else {
+                        Journal.log("InDrive introuvable sur l'appareil.")
+                    }
+                    
+                    delay(4000)
+                    Journal.log("--- SCAN MANUEL DE L'ÉCRAN (UI TREE INDRIVE) ---")
+                    try {
+                        dumpNodeTree(rootInActiveWindow, 0)
+                    } catch (e: Exception) {
+                        Journal.log("Erreur pendant le scan manuel: ${e.message}")
+                    }
+                    Journal.log("--- FIN DU SCAN MANUEL INDRIVE ---")
+                }
             }
         }
     }
@@ -82,6 +102,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
         filter.addAction("com.bocadillo.godroidautomator.START_SEQUENCE")
         filter.addAction("com.bocadillo.godroidautomator.TEST_READ_ORDER")
         filter.addAction("com.bocadillo.godroidautomator.SCAN_UI_TREE")
+        filter.addAction("com.bocadillo.godroidautomator.SCAN_UI_TREE_INDRIVE")
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)

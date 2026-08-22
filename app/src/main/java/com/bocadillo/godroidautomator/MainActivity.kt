@@ -85,6 +85,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
         layout.addView(btnScanTree)
+
+        val btnScanTreeIndrive = Button(this).apply {
+            text = "SCAN ARBRE UI (InDrive) - 4s"
+            setOnClickListener {
+                android.widget.Toast.makeText(this@MainActivity, "Ouverture de InDrive... Le scan démarre dans 4s!", android.widget.Toast.LENGTH_LONG).show()
+                val intent = Intent("com.bocadillo.godroidautomator.SCAN_UI_TREE_INDRIVE")
+                sendBroadcast(intent)
+            }
+        }
+        layout.addView(btnScanTreeIndrive)
         
         val btnSettings = Button(this).apply {
             text = "Paramètres de Texte (Boutons Glovo)"
