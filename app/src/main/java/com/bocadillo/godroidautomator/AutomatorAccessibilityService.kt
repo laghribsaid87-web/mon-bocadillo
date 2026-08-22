@@ -301,6 +301,15 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 }
                             }
                         }
+
+                        // 3.1 Check for InDrive trigger
+                        val indriveRequest = NetworkClient.checkIndriveTrigger(applicationContext)
+                        if (indriveRequest != null) {
+                            sequenceMutex.withLock {
+                                startIndriveSequence(indriveRequest.address, indriveRequest.price, indriveRequest.phone)
+                            }
+                        }
+                        
                         } // End if (!extractionOnly)
 
                         // 3.5 Check for Orders needing phone/pin extraction
