@@ -204,6 +204,19 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun clickAtCoordinate(x: Float, y: Float) {
+        try {
+            val path = android.graphics.Path()
+            path.moveTo(x, y)
+            val gestureBuilder = android.accessibilityservice.GestureDescription.Builder()
+            gestureBuilder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 100))
+            dispatchGesture(gestureBuilder.build(), null, null)
+            Journal.log("Clic effectué aux coordonnées ($x, $y)")
+        } catch (e: Exception) {
+            Journal.log("Erreur lors du clic par coordonnées: ${e.message}")
+        }
+    }
+
     private fun performSystemScrollForward() {
         try {
             val rootForScroll = rootInActiveWindow
@@ -2436,15 +2449,82 @@ class AutomatorAccessibilityService : AccessibilityService() {
                         target.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     }
                     
-                    delay(3000) // Attendre l'écran suivant
+                    delay(3000) // Attendre l'écran de recherche
                     
-                    Journal.log("--- SCAN AUTOMATIQUE DU NOUVEL ÉCRAN INDRIVE ---")
-                    try {
-                        dumpNodeTree(rootInActiveWindow, 0)
-                    } catch (e: Exception) {
-                        Journal.log("Erreur scan auto: ${e.message}")
+                    // Étape 2: Remplir la destination
+                    Journal.log("Étape 2: Remplir la destination...")
+                    val root2 = rootInActiveWindow
+                    if (root2 != null) {
+                        val destFieldList = root2.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/autocomplete_destination_field")
+                        if (!destFieldList.isNullOrEmpty()) {
+                            val destField = destFieldList[0]
+                            val arguments = android.os.Bundle()
+                            arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, address)
+                            destField.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+                            Journal.log("Adresse collée: $address")
+                            
+                            delay(3000) // Attendre les suggestions
+                            
+                            // Cliquer juste en dessous pour sélectionner la première suggestion
+                            // Le champ est environ à Y=370-470 (selon le log). On clique à Y=550 au milieu de l'écran.
+                            val displayMetrics = resources.displayMetrics
+                            val middleX = displayMetrics.widthPixels / 2f
+                            clickAtCoordinate(middleX, 550f)
+                            Journal.log("Clic sur la première suggestion...")
+                            
+                            delay(4000) // Attendre l'écran des offres (Page 3)
+                            
+                            // Étape 3: Choisir Moto et baisser le prix
+                            Journal.log("Étape 3: Configuration de l'offre...")
+                            val root3 = rootInActiveWindow
+                            if (root3 != null) {
+                                // 3.1 Sélectionner Moto
+                                val motoNodes = root3.findAccessibilityNodeInfosByText("Moto")
+                                if (!motoNodes.isNullOrEmpty()) {
+                                    val motoNode = motoNodes[0]
+                                    if (motoNode.parent?.isClickable == true) {
+                                        motoNode.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                        Journal.log("Option 'Moto' sélectionnée.")
+                                    } else if (motoNode.parent?.parent?.isClickable == true) {
+                                        motoNode.parent?.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                        Journal.log("Option 'Moto' sélectionnée.")
+                                    }
+                                    delay(1000)
+                                } else {
+                                    Journal.log("Option 'Moto' introuvable.")
+                                }
+                                
+                                // 3.2 Baisser le prix (cliquer 2 fois sur le bouton Moins)
+                                val decreaseBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/sbs_decrease_price_button")
+                                if (!decreaseBtns.isNullOrEmpty()) {
+                                    val minusBtn = decreaseBtns[0]
+                                    Journal.log("Baisse du prix de 2 crans...")
+                                    if (minusBtn.isClickable) minusBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                    delay(500)
+                                    if (minusBtn.isClickable) minusBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                    delay(1000)
+                                } else {
+                                    Journal.log("Bouton '-' introuvable.")
+                                }
+                                
+                                // 3.3 Chercher des offres
+                                val submitBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/form_button_submit_facelift")
+                                if (!submitBtns.isNullOrEmpty()) {
+                                    val submitBtn = submitBtns[0]
+                                    Journal.log("Clic sur 'Chercher des offres'...")
+                                    if (submitBtn.isClickable) {
+                                        submitBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                    } else {
+                                        submitBtn.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                    }
+                                } else {
+                                    Journal.log("Bouton 'Chercher des offres' introuvable.")
+                                }
+                            }
+                        } else {
+                            Journal.log("❌ Champ destination introuvable.")
+                        }
                     }
-                    Journal.log("--- FIN DU SCAN AUTOMATIQUE ---")
                 } else {
                     Journal.log("❌ Bouton introuvable.")
                 }
