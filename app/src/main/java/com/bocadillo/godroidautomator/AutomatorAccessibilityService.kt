@@ -2446,8 +2446,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (root != null) {
                 var btnList = root.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/where_to_button")
                 if (btnList.isNullOrEmpty()) {
-                    // Recherche par texte partiel pour éviter les problèmes d'espace insécable etc.
-                    btnList = root.findAccessibilityNodeInfosByText("Où et pour combien")
+                    btnList = root.findAccessibilityNodeInfosByText("pour combien")
+                }
+                if (btnList.isNullOrEmpty()) {
+                    btnList = root.findAccessibilityNodeInfosByText("combien")
                 }
                 
                 if (!btnList.isNullOrEmpty()) {
@@ -2455,7 +2457,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     Journal.log("Bouton trouvé. Clic en cours...")
                     if (target.isClickable) {
                         target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    } else if (target.parent?.isClickable == true) {
+                        target.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    } else if (target.parent?.parent?.isClickable == true) {
+                        target.parent?.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     } else {
+                        // Fallback
                         target.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     }
                     
