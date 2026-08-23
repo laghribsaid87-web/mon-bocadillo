@@ -2446,7 +2446,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
             if (root != null) {
                 var btnList = root.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/where_to_button")
                 if (btnList.isNullOrEmpty()) {
-                    btnList = root.findAccessibilityNodeInfosByText("Où et pour combien ?")
+                    // Recherche par texte partiel pour éviter les problèmes d'espace insécable etc.
+                    btnList = root.findAccessibilityNodeInfosByText("Où et pour combien")
                 }
                 
                 if (!btnList.isNullOrEmpty()) {
