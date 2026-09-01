@@ -2528,7 +2528,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             delay(4000) // Attendre les suggestions
                             
                             // Cliquer sur la 1ère suggestion juste en dessous du champ (universel)
-            delay(3000)
+                            val bounds = android.graphics.Rect()
+                            destField.getBoundsInScreen(bounds)
+                            val clickY = bounds.bottom.toFloat() + 150f
+                            Journal.log("Clic sur la suggestion à Y=$clickY")
+                            clickAtCoordinate(bounds.centerX().toFloat(), clickY)
+                            delay(3000)
                             
                             // Étape 3: Choisir Moto et baisser le prix
                             Journal.log("Étape 3: Configuration de l'offre...")
