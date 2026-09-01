@@ -2424,6 +2424,31 @@ class AutomatorAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun findNodeByTextOrContentDesc(root: AccessibilityNodeInfo?, textToFind: String): AccessibilityNodeInfo? {
+        if (root == null) return null
+        val text = root.text?.toString()?.lowercase() ?: ""
+        val desc = root.contentDescription?.toString()?.lowercase() ?: ""
+        if (text.contains(textToFind.lowercase()) || desc.contains(textToFind.lowercase())) {
+            return root
+        }
+        for (i in 0 until root.childCount) {
+            val child = root.getChild(i)
+            val found = findNodeByTextOrContentDesc(child, textToFind)
+            if (found != null) return found
+        }
+        return null
+    }
+
+    private fun findAllEditableFields(root: AccessibilityNodeInfo?, list: MutableList<AccessibilityNodeInfo>) {
+        if (root == null) return
+        if (root.isEditable || root.className == "android.widget.EditText") {
+            list.add(root)
+        }
+        for (i in 0 until root.childCount) {
+            findAllEditableFields(root.getChild(i), list)
+        }
+    }
+
     private suspend fun startIndriveSequence(address: String, price: String, phone: String) {
         Journal.log("--- DÉBUT SÉQUENCE INDRIVE ---")
         isSequenceRunning = true
@@ -2444,26 +2469,32 @@ class AutomatorAccessibilityService : AccessibilityService() {
             Journal.log("Recherche du bouton 'Où et pour combien ?'...")
             val root = rootInActiveWindow
             if (root != null) {
-                var btnList = root.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/where_to_button")
-                if (btnList.isNullOrEmpty()) {
-                    btnList = root.findAccessibilityNodeInfosByText("pour combien")
-                }
-                if (btnList.isNullOrEmpty()) {
-                    btnList = root.findAccessibilityNodeInfosByText("combien")
-                }
+                var target: AccessibilityNodeInfo? = null
                 
-                if (!btnList.isNullOrEmpty()) {
-                    val target = btnList[0]
+                val byId = root.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/where_to_button")
+                if (!byId.isNullOrEmpty()) target = byId[0]
+                
+                if (target == null) target = findNodeByTextOrContentDesc(root, "pour combien")
+                if (target == null) target = findNodeByTextOrContentDesc(root, "combien")
+                if (target == null) target = findNodeByTextOrContentDesc(root, "où")
+                if (target == null) target = findNodeByTextOrContentDesc(root, "courses en ville")
+                
+                if (target != null) {
                     Journal.log("Bouton trouvé. Clic en cours...")
+                    var clicked = false
                     if (target.isClickable) {
-                        target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        clicked = target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     } else if (target.parent?.isClickable == true) {
-                        target.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        clicked = target.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
                     } else if (target.parent?.parent?.isClickable == true) {
-                        target.parent?.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    } else {
-                        // Fallback
-                        target.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        clicked = target.parent?.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+                    }
+                    
+                    if (!clicked) {
+                        val bounds = android.graphics.Rect()
+                        target.getBoundsInScreen(bounds)
+                        Journal.log("Fallback: Clic par coordonnees sur le champ de recherche InDrive x=${bounds.centerX()}, y=${bounds.centerY()}")
+                        clickAtCoordinate(bounds.centerX().toFloat(), bounds.centerY().toFloat())
                     }
                     
                     delay(3000) // Attendre l'écran de recherche
@@ -2472,31 +2503,57 @@ class AutomatorAccessibilityService : AccessibilityService() {
                     Journal.log("Étape 2: Remplir la destination...")
                     val root2 = rootInActiveWindow
                     if (root2 != null) {
+                        var destField: AccessibilityNodeInfo? = null
                         val destFieldList = root2.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/autocomplete_destination_field")
                         if (!destFieldList.isNullOrEmpty()) {
-                            val destField = destFieldList[0]
+                            destField = destFieldList[0]
+                        }
+                        
+                        if (destField == null) {
+                            val editables = mutableListOf<AccessibilityNodeInfo>()
+                            findAllEditableFields(root2, editables)
+                            if (editables.size >= 2) {
+                                destField = editables[1] // The second one is usually destination
+                            } else if (editables.size == 1) {
+                                destField = editables[0]
+                            }
+                        }
+                        
+                        if (destField != null) {
                             val arguments = android.os.Bundle()
                             arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, address)
                             destField.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
                             Journal.log("Adresse collée: $address")
                             
-                            delay(3000) // Attendre les suggestions
+                            delay(4000) // Attendre les suggestions
                             
-                            // Cliquer juste en dessous pour sélectionner la première suggestion
-                            // Le champ est environ à Y=370-470 (selon le log). On clique à Y=550 au milieu de l'écran.
-                            val displayMetrics = resources.displayMetrics
-                            val middleX = displayMetrics.widthPixels / 2f
-                            clickAtCoordinate(middleX, 550f)
-                            Journal.log("Clic sur la première suggestion...")
-                            
-                            delay(4000) // Attendre l'écran des offres (Page 3)
+                            // Cliquer sur la 1ère suggestion juste en dessous du champ (universel)
+            delay(3000)
                             
                             // Étape 3: Choisir Moto et baisser le prix
                             Journal.log("Étape 3: Configuration de l'offre...")
-                            val root3 = rootInActiveWindow
+                            
+                            // Wait for the offers screen to fully load (up to 15 seconds)
+                            var root3 = rootInActiveWindow
+                            var attempts = 0
+                            var submitBtns: List<AccessibilityNodeInfo>? = null
+                            while(attempts < 15) {
+                                if (root3 != null) {
+                                    submitBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/form_button_submit_facelift")
+                                    if (!submitBtns.isNullOrEmpty()) {
+                                        break
+                                    }
+                                }
+                                delay(1000)
+                                root3 = rootInActiveWindow
+                                attempts++
+                            }
+
                             if (root3 != null) {
-                                // 3.1 Sélectionner Moto
-                                val motoNodes = root3.findAccessibilityNodeInfosByText("Moto")
+                                // CORRECTION 2: Sélectionner Moto
+                                var motoNodes = root3.findAccessibilityNodeInfosByText("Moto")
+                                if (motoNodes.isNullOrEmpty()) motoNodes = root3.findAccessibilityNodeInfosByText("Motorcycle")
+                                
                                 if (!motoNodes.isNullOrEmpty()) {
                                     val motoNode = motoNodes[0]
                                     if (motoNode.parent?.isClickable == true) {
@@ -2506,26 +2563,72 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                         motoNode.parent?.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                                         Journal.log("Option 'Moto' sélectionnée.")
                                     }
-                                    delay(1000)
+                                    delay(1500)
+                                    // Refresh root after selection
+                                    root3 = rootInActiveWindow ?: root3
                                 } else {
                                     Journal.log("Option 'Moto' introuvable.")
                                 }
                                 
-                                // 3.2 Baisser le prix (cliquer 2 fois sur le bouton Moins)
+                                // CORRECTION 3: Baisser le prix de 3 crans (a9al taman momkin)
                                 val decreaseBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/sbs_decrease_price_button")
                                 if (!decreaseBtns.isNullOrEmpty()) {
                                     val minusBtn = decreaseBtns[0]
-                                    Journal.log("Baisse du prix de 2 crans...")
-                                    if (minusBtn.isClickable) minusBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                                    delay(500)
-                                    if (minusBtn.isClickable) minusBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                    Journal.log("Baisse du prix de 3 crans...")
+                                    for (i in 1..3) {
+                                        if (minusBtn.isClickable) minusBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                        delay(300)
+                                    }
                                     delay(1000)
                                 } else {
                                     Journal.log("Bouton '-' introuvable.")
                                 }
-                                
+
+                                // CORRECTION 4: Ajouter la remarque / Tél (Options) pour le livreur
+                                if (phone.isNotEmpty()) {
+                                    var optionNodes = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/sbs_options_button")
+                                    if (optionNodes.isNullOrEmpty()) optionNodes = root3.findAccessibilityNodeInfosByText("Options")
+                                    if (optionNodes.isNullOrEmpty()) optionNodes = root3.findAccessibilityNodeInfosByText("Commentaire")
+                                    
+                                    if (!optionNodes.isNullOrEmpty()) {
+                                        val optBtn = optionNodes[0]
+                                        if (optBtn.isClickable) {
+                                            optBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                        } else {
+                                            optBtn.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                        }
+                                        delay(1500)
+                                        
+                                        val currentRoot = rootInActiveWindow
+                                        if (currentRoot != null) {
+                                            val commentFields = currentRoot.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/comment_input")
+                                            if (!commentFields.isNullOrEmpty()) {
+                                                val cField = commentFields[0]
+                                                val args = android.os.Bundle()
+                                                val commentText = "Commande Mon Bocadillo. Appelez le client au: $phone"
+                                                args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, commentText)
+                                                cField.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                                                Journal.log("Commentaire (Téléphone) ajouté: $phone")
+                                                
+                                                // Click "Terminé" / "Done" / "حفظ" / "Enregistrer"
+                                                var doneBtns = currentRoot.findAccessibilityNodeInfosByText("Terminé")
+                                                if (doneBtns.isNullOrEmpty()) doneBtns = currentRoot.findAccessibilityNodeInfosByText("Done")
+                                                if (doneBtns.isNullOrEmpty()) doneBtns = currentRoot.findAccessibilityNodeInfosByText("حفظ")
+                                                if (doneBtns.isNullOrEmpty()) doneBtns = currentRoot.findAccessibilityNodeInfosByText("Enregistrer")
+                                                
+                                                if (!doneBtns.isNullOrEmpty()) {
+                                                    val doneBtn = doneBtns[0]
+                                                    if (doneBtn.isClickable) doneBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                                }
+                                                delay(1000)
+                                            }
+                                        }
+                                        root3 = rootInActiveWindow ?: root3
+                                    }
+                                }
+
                                 // 3.3 Chercher des offres
-                                val submitBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/form_button_submit_facelift")
+                                submitBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/form_button_submit_facelift")
                                 if (!submitBtns.isNullOrEmpty()) {
                                     val submitBtn = submitBtns[0]
                                     Journal.log("Clic sur 'Chercher des offres'...")
@@ -2559,5 +2662,6 @@ class AutomatorAccessibilityService : AccessibilityService() {
             isSequenceRunning = false
         }
     }
+
 }
 
