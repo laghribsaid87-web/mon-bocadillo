@@ -1,4 +1,4 @@
-package com.bocadillo.godroidautomator
+﻿package com.bocadillo.godroidautomator
 
 import android.accessibilityservice.AccessibilityService
 import android.content.BroadcastReceiver
@@ -2392,6 +2392,28 @@ class AutomatorAccessibilityService : AccessibilityService() {
     }
 
     // 🔥 Jdid: Fonction pour imprimer l'arbre complet de l'interface (Chajara dyal UI)
+        private fun findNodesByIdSuffix(node: AccessibilityNodeInfo?, idSuffix: String, result: MutableList<AccessibilityNodeInfo>) {
+        if (node == null) return
+        val viewId = node.viewIdResourceName
+        if (viewId != null && viewId.endsWith(idSuffix)) {
+            result.add(node)
+        }
+        for (i in 0 until node.childCount) {
+            findNodesByIdSuffix(node.getChild(i), idSuffix, result)
+        }
+    }
+
+    private fun findNodesByTextContains(node: AccessibilityNodeInfo?, textQuery: String, result: MutableList<AccessibilityNodeInfo>) {
+        if (node == null) return
+        val text = node.text?.toString() ?: ""
+        val desc = node.contentDescription?.toString() ?: ""
+        if (text.contains(textQuery, ignoreCase = true) || desc.contains(textQuery, ignoreCase = true)) {
+            result.add(node)
+        }
+        for (i in 0 until node.childCount) {
+            findNodesByTextContains(node.getChild(i), textQuery, result)
+        }
+    }
     private fun dumpNodeTree(node: AccessibilityNodeInfo?, depth: Int) {
         if (node == null) return
         val indent = "  ".repeat(depth)
@@ -2546,9 +2568,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 for (window in allWindows) {
                                     val wRoot = window.root
                                     if (wRoot != null) {
-                                        val mNodes = wRoot.findAccessibilityNodeInfosByText("Moto")
-                                        val tNodes = wRoot.findAccessibilityNodeInfosByText("Trouver un chauffeur")
-                                        val cNodes = wRoot.findAccessibilityNodeInfosByText("Chercher des offres")
+                                        val mNodes = mutableListOf<AccessibilityNodeInfo>()
+                                        findNodesByTextContains(wRoot, "Moto", mNodes)
+                                        val tNodes = mutableListOf<AccessibilityNodeInfo>()
+                                        findNodesByTextContains(wRoot, "Trouver un chauffeur", tNodes)
+                                        val cNodes = mutableListOf<AccessibilityNodeInfo>()
+                                        findNodesByTextContains(wRoot, "Chercher des offres", cNodes)
                                         if (mNodes.isNotEmpty() || tNodes.isNotEmpty() || cNodes.isNotEmpty()) {
                                             root3 = wRoot
                                             break
@@ -2580,10 +2605,11 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 Log.d("GoDroid_Dump", "--- FIN DUMP ---")
 
                                 // CORRECTION 2: Sélectionner Moto
-                                var motoNodes = root3.findAccessibilityNodeInfosByText("Moto")
-                                if (motoNodes.isNullOrEmpty()) motoNodes = root3.findAccessibilityNodeInfosByText("Motorcycle")
+                                val motoNodes = mutableListOf<AccessibilityNodeInfo>()
+                                findNodesByTextContains(root3, "Moto", motoNodes)
+                                if (motoNodes.isEmpty()) findNodesByTextContains(root3, "Motorcycle", motoNodes)
                                 
-                                if (!motoNodes.isNullOrEmpty()) {
+                                if (!motoNodes.isEmpty()) {
                                     val motoNode = motoNodes[0]
                                     if (motoNode.parent?.isClickable == true) {
                                         motoNode.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
@@ -2600,8 +2626,10 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 }
                                 
                                 // CORRECTION 3: Baisser le prix de 3 crans (a9al taman momkin)
-                                val decreaseBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/sbs_decrease_price_button")
-                                if (!decreaseBtns.isNullOrEmpty()) {
+                                val decreaseBtns = mutableListOf<AccessibilityNodeInfo>()
+                                findNodesByIdSuffix(root3, "sbs_decrease_price_button", decreaseBtns)
+                                if (decreaseBtns.isEmpty()) findNodesByTextContains(root3, "-", decreaseBtns)
+                                if (!decreaseBtns.isEmpty()) {
                                     val minusBtn = decreaseBtns[0]
                                     Journal.log("Baisse du prix de 3 crans...")
                                     for (i in 1..3) {
@@ -2657,11 +2685,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 }
 
                                 // 3.3 Chercher des offres
-                                var submitBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/form_button_submit_facelift")
-                                if (submitBtns.isNullOrEmpty()) submitBtns = root3.findAccessibilityNodeInfosByText("Trouver un chauffeur")
-                                if (submitBtns.isNullOrEmpty()) submitBtns = root3.findAccessibilityNodeInfosByText("Chercher des offres")
+                                val submitBtns = mutableListOf<AccessibilityNodeInfo>()
+                                findNodesByIdSuffix(root3, "form_button_submit_facelift", submitBtns)
+                                if (submitBtns.isEmpty()) findNodesByTextContains(root3, "Trouver un chauffeur", submitBtns)
+                                if (submitBtns.isEmpty()) findNodesByTextContains(root3, "Chercher des offres", submitBtns)
                                 
-                                if (!submitBtns.isNullOrEmpty()) {
+                                if (!submitBtns.isEmpty()) {
                                     val submitBtn = submitBtns[0]
                                     Journal.log("Clic sur 'Chercher des offres / Trouver un chauffeur'...")
                                     if (submitBtn.isClickable) {
@@ -2696,4 +2725,7 @@ class AutomatorAccessibilityService : AccessibilityService() {
     }
 
 }
+
+
+
 
