@@ -2609,25 +2609,40 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 findNodesByTextContains(root3, "Moto", motoNodes)
                                 if (motoNodes.isEmpty()) findNodesByTextContains(root3, "Motorcycle", motoNodes)
                                 
-                                if (!motoNodes.isEmpty()) {
+                                if (motoNodes.isNotEmpty()) {
                                     val motoNode = motoNodes[0]
-                                    if (motoNode.parent?.isClickable == true) {
-                                        motoNode.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                                        Journal.log("Option 'Moto' sélectionnée.")
-                                    } else if (motoNode.parent?.parent?.isClickable == true) {
-                                        motoNode.parent?.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                                        Journal.log("Option 'Moto' sélectionnée.")
+                                    var isAlreadySelected = false
+                                    var p = motoNode.parent
+                                    while (p != null) {
+                                        val id = p.viewIdResourceName
+                                        if (id != null && id.endsWith("sbs_selected_tariff_card")) {
+                                            isAlreadySelected = true
+                                            break
+                                        }
+                                        p = p.parent
                                     }
-                                    delay(1500)
-                                    // Refresh root after selection by scanning windows again
-                                    for (window in windows) {
-                                        val w = window.root
-                                        if (w != null) {
-                                            val tests = mutableListOf<AccessibilityNodeInfo>()
-                                            findNodesByTextContains(w, "Moto", tests)
-                                            if (tests.isNotEmpty()) {
-                                                root3 = w
-                                                break
+                                    
+                                    if (isAlreadySelected) {
+                                        Journal.log("Option 'Moto' déjà sélectionnée.")
+                                    } else {
+                                        if (motoNode.parent?.isClickable == true) {
+                                            motoNode.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                            Journal.log("Option 'Moto' sélectionnée.")
+                                        } else if (motoNode.parent?.parent?.isClickable == true) {
+                                            motoNode.parent?.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                            Journal.log("Option 'Moto' sélectionnée.")
+                                        }
+                                        delay(1500)
+                                        // Refresh root after selection by scanning windows again
+                                        for (window in windows) {
+                                            val w = window.root
+                                            if (w != null) {
+                                                val tests = mutableListOf<AccessibilityNodeInfo>()
+                                                findNodesByTextContains(w, "Moto", tests)
+                                                if (tests.isNotEmpty()) {
+                                                    root3 = w
+                                                    break
+                                                }
                                             }
                                         }
                                     }
