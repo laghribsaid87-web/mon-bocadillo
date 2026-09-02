@@ -209,6 +209,19 @@ object NetworkClient {
                         
                         val isGlovoReadyClicked = fields.optJSONObject("isGlovoReadyClicked")?.optBoolean("booleanValue", false) ?: false
                         if (!isGlovoReadyClicked) {
+                            val createTimeStr = document.optString("createTime", "")
+                            var isTooOld = false
+                            if (createTimeStr.isNotEmpty()) {
+                                try {
+                                    val instant = java.time.Instant.parse(createTimeStr)
+                                    val now = java.time.Instant.now()
+                                    if (java.time.Duration.between(instant, now).seconds > 3600) {
+                                        isTooOld = true
+                                    }
+                                } catch (e: Exception) {}
+                            }
+                            if (isTooOld) continue
+
                             val docName = document.optString("name")
                             val docId = docName.substringAfterLast("/")
                             val orderNumber = fields.optJSONObject("orderNumber")?.optString("stringValue", "") ?: ""
@@ -322,10 +335,10 @@ object NetworkClient {
                         
                         val isExtractionDone = fields.optJSONObject("isExtractionDone")?.optBoolean("booleanValue", false) ?: false
                         if (!isExtractionDone) {
-                            
                             // Délais de 1 minute (60 secondes) avant d'extraire
                             val createTimeStr = document.optString("createTime", "")
                             var isOldEnough = true
+                            var isTooOld = false
                             if (createTimeStr.isNotEmpty()) {
                                 try {
                                     val instant = java.time.Instant.parse(createTimeStr)
@@ -334,10 +347,13 @@ object NetworkClient {
                                     if (duration.seconds < 60) {
                                         isOldEnough = false
                                     }
+                                    if (duration.seconds > 3600) {
+                                        isTooOld = true
+                                    }
                                 } catch (e: Exception) {}
                             }
                             
-                            if (!isOldEnough) {
+                            if (!isOldEnough || isTooOld) {
                                 continue // On passe à la commande suivante, on réessaiera au prochain tour de boucle
                             }
 
@@ -451,6 +467,19 @@ object NetworkClient {
                         
                         val isQrDisplayed = fields.optJSONObject("isQrDisplayed")?.optBoolean("booleanValue", false) ?: false
                         if (!isQrDisplayed) {
+                            val createTimeStr = document.optString("createTime", "")
+                            var isTooOld = false
+                            if (createTimeStr.isNotEmpty()) {
+                                try {
+                                    val instant = java.time.Instant.parse(createTimeStr)
+                                    val now = java.time.Instant.now()
+                                    if (java.time.Duration.between(instant, now).seconds > 3600) {
+                                        isTooOld = true
+                                    }
+                                } catch (e: Exception) {}
+                            }
+                            if (isTooOld) continue
+
                             val docName = document.optString("name")
                             val docId = docName.substringAfterLast("/")
                             val orderNumber = fields.optJSONObject("orderNumber")?.optString("stringValue", "") ?: ""
