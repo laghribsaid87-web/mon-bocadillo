@@ -1,4 +1,4 @@
-﻿package com.bocadillo.godroidautomator
+package com.bocadillo.godroidautomator
 
 import android.accessibilityservice.AccessibilityService
 import android.content.BroadcastReceiver
@@ -2619,8 +2619,18 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                         Journal.log("Option 'Moto' sélectionnée.")
                                     }
                                     delay(1500)
-                                    // Refresh root after selection
-                                    root3 = rootInActiveWindow ?: root3
+                                    // Refresh root after selection by scanning windows again
+                                    for (window in windows) {
+                                        val w = window.root
+                                        if (w != null) {
+                                            val tests = mutableListOf<AccessibilityNodeInfo>()
+                                            findNodesByTextContains(w, "Moto", tests)
+                                            if (tests.isNotEmpty()) {
+                                                root3 = w
+                                                break
+                                            }
+                                        }
+                                    }
                                 } else {
                                     Journal.log("Option 'Moto' introuvable.")
                                 }
@@ -2643,11 +2653,12 @@ class AutomatorAccessibilityService : AccessibilityService() {
 
                                 // CORRECTION 4: Ajouter la remarque / Tél (Options) pour le livreur
                                 if (phone.isNotEmpty()) {
-                                    var optionNodes = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/sbs_options_button")
-                                    if (optionNodes.isNullOrEmpty()) optionNodes = root3.findAccessibilityNodeInfosByText("Options")
-                                    if (optionNodes.isNullOrEmpty()) optionNodes = root3.findAccessibilityNodeInfosByText("Commentaire")
+                                    val optionNodes = mutableListOf<AccessibilityNodeInfo>()
+                                    findNodesByIdSuffix(root3, "sbs_options_button", optionNodes)
+                                    if (optionNodes.isEmpty()) findNodesByTextContains(root3, "Options", optionNodes)
+                                    if (optionNodes.isEmpty()) findNodesByTextContains(root3, "Commentaire", optionNodes)
                                     
-                                    if (!optionNodes.isNullOrEmpty()) {
+                                    if (optionNodes.isNotEmpty()) {
                                         val optBtn = optionNodes[0]
                                         if (optBtn.isClickable) {
                                             optBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
@@ -2658,8 +2669,9 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                         
                                         val currentRoot = rootInActiveWindow
                                         if (currentRoot != null) {
-                                            val commentFields = currentRoot.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/comment_input")
-                                            if (!commentFields.isNullOrEmpty()) {
+                                            val commentFields = mutableListOf<AccessibilityNodeInfo>()
+                                            findNodesByIdSuffix(currentRoot, "comment_input", commentFields)
+                                            if (commentFields.isNotEmpty()) {
                                                 val cField = commentFields[0]
                                                 val args = android.os.Bundle()
                                                 val commentText = "Commande Mon Bocadillo. Appelez le client au: $phone"
@@ -2668,19 +2680,31 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                                 Journal.log("Commentaire (Téléphone) ajouté: $phone")
                                                 
                                                 // Click "Terminé" / "Done" / "حفظ" / "Enregistrer"
-                                                var doneBtns = currentRoot.findAccessibilityNodeInfosByText("Terminé")
-                                                if (doneBtns.isNullOrEmpty()) doneBtns = currentRoot.findAccessibilityNodeInfosByText("Done")
-                                                if (doneBtns.isNullOrEmpty()) doneBtns = currentRoot.findAccessibilityNodeInfosByText("حفظ")
-                                                if (doneBtns.isNullOrEmpty()) doneBtns = currentRoot.findAccessibilityNodeInfosByText("Enregistrer")
+                                                val doneBtns = mutableListOf<AccessibilityNodeInfo>()
+                                                findNodesByTextContains(currentRoot, "Terminé", doneBtns)
+                                                if (doneBtns.isEmpty()) findNodesByTextContains(currentRoot, "Done", doneBtns)
+                                                if (doneBtns.isEmpty()) findNodesByTextContains(currentRoot, "حفظ", doneBtns)
+                                                if (doneBtns.isEmpty()) findNodesByTextContains(currentRoot, "Enregistrer", doneBtns)
                                                 
-                                                if (!doneBtns.isNullOrEmpty()) {
+                                                if (doneBtns.isNotEmpty()) {
                                                     val doneBtn = doneBtns[0]
                                                     if (doneBtn.isClickable) doneBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                                                 }
                                                 delay(1000)
                                             }
                                         }
-                                        root3 = rootInActiveWindow ?: root3
+                                        // Refresh root3 after closing options by scanning windows again
+                                        for (window in windows) {
+                                            val w = window.root
+                                            if (w != null) {
+                                                val tests = mutableListOf<AccessibilityNodeInfo>()
+                                                findNodesByTextContains(w, "Moto", tests)
+                                                if (tests.isNotEmpty()) {
+                                                    root3 = w
+                                                    break
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
