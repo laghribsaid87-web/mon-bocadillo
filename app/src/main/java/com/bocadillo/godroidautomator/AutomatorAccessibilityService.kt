@@ -2560,6 +2560,19 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 attempts++
                             }
 
+                            if (root3 == null) {
+                                Log.e("GoDroid_Dump", "--- ÉCHEC DE DÉTECTION DU BOTTOM SHEET, DUMP DE TOUTES LES FENÊTRES ---")
+                                val allWindows = windows
+                                for ((index, window) in allWindows.withIndex()) {
+                                    val wRoot = window.root
+                                    if (wRoot != null) {
+                                        Log.e("GoDroid_Dump", "FENÊTRE [$index] :")
+                                        dumpNodeTree(wRoot, 0)
+                                    }
+                                }
+                                Log.e("GoDroid_Dump", "--- FIN DU DUMP TOTAL ---")
+                            }
+
                             if (root3 != null) {
                                 // Faire un Dump (Scan) du Nœud
                                 Log.d("GoDroid_Dump", "--- DUMP BOTTOM SHEET ---")
