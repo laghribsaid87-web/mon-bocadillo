@@ -2538,23 +2538,34 @@ class AutomatorAccessibilityService : AccessibilityService() {
                             // Étape 3: Choisir Moto et baisser le prix
                             Journal.log("Étape 3: Configuration de l'offre...")
                             
-                            // Wait for the offers screen to fully load (up to 15 seconds)
-                            var root3 = rootInActiveWindow
+                            // NOUVEAU: Scan de 'windows' pour trouver la BottomSheet
+                            var root3: AccessibilityNodeInfo? = null
                             var attempts = 0
-                            var submitBtns: List<AccessibilityNodeInfo>? = null
                             while(attempts < 15) {
-                                if (root3 != null) {
-                                    submitBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/form_button_submit_facelift")
-                                    if (!submitBtns.isNullOrEmpty()) {
-                                        break
+                                val allWindows = windows
+                                for (window in allWindows) {
+                                    val wRoot = window.root
+                                    if (wRoot != null) {
+                                        val mNodes = wRoot.findAccessibilityNodeInfosByText("Moto")
+                                        val tNodes = wRoot.findAccessibilityNodeInfosByText("Trouver un chauffeur")
+                                        val cNodes = wRoot.findAccessibilityNodeInfosByText("Chercher des offres")
+                                        if (mNodes.isNotEmpty() || tNodes.isNotEmpty() || cNodes.isNotEmpty()) {
+                                            root3 = wRoot
+                                            break
+                                        }
                                     }
                                 }
+                                if (root3 != null) break
                                 delay(1000)
-                                root3 = rootInActiveWindow
                                 attempts++
                             }
 
                             if (root3 != null) {
+                                // Faire un Dump (Scan) du Nœud
+                                Log.d("GoDroid_Dump", "--- DUMP BOTTOM SHEET ---")
+                                dumpNodeTree(root3, 0)
+                                Log.d("GoDroid_Dump", "--- FIN DUMP ---")
+
                                 // CORRECTION 2: Sélectionner Moto
                                 var motoNodes = root3.findAccessibilityNodeInfosByText("Moto")
                                 if (motoNodes.isNullOrEmpty()) motoNodes = root3.findAccessibilityNodeInfosByText("Motorcycle")
@@ -2633,10 +2644,13 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 }
 
                                 // 3.3 Chercher des offres
-                                submitBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/form_button_submit_facelift")
+                                var submitBtns = root3.findAccessibilityNodeInfosByViewId("sinet.startup.inDriver:id/form_button_submit_facelift")
+                                if (submitBtns.isNullOrEmpty()) submitBtns = root3.findAccessibilityNodeInfosByText("Trouver un chauffeur")
+                                if (submitBtns.isNullOrEmpty()) submitBtns = root3.findAccessibilityNodeInfosByText("Chercher des offres")
+                                
                                 if (!submitBtns.isNullOrEmpty()) {
                                     val submitBtn = submitBtns[0]
-                                    Journal.log("Clic sur 'Chercher des offres'...")
+                                    Journal.log("Clic sur 'Chercher des offres / Trouver un chauffeur'...")
                                     if (submitBtn.isClickable) {
                                         submitBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                                     } else {
