@@ -2753,6 +2753,86 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                     } else {
                                         submitBtn.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                                     }
+                                    
+                                    // CORRECTION 5: Boucle de surveillance des offres et acceptation automatique
+                                    Journal.log("Attente des offres des chauffeurs (3 min max)...")
+                                    val monitorStartTime = System.currentTimeMillis()
+                                    var offerAccepted = false
+                                    
+                                    while (System.currentTimeMillis() - monitorStartTime < 180000 && !offerAccepted) {
+                                        delay(2000)
+                                        val bids = mutableListOf<AccessibilityNodeInfo>()
+                                        for (window in windows) {
+                                            val w = window.root
+                                            if (w != null) {
+                                                findNodesByIdSuffix(w, "passenger_radar_item_bid_cardview", bids)
+                                            }
+                                        }
+                                        
+                                        if (bids.isNotEmpty()) {
+                                            var bestBid: AccessibilityNodeInfo? = null
+                                            var bestPrice = Float.MAX_VALUE
+                                            var bestEta = Int.MAX_VALUE
+                                            
+                                            for (bid in bids) {
+                                                // Extraire le prix
+                                                val priceNodes = mutableListOf<AccessibilityNodeInfo>()
+                                                findNodesByIdSuffix(bid, "price", priceNodes)
+                                                var p = Float.MAX_VALUE
+                                                if (priceNodes.isNotEmpty()) {
+                                                    val text = priceNodes[0].text?.toString() ?: ""
+                                                    val cleanText = text.replace(Regex("[^0-9,.]"), "").replace(",", ".")
+                                                    p = cleanText.toFloatOrNull() ?: Float.MAX_VALUE
+                                                }
+                                                
+                                                // Extraire l'ETA
+                                                var e = Int.MAX_VALUE
+                                                val minNodes = mutableListOf<AccessibilityNodeInfo>()
+                                                findNodesByTextContains(bid, "min", minNodes)
+                                                if (minNodes.isNotEmpty()) {
+                                                    val text = minNodes[0].text?.toString() ?: ""
+                                                    val cleanText = text.replace(Regex("[^0-9]"), "")
+                                                    e = cleanText.toIntOrNull() ?: Int.MAX_VALUE
+                                                }
+                                                
+                                                val requestedPriceFloat = price.toFloatOrNull() ?: 50.0f
+                                                
+                                                // Le prix de l'offre doit être <= au prix demandé
+                                                if (p <= requestedPriceFloat) {
+                                                    if (p < bestPrice) {
+                                                        bestPrice = p
+                                                        bestEta = e
+                                                        bestBid = bid
+                                                    } else if (p == bestPrice && e < bestEta) {
+                                                        bestEta = e
+                                                        bestBid = bid
+                                                    }
+                                                }
+                                            }
+                                            
+                                            if (bestBid != null) {
+                                                Journal.log("Meilleure offre sélectionnée: $bestPrice MAD, $bestEta min. Tentative d'acceptation...")
+                                                val acceptNodes = mutableListOf<AccessibilityNodeInfo>()
+                                                findNodesByIdSuffix(bestBid, "acceptButton", acceptNodes)
+                                                if (acceptNodes.isNotEmpty()) {
+                                                    val acceptBtn = acceptNodes[0]
+                                                    if (acceptBtn.isClickable) {
+                                                        acceptBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                                        Journal.log("Offre acceptée avec succès!")
+                                                        offerAccepted = true
+                                                    } else {
+                                                        acceptBtn.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                                        Journal.log("Offre acceptée avec succès!")
+                                                        offerAccepted = true
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (!offerAccepted) {
+                                        Journal.log("Aucune offre n'a été acceptée après 3 minutes.")
+                                    }
                                 } else {
                                     Journal.log("Bouton 'Chercher des offres' introuvable.")
                                 }
