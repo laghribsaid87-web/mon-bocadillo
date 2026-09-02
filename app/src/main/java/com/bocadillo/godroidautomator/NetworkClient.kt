@@ -215,7 +215,7 @@ object NetworkClient {
                                 try {
                                     val instant = java.time.Instant.parse(createTimeStr)
                                     val now = java.time.Instant.now()
-                                    if (java.time.Duration.between(instant, now).seconds > 3600) {
+                                    if (java.time.Duration.between(instant, now).seconds > 600) {
                                         isTooOld = true
                                     }
                                 } catch (e: Exception) {}
@@ -347,7 +347,7 @@ object NetworkClient {
                                     if (duration.seconds < 60) {
                                         isOldEnough = false
                                     }
-                                    if (duration.seconds > 3600) {
+                                    if (duration.seconds > 600) {
                                         isTooOld = true
                                     }
                                 } catch (e: Exception) {}
@@ -473,7 +473,7 @@ object NetworkClient {
                                 try {
                                     val instant = java.time.Instant.parse(createTimeStr)
                                     val now = java.time.Instant.now()
-                                    if (java.time.Duration.between(instant, now).seconds > 3600) {
+                                    if (java.time.Duration.between(instant, now).seconds > 600) {
                                         isTooOld = true
                                     }
                                 } catch (e: Exception) {}
