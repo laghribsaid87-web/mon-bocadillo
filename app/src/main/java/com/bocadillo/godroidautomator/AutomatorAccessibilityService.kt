@@ -2797,8 +2797,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                                 
                                                 val requestedPriceFloat = price.toFloatOrNull() ?: 50.0f
                                                 
-                                                // Le prix de l'offre doit être <= au prix demandé
-                                                if (p <= requestedPriceFloat) {
+                                                // Le prix de l'offre ne doit jamais dépasser 10 DH !
+                                                if (p <= 10.0f) {
                                                     if (p < bestPrice) {
                                                         bestPrice = p
                                                         bestEta = e
