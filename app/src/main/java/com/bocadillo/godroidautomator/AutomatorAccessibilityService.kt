@@ -2654,7 +2654,8 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                 // CORRECTION 4: Ajouter la remarque / Tél (Options) pour le livreur
                                 if (phone.isNotEmpty()) {
                                     val optionNodes = mutableListOf<AccessibilityNodeInfo>()
-                                    findNodesByIdSuffix(root3, "sbs_options_button", optionNodes)
+                                    findNodesByIdSuffix(root3, "form_button_options", optionNodes)
+                                    if (optionNodes.isEmpty()) findNodesByIdSuffix(root3, "sbs_options_button", optionNodes)
                                     if (optionNodes.isEmpty()) findNodesByTextContains(root3, "Options", optionNodes)
                                     if (optionNodes.isEmpty()) findNodesByTextContains(root3, "Commentaire", optionNodes)
                                     
@@ -2667,10 +2668,25 @@ class AutomatorAccessibilityService : AccessibilityService() {
                                         }
                                         delay(1500)
                                         
-                                        val currentRoot = rootInActiveWindow
+                                        var currentRoot: AccessibilityNodeInfo? = null
+                                        for (window in windows) {
+                                            val w = window.root
+                                            if (w != null) {
+                                                val tmp = mutableListOf<AccessibilityNodeInfo>()
+                                                findNodesByIdSuffix(w, "comment_input", tmp)
+                                                if (tmp.isNotEmpty()) {
+                                                    currentRoot = w
+                                                    break
+                                                }
+                                            }
+                                        }
+                                        if (currentRoot == null) currentRoot = rootInActiveWindow
                                         if (currentRoot != null) {
                                             val commentFields = mutableListOf<AccessibilityNodeInfo>()
                                             findNodesByIdSuffix(currentRoot, "comment_input", commentFields)
+                                            if (commentFields.isEmpty()) {
+                                                findAllEditableFields(currentRoot, commentFields)
+                                            }
                                             if (commentFields.isNotEmpty()) {
                                                 val cField = commentFields[0]
                                                 val args = android.os.Bundle()
